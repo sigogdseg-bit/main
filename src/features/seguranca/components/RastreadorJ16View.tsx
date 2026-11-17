@@ -5263,7 +5263,7 @@ export function RastreadorJ16View() {
                       setFiltroModelo("todos");
                       setPaginaAtual(1);
                     }}
-                    className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
                       filtroModelo === "todos"
                         ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
                         : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
@@ -5276,13 +5276,17 @@ export function RastreadorJ16View() {
                     onClick={() => {
                       setFiltroModelo("j16");
                       setPaginaAtual(1);
+                      aplicarPadraoDoSistema();
+                      toast.info(
+                        "Filtrado por J16 4G: Grade de parâmetros e comandos comutada para protocolo GT06.",
+                      );
                     }}
-                    className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
                       filtroModelo === "j16"
                         ? "bg-orange-500 text-white shadow-xs"
                         : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                     }`}
-                    title="Filtrar estritamente rastreadores modelo J16 4G"
+                    title="Filtrar rastreadores modelo J16 4G e carregar comandos GT06"
                   >
                     Somente J16
                   </button>
@@ -5291,13 +5295,26 @@ export function RastreadorJ16View() {
                     onClick={() => {
                       setFiltroModelo("g900l");
                       setPaginaAtual(1);
+                      const senha = (senhaDispositivoPadrao || "123456").trim() || "123456";
+                      setStatusComando(`status${senha}`);
+                      setParamComando(`check${senha}`);
+                      setResetFinalCmd(`reset${senha}`);
+                      setBateriaCortadaCmd(`extpower${senha} on`);
+                      setBateriaFracaCmd(`lowbattery${senha} on`);
+                      setSenalmCmd(`shock${senha} on`);
+                      setAlertaGuinchoCmd(`move${senha} 0200`);
+                      setAlertaIgnicaoImediataCmd(`acc${senha} on`);
+                      setSleepMtkCmd(`sleep${senha} shock`);
+                      toast.info(
+                        "Filtrado por G900L: Grade de parâmetros e comandos comutada automaticamente para protocolo Coban.",
+                      );
                     }}
-                    className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
                       filtroModelo === "g900l"
                         ? "bg-blue-600 text-white shadow-xs"
                         : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                     }`}
-                    title="Filtrar rastreadores modelo G900L"
+                    title="Filtrar rastreadores modelo G900L e carregar comandos Coban"
                   >
                     Somente G900L
                   </button>
