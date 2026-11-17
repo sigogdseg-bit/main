@@ -20,6 +20,9 @@ describe("Agrupamento Tático de Veículos e Enquadramento da Frota", () => {
       status_operacional: "em_rota",
       tipo_veiculo: "camionete",
       cliente_nome: "Cliente A",
+      cliente_id: "c1",
+      odometro: 1000,
+      ultima_atualizacao: new Date().toISOString(),
     },
     {
       id: "v2",
@@ -33,6 +36,9 @@ describe("Agrupamento Tático de Veículos e Enquadramento da Frota", () => {
       status_operacional: "estacionado",
       tipo_veiculo: "carro",
       cliente_nome: "Cliente A",
+      cliente_id: "c1",
+      odometro: 1000,
+      ultima_atualizacao: new Date().toISOString(),
     },
     {
       id: "v3",
@@ -46,6 +52,9 @@ describe("Agrupamento Tático de Veículos e Enquadramento da Frota", () => {
       status_operacional: "em_rota",
       tipo_veiculo: "caminhao",
       cliente_nome: "Cliente B",
+      cliente_id: "c2",
+      odometro: 2000,
+      ultima_atualizacao: new Date().toISOString(),
     },
   ];
 

@@ -1425,6 +1425,80 @@ export function RastreadorJ16View() {
     const comandos: { cmd: string; nome: string }[] = [];
     const servidorAlvo = usarIpDireto ? ipDedicado : servidorDns;
     const modoServidor = usarIpDireto ? "0" : "1";
+    const senhaAtiva = (senhaDispositivoPadrao || "123456").trim() || "123456";
+
+    // ─────────────────────────────────────────────────────────────
+    // Se o filtro selecionado for G900L (Coban / Cantrack 4G)
+    // Dispara a Sequência Automática Canônica Coban
+    // ─────────────────────────────────────────────────────────────
+    if (filtroModelo === "g900l") {
+      if (
+        parametrosHabilitadosBatch.servidorDns ||
+        parametrosHabilitadosBatch.portaTcp ||
+        parametrosHabilitadosBatch.ipDedicado
+      ) {
+        comandos.push({
+          cmd: `adminip${senhaAtiva} ${servidorAlvo} ${portaTcp}`,
+          nome: `1. Apontar Servidor e Porta G900L (adminip${senhaAtiva} ${servidorAlvo} ${portaTcp})`,
+        });
+      }
+      if (
+        parametrosHabilitadosBatch.apnNome ||
+        parametrosHabilitadosBatch.apnUser ||
+        parametrosHabilitadosBatch.apnPass
+      ) {
+        const apnCmd =
+          apnUser && apnPass
+            ? `apn${senhaAtiva} ${apnNome} ${apnUser} ${apnPass}`
+            : `apn${senhaAtiva} ${apnNome}`;
+        comandos.push({
+          cmd: apnCmd,
+          nome: `2. Configurar APN M2M G900L (${apnCmd})`,
+        });
+      }
+      if (parametrosHabilitadosBatch.timerMovimento || parametrosHabilitadosBatch.timerParado) {
+        const segMov = String(timerMovimento || "30").padStart(3, "0");
+        comandos.push({
+          cmd: `fix${segMov}s***n${senhaAtiva}`,
+          nome: `3. Frequência de Transmissão G900L (fix${segMov}s***n${senhaAtiva})`,
+        });
+      }
+      if (parametrosHabilitadosBatch.hbtLigado || parametrosHabilitadosBatch.hbtDesligado) {
+        comandos.push({
+          cmd: `hbt${senhaAtiva} ${hbtLigado || "300"}`,
+          nome: `4. Heartbeat G900L (hbt${senhaAtiva} ${hbtLigado || "300"})`,
+        });
+      }
+      if (parametrosHabilitadosBatch.gmtUniversal) {
+        comandos.push({
+          cmd: `time zone${senhaAtiva} 0`,
+          nome: `5. Fuso Horário UTC 0 G900L (time zone${senhaAtiva} 0)`,
+        });
+      }
+      if (parametrosHabilitadosBatch.statusDiagnostico) {
+        comandos.push({
+          cmd: `status${senhaAtiva}`,
+          nome: `Status Operacional G900L (status${senhaAtiva})`,
+        });
+      }
+      if (parametrosHabilitadosBatch.paramDiagnostico) {
+        comandos.push({
+          cmd: `check${senhaAtiva}`,
+          nome: `Auditoria de Parâmetros G900L (check${senhaAtiva})`,
+        });
+      }
+      if (parametrosHabilitadosBatch.resetFinal) {
+        comandos.push({
+          cmd: `reset${senhaAtiva}`,
+          nome: `Reinicialização Limpa G900L (reset${senhaAtiva})`,
+        });
+      }
+
+      return comandos.map((c) => ({
+        ...c,
+        cmd: c.cmd.trim(),
+      }));
+    }
 
     // ─────────────────────────────────────────────────────────────
     // BLOCO 1: Conectividade Básica e Nuvem (GPRS / APN / Servidor / Relógio)
@@ -1783,6 +1857,7 @@ export function RastreadorJ16View() {
     numeroCenter,
     senhaDispositivoPadrao,
     senhaDispositivoCmd,
+    filtroModelo,
   ]);
 
   // Copia todos os comandos de hardware atualmente habilitados para a área de transferência
@@ -2831,8 +2906,173 @@ export function RastreadorJ16View() {
     prioridade: "Obrigatório" | "Recomendado" | "Segurança" | "Diagnóstico" | "Opcional";
     categoria: string;
     presets?: { label: string; valor: string }[];
-  }[] = useMemo(
-    () => [
+  }[] = useMemo(() => {
+    const senhaAtiva = (senhaDispositivoPadrao || "123456").trim() || "123456";
+
+    if (filtroModelo === "g900l") {
+      return [
+        {
+          num: 1,
+          titulo: "Conectar Servidor Coban (adminip)",
+          exemplo: `adminip${senhaAtiva} ${servidorAlvo} ${portaTcp}`,
+          desc: `Aponta o rastreador G900L para o servidor ${servidorAlvo}:${portaTcp} via protocolo Coban.`,
+          prioridade: "Obrigatório",
+          categoria: "Conectividade",
+          presets: [
+            {
+              label: `IP Direto (${ipDedicado}:${portaTcp})`,
+              valor: `adminip${senhaAtiva} ${ipDedicado} ${portaTcp}`,
+            },
+            {
+              label: `DNS Oficial (${servidorDns}:${portaTcp})`,
+              valor: `adminip${senhaAtiva} ${servidorDns} ${portaTcp}`,
+            },
+          ],
+        },
+        {
+          num: 2,
+          titulo: "Internet do Chip APN (apn)",
+          exemplo:
+            apnUser && apnPass
+              ? `apn${senhaAtiva} ${apnNome} ${apnUser} ${apnPass}`
+              : `apn${senhaAtiva} ${apnNome}`,
+          desc: "Cadastra a APN da operadora para conexão 4G LTE do G900L.",
+          prioridade: "Obrigatório",
+          categoria: "Conectividade",
+          presets: [
+            {
+              label: `APN Algar/Voxter (${apnNome})`,
+              valor: `apn${senhaAtiva} ${apnNome} ${apnUser} ${apnPass}`,
+            },
+            {
+              label: `APN Simples (${apnNome})`,
+              valor: `apn${senhaAtiva} ${apnNome}`,
+            },
+          ],
+        },
+        {
+          num: 3,
+          titulo: "Intervalo de Transmissão (fix)",
+          exemplo: `fix${String(timerMovimento || "30").padStart(3, "0")}s***n${senhaAtiva}`,
+          desc: `Transmissão contínua em movimento a cada ${timerMovimento || 30} segundos (protocolo Coban).`,
+          prioridade: "Recomendado",
+          categoria: "Telemetria",
+          presets: [
+            {
+              label: "30 segundos (Padrão GD - fix030s***n)",
+              valor: `fix030s***n${senhaAtiva}`,
+            },
+            {
+              label: "15 segundos (Alta Precisão - fix015s***n)",
+              valor: `fix015s***n${senhaAtiva}`,
+            },
+            {
+              label: "60 segundos (Economia - fix060s***n)",
+              valor: `fix060s***n${senhaAtiva}`,
+            },
+            {
+              label: "Cancelar Envio Contínuo (nofix)",
+              valor: `nofix${senhaAtiva}`,
+            },
+          ],
+        },
+        {
+          num: 4,
+          titulo: "Sinal de Presença (hbt)",
+          exemplo: `hbt${senhaAtiva} ${hbtLigado || "300"}`,
+          desc: `Heartbeat a cada ${hbtLigado || 300} segundos para manter a conexão ativa no servidor.`,
+          prioridade: "Recomendado",
+          categoria: "Conectividade",
+          presets: [
+            { label: `300s (5 minutos)`, valor: `hbt${senhaAtiva} 300` },
+            { label: `180s (3 minutos)`, valor: `hbt${senhaAtiva} 180` },
+          ],
+        },
+        {
+          num: 5,
+          titulo: "Fuso Horário UTC Zero (time zone)",
+          exemplo: `time zone${senhaAtiva} 0`,
+          desc: "Sincroniza o relógio do G900L no fuso GMT/UTC 0 canônico da plataforma.",
+          prioridade: "Obrigatório",
+          categoria: "Conectividade",
+          presets: [{ label: "UTC 0 (Padrão Plataforma)", valor: `time zone${senhaAtiva} 0` }],
+        },
+        {
+          num: 6,
+          titulo: "Auditoria Geral de Parâmetros (check)",
+          exemplo: `check${senhaAtiva}`,
+          desc: "Retorna todos os parâmetros gravados na controladora G900L (IP, porta, APN, timers).",
+          prioridade: "Diagnóstico",
+          categoria: "Auditoria",
+          presets: [{ label: "Verificar Parâmetros (check)", valor: `check${senhaAtiva}` }],
+        },
+        {
+          num: 7,
+          titulo: "Status Operacional (status)",
+          exemplo: `status${senhaAtiva}`,
+          desc: "Retorna o estado de alimentação 12V, bateria interna, GPS e sinal celular.",
+          prioridade: "Diagnóstico",
+          categoria: "Auditoria",
+          presets: [{ label: "Consultar Status (status)", valor: `status${senhaAtiva}` }],
+        },
+        {
+          num: 8,
+          titulo: "Consultar IMEI (imei)",
+          exemplo: `imei${senhaAtiva}`,
+          desc: "Consulta o número de série IMEI gravado no firmware G900L.",
+          prioridade: "Diagnóstico",
+          categoria: "Auditoria",
+          presets: [{ label: "Ler IMEI", valor: `imei${senhaAtiva}` }],
+        },
+        {
+          num: 9,
+          titulo: "Localização Maps (G123456#)",
+          exemplo: `G${senhaAtiva}#`,
+          desc: "Retorna link com coordenadas no Google Maps e status imediato.",
+          prioridade: "Diagnóstico",
+          categoria: "Auditoria",
+          presets: [{ label: "Obter Localização", valor: `G${senhaAtiva}#` }],
+        },
+        {
+          num: 10,
+          titulo: "Modo GPRS Ativo (gprs)",
+          exemplo: `gprs${senhaAtiva}`,
+          desc: "Ativa o canal de dados GPRS 4G para transmissão direta à plataforma.",
+          prioridade: "Obrigatório",
+          categoria: "Conectividade",
+          presets: [{ label: "Ativar GPRS", valor: `gprs${senhaAtiva}` }],
+        },
+        {
+          num: 11,
+          titulo: "Bloqueio Veicular (stop)",
+          exemplo: `stop${senhaAtiva}`,
+          desc: "Aciona o corte de combustível/ignição do veículo pelo relé G900L.",
+          prioridade: "Segurança",
+          categoria: "Cadeado Digital",
+          presets: [{ label: "Bloquear Veículo (stop)", valor: `stop${senhaAtiva}` }],
+        },
+        {
+          num: 12,
+          titulo: "Desbloqueio Veicular (resume)",
+          exemplo: `resume${senhaAtiva}`,
+          desc: "Libera o relé permitindo a partida normal do veículo.",
+          prioridade: "Segurança",
+          categoria: "Cadeado Digital",
+          presets: [{ label: "Liberar Veículo (resume)", valor: `resume${senhaAtiva}` }],
+        },
+        {
+          num: 13,
+          titulo: "Reiniciar Rastreador (reset)",
+          exemplo: `reset${senhaAtiva}`,
+          desc: "Reinicia a controladora interna do G900L para aplicar os novos parâmetros.",
+          prioridade: "Obrigatório",
+          categoria: "Hardware",
+          presets: [{ label: "Reiniciar Dispositivo (reset)", valor: `reset${senhaAtiva}` }],
+        },
+      ];
+    }
+
+    return [
       {
         num: 1,
         titulo: "Conectar Servidor (SERVER / DNS)",
@@ -3392,28 +3632,28 @@ export function RastreadorJ16View() {
           { label: "Consultar Alarme (ACCALM#)", valor: "ACCALM#" },
         ],
       },
-    ],
-    [
-      modoServidor,
-      servidorAlvo,
-      portaTcp,
-      usarIpDireto,
-      ipDedicado,
-      servidorDns,
-      apnNome,
-      apnUser,
-      apnPass,
-      timerMovimento,
-      timerParado,
-      hbtLigado,
-      hbtDesligado,
-      anguloIntervalo,
-      anguloGrau,
-      numeroSos,
-      numeroCenter,
-      senhaDispositivoPadrao,
-    ],
-  );
+    ];
+  }, [
+    modoServidor,
+    servidorAlvo,
+    portaTcp,
+    usarIpDireto,
+    ipDedicado,
+    servidorDns,
+    apnNome,
+    apnUser,
+    apnPass,
+    timerMovimento,
+    timerParado,
+    hbtLigado,
+    hbtDesligado,
+    anguloIntervalo,
+    anguloGrau,
+    numeroSos,
+    numeroCenter,
+    senhaDispositivoPadrao,
+    filtroModelo,
+  ]);
 
   // Grupos Canônicos do Catálogo de Comandos J16
   const GRUPOS_COMANDOS: {
@@ -6111,7 +6351,9 @@ export function RastreadorJ16View() {
                 </span>
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    Catálogo de Comandos do Hardware J16
+                    {filtroModelo === "g900l"
+                      ? "Catálogo de Comandos do Hardware G900L (Coban)"
+                      : "Catálogo de Comandos do Hardware J16"}
                   </h2>
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
                     {comandosFiltrados.length} de {catalogoComandos.length}
