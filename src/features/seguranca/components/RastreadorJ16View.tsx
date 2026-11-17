@@ -1199,6 +1199,91 @@ export function RastreadorJ16View() {
     toast.success("Configuração Padrão do Sistema (Padrão Ouro) aplicada com sucesso!");
   };
 
+  // Comuta automaticamente todo o perfil de parâmetros e checkboxes pelo modelo de rastreador
+  const aplicarPerfilModelo = (modelo: "todos" | "j16" | "g900l") => {
+    setFiltroModelo(modelo);
+    setPaginaAtual(1);
+    const senha = (senhaDispositivoPadrao || "123456").trim() || "123456";
+
+    if (modelo === "g900l") {
+      setServidorDns(`adminip${senha} 167.234.233.82 7003`);
+      setPortaTcp("7003");
+      setIpDedicado("167.234.233.82");
+      setUsarIpDireto(true);
+      setApnNome("voxter.br");
+      setApnUser("algar");
+      setApnPass("1212");
+      setTimerMovimento(`fix030s***n${senha}`);
+      setTimerParado("3600");
+      setHbtLigado(`hbt${senha} 300`);
+      setHbtDesligado("300");
+      setGmtComando(`time zone${senha} 0`);
+      setStatusComando(`status${senha}`);
+      setParamComando(`check${senha}`);
+      setRelayConsultaComando(`check${senha}`);
+      setResetFinalCmd(`reset${senha}`);
+      setBateriaCortadaCmd(`extpower${senha} on`);
+      setBateriaFracaCmd(`lowbattery${senha} on`);
+      setSenalmCmd(`shock${senha} on`);
+      setAlertaGuinchoCmd(`move${senha} 0200`);
+      setAlertaIgnicaoImediataCmd(`acc${senha} on`);
+      setSleepMtkCmd(`sleep${senha} shock`);
+      setDefenseCmd(`arm${senha}`);
+
+      // No G900L, habilita apenas parâmetros suportados pelo protocolo Coban e desmarca registradores SZCS da MCU
+      setParametrosHabilitadosBatch({
+        servidorDns: false,
+        portaTcp: true,
+        ipDedicado: true,
+        apnNome: true,
+        apnUser: true,
+        apnPass: true,
+        timerMovimento: true,
+        timerParado: true,
+        hbtLigado: true,
+        hbtDesligado: false,
+        anguloHabilitar: false,
+        anguloIntervalo: false,
+        anguloGrau: false,
+        numeroSos: false,
+        numeroCenter: false,
+        senhaDispositivoPadrao: false,
+        senhaDispositivo: false,
+        ignicaoFisica: false,
+        medicaoInternaMeter: false,
+        voltagemOdometroIexvol: false,
+        sleepMtk: true,
+        sleepGps: false,
+        gmtUniversal: true,
+        ledsDiagnostico: false,
+        paramDiagnostico: false,
+        statusDiagnostico: false,
+        relayDiagnostico: false,
+        alertaGuincho: true,
+        defenseAlarme: true,
+        senalmVibracao: true,
+        bateriaFraca: true,
+        bateriaCortada: true,
+        alertaIgnicaoImediata: true,
+        modoVeiculoSleep: false,
+        economiaParada: false,
+        sensorGSensibilidade: false,
+        resetFinal: true,
+      });
+
+      toast.info(
+        "Perfil G900L aplicado: Grade de parâmetros, filtros e comandos comutada automaticamente para protocolo Coban.",
+      );
+    } else if (modelo === "j16") {
+      aplicarPadraoDoSistema();
+      toast.info(
+        "Perfil J16 4G aplicado: Grade de parâmetros, filtros e comandos comutada automaticamente para protocolo GT06.",
+      );
+    } else {
+      toast.info("Visualização de todos os modelos ativa.");
+    }
+  };
+
   // Salva especificamente a senha padrão do dispositivo no sistema e nos parâmetros
   const handleSalvarSenhaDispositivoPadrao = (novaSenha: string) => {
     const sess = obterSessaoCacheada();
@@ -4352,6 +4437,44 @@ export function RastreadorJ16View() {
                     <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 whitespace-nowrap">
                       {totalComandosAtivos} COMANDOS NO BATCH
                     </span>
+                    {/* Seletor Rápido de Perfil de Hardware na Grade */}
+                    <div className="flex items-center gap-1 bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-300 dark:border-slate-700 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => aplicarPerfilModelo("todos")}
+                        className={`px-2 py-0.5 rounded-lg font-bold transition cursor-pointer ${
+                          filtroModelo === "todos"
+                            ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        Todos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => aplicarPerfilModelo("j16")}
+                        className={`px-2 py-0.5 rounded-lg font-bold transition cursor-pointer ${
+                          filtroModelo === "j16"
+                            ? "bg-orange-500 text-white shadow-xs"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                        title="Aplicar Padrão J16 (GT06) em todos os parâmetros"
+                      >
+                        J16 (GT06)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => aplicarPerfilModelo("g900l")}
+                        className={`px-2 py-0.5 rounded-lg font-bold transition cursor-pointer ${
+                          filtroModelo === "g900l"
+                            ? "bg-blue-600 text-white shadow-xs"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                        title="Aplicar Padrão G900L (Coban) em todos os parâmetros"
+                      >
+                        G900L (Coban)
+                      </button>
+                    </div>
                   </div>
                   <span className="text-[11px] text-slate-400 font-medium block">
                     Marque os checkboxes para habilitar ou não o envio de cada comando
@@ -5259,10 +5382,7 @@ export function RastreadorJ16View() {
                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] shrink-0">
                   <button
                     type="button"
-                    onClick={() => {
-                      setFiltroModelo("todos");
-                      setPaginaAtual(1);
-                    }}
+                    onClick={() => aplicarPerfilModelo("todos")}
                     className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
                       filtroModelo === "todos"
                         ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
@@ -5273,14 +5393,7 @@ export function RastreadorJ16View() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setFiltroModelo("j16");
-                      setPaginaAtual(1);
-                      aplicarPadraoDoSistema();
-                      toast.info(
-                        "Filtrado por J16 4G: Grade de parâmetros e comandos comutada para protocolo GT06.",
-                      );
-                    }}
+                    onClick={() => aplicarPerfilModelo("j16")}
                     className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
                       filtroModelo === "j16"
                         ? "bg-orange-500 text-white shadow-xs"
@@ -5292,23 +5405,7 @@ export function RastreadorJ16View() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setFiltroModelo("g900l");
-                      setPaginaAtual(1);
-                      const senha = (senhaDispositivoPadrao || "123456").trim() || "123456";
-                      setStatusComando(`status${senha}`);
-                      setParamComando(`check${senha}`);
-                      setResetFinalCmd(`reset${senha}`);
-                      setBateriaCortadaCmd(`extpower${senha} on`);
-                      setBateriaFracaCmd(`lowbattery${senha} on`);
-                      setSenalmCmd(`shock${senha} on`);
-                      setAlertaGuinchoCmd(`move${senha} 0200`);
-                      setAlertaIgnicaoImediataCmd(`acc${senha} on`);
-                      setSleepMtkCmd(`sleep${senha} shock`);
-                      toast.info(
-                        "Filtrado por G900L: Grade de parâmetros e comandos comutada automaticamente para protocolo Coban.",
-                      );
-                    }}
+                    onClick={() => aplicarPerfilModelo("g900l")}
                     className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
                       filtroModelo === "g900l"
                         ? "bg-blue-600 text-white shadow-xs"
@@ -5995,118 +6092,162 @@ export function RastreadorJ16View() {
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="flex items-center justify-end gap-1">
-                              {/* STATUS# */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  dispararAcaoRapida(disp.imei, "STATUS#", "Consulta STATUS#")
-                                }
-                                title="STATUS#: Consulta passiva de bateria, GSM e satélites"
-                                className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
-                              >
-                                STATUS
-                              </button>
+                              {(() => {
+                                const mod = (disp.modelo || "").toLowerCase();
+                                const ehG900L =
+                                  mod.includes("g900") ||
+                                  mod.includes("coban") ||
+                                  mod.includes("cantrack");
+                                const senha =
+                                  (senhaDispositivoPadrao || "123456").trim() || "123456";
+                                const cmdStatus = ehG900L ? `status${senha}` : "STATUS#";
+                                const cmdParam = ehG900L ? `check${senha}` : "PARAM#";
+                                const cmdRelayConsulta = ehG900L ? `check${senha}` : "RELAY#";
+                                const cmdReset = ehG900L ? `reset${senha}` : "RESET#";
+                                const cmdReleDesbloqueio = ehG900L ? `resume${senha}` : "RELAY,0";
+                                const cmdReleBloqueio = ehG900L ? `stop${senha}` : "RELAY,1";
 
-                              {/* PARAM# */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  dispararAcaoRapida(disp.imei, "PARAM#", "Consulta PARAM#")
-                                }
-                                title="PARAM#: Leitura dos parâmetros EEPROM gravados na flash"
-                                className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
-                              >
-                                PARAM
-                              </button>
+                                return (
+                                  <>
+                                    {/* STATUS */}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        dispararAcaoRapida(
+                                          disp.imei,
+                                          cmdStatus,
+                                          `Consulta ${cmdStatus}`,
+                                        )
+                                      }
+                                      title={`${cmdStatus}: Consulta passiva de bateria, GSM e satélites`}
+                                      className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
+                                    >
+                                      STATUS
+                                    </button>
 
-                              {/* RELAY# */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  dispararAcaoRapida(disp.imei, "RELAY#", "Consulta RELAY#")
-                                }
-                                title="RELAY#: Consulta estado elétrico do relé"
-                                className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
-                              >
-                                RELÉ?
-                              </button>
+                                    {/* PARAM / CHECK */}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        dispararAcaoRapida(
+                                          disp.imei,
+                                          cmdParam,
+                                          `Consulta ${cmdParam}`,
+                                        )
+                                      }
+                                      title={`${cmdParam}: Leitura dos parâmetros gravados na flash`}
+                                      className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
+                                    >
+                                      {ehG900L ? "CHECK" : "PARAM"}
+                                    </button>
 
-                              {/* METER (Ativar medição interna) */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  dispararAcaoRapida(
-                                    disp.imei,
-                                    "SZCS#GT06SEL=1#GT06METER=1",
-                                    "Ativar Odômetro MCU",
-                                  )
-                                }
-                                title="SZCS#GT06SEL=1#GT06METER=1: Ativa cálculo interno de odômetro MCU"
-                                className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition cursor-pointer active:scale-95"
-                              >
-                                METER
-                              </button>
+                                    {/* RELÉ? */}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        dispararAcaoRapida(
+                                          disp.imei,
+                                          cmdRelayConsulta,
+                                          `Consulta ${cmdRelayConsulta}`,
+                                        )
+                                      }
+                                      title={`${cmdRelayConsulta}: Consulta estado elétrico do relé`}
+                                      className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
+                                    >
+                                      RELÉ?
+                                    </button>
 
-                              {/* MILEAGE# (Consultar Odômetro) */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  dispararAcaoRapida(disp.imei, "MILEAGE#", "Consulta MILEAGE#")
-                                }
-                                title="MILEAGE#: Consulta quilometragem acumulada no chip J16"
-                                className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition cursor-pointer active:scale-95"
-                              >
-                                KM?
-                              </button>
+                                    {/* METER (Somente GT06/J16) */}
+                                    {!ehG900L && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          dispararAcaoRapida(
+                                            disp.imei,
+                                            "SZCS#GT06SEL=1#GT06METER=1",
+                                            "Ativar Odômetro MCU",
+                                          )
+                                        }
+                                        title="SZCS#GT06SEL=1#GT06METER=1: Ativa cálculo interno de odômetro MCU"
+                                        className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition cursor-pointer active:scale-95"
+                                      >
+                                        METER
+                                      </button>
+                                    )}
 
-                              {/* BLOQUEIO / DESBLOQUEIO */}
-                              {disp.releStatus ||
-                              disp.bloqueado ||
-                              disp.parametrosAuditados?.relay === "1" ? (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    dispararAcaoRapida(
-                                      disp.imei,
-                                      "RELAY,0",
-                                      "Desbloquear Veículo",
-                                      disp.veiculoId,
-                                    )
-                                  }
-                                  title="RELAY,0: Desbloquear veículo / Restaurar combustível"
-                                  className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-orange-500 hover:bg-orange-600 text-slate-950 transition cursor-pointer active:scale-95 flex items-center gap-1 shadow-xs"
-                                >
-                                  <Unlock className="h-2.5 w-2.5" /> LIBERAR
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    dispararAcaoRapida(
-                                      disp.imei,
-                                      "RELAY,1",
-                                      "Bloquear Veículo",
-                                      disp.veiculoId,
-                                    )
-                                  }
-                                  title="RELAY,1: Cortar combustível / Bloquear veículo"
-                                  className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-rose-500 hover:bg-rose-600 text-white transition cursor-pointer active:scale-95 flex items-center gap-1 shadow-xs"
-                                >
-                                  <Lock className="h-2.5 w-2.5" /> CORTAR
-                                </button>
-                              )}
+                                    {/* KM? */}
+                                    {!ehG900L && (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          dispararAcaoRapida(
+                                            disp.imei,
+                                            "MILEAGE#",
+                                            "Consulta MILEAGE#",
+                                          )
+                                        }
+                                        title="MILEAGE#: Consulta quilometragem acumulada no chip J16"
+                                        className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition cursor-pointer active:scale-95"
+                                      >
+                                        KM?
+                                      </button>
+                                    )}
 
-                              {/* RESET# */}
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  dispararAcaoRapida(disp.imei, "RESET#", "Reiniciar Hardware")
-                                }
-                                title="RESET#: Reiniciar modem/microcontrolador J16 à distância"
-                                className="p-1 rounded-md text-slate-400 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer active:scale-95"
-                              >
-                                <RotateCcw className="h-3.5 w-3.5" />
-                              </button>
+                                    {/* BLOQUEIO / DESBLOQUEIO */}
+                                    {disp.releStatus ||
+                                    disp.bloqueado ||
+                                    disp.parametrosAuditados?.relay === "1" ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          dispararAcaoRapida(
+                                            disp.imei,
+                                            cmdReleDesbloqueio,
+                                            "Desbloquear Veículo",
+                                            disp.veiculoId,
+                                          )
+                                        }
+                                        title={`${cmdReleDesbloqueio}: Desbloquear veículo / Restaurar combustível`}
+                                        className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-orange-500 hover:bg-orange-600 text-slate-950 transition cursor-pointer active:scale-95 flex items-center gap-1 shadow-xs"
+                                      >
+                                        <Unlock className="h-2.5 w-2.5" /> LIBERAR
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          dispararAcaoRapida(
+                                            disp.imei,
+                                            cmdReleBloqueio,
+                                            "Bloquear Veículo",
+                                            disp.veiculoId,
+                                          )
+                                        }
+                                        title={`${cmdReleBloqueio}: Cortar combustível / Bloquear veículo`}
+                                        className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-rose-500 hover:bg-rose-600 text-white transition cursor-pointer active:scale-95 flex items-center gap-1 shadow-xs"
+                                      >
+                                        <Lock className="h-2.5 w-2.5" /> CORTAR
+                                      </button>
+                                    )}
+
+                                    {/* RESET */}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        dispararAcaoRapida(
+                                          disp.imei,
+                                          cmdReset,
+                                          "Reiniciar Hardware",
+                                        )
+                                      }
+                                      title={`${cmdReset}: Reiniciar microcontrolador à distância`}
+                                      className="p-1 rounded-md text-slate-400 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer active:scale-95"
+                                    >
+                                      <RotateCcw className="h-3.5 w-3.5" />
+                                    </button>
+                                  </>
+                                );
+                              })()}
 
                               {/* TODAS AS FUNÇÕES (MODAL) */}
                               <button
@@ -6284,96 +6425,127 @@ export function RastreadorJ16View() {
                         className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/60"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <button
-                          type="button"
-                          onClick={() =>
-                            dispararAcaoRapida(disp.imei, "STATUS#", "Consulta STATUS#")
-                          }
-                          className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
-                        >
-                          STATUS#
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => dispararAcaoRapida(disp.imei, "PARAM#", "Consulta PARAM#")}
-                          className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
-                        >
-                          PARAM#
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => dispararAcaoRapida(disp.imei, "RELAY#", "Consulta RELAY#")}
-                          className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
-                        >
-                          RELAY#
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            dispararAcaoRapida(
-                              disp.imei,
-                              "SZCS#GT06SEL=1#GT06METER=1",
-                              "Ativar Odômetro MCU",
-                            )
-                          }
-                          title="SZCS#GT06SEL=1#GT06METER=1: Ativa cálculo interno de odômetro MCU"
-                          className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition cursor-pointer active:scale-95"
-                        >
-                          METER
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            dispararAcaoRapida(disp.imei, "MILEAGE#", "Consulta MILEAGE#")
-                          }
-                          title="MILEAGE#: Consulta quilometragem acumulada no chip J16"
-                          className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition cursor-pointer active:scale-95"
-                        >
-                          KM?
-                        </button>
-                        {disp.releStatus ||
-                        disp.bloqueado ||
-                        disp.parametrosAuditados?.relay === "1" ? (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              dispararAcaoRapida(
-                                disp.imei,
-                                "RELAY,0",
-                                "Desbloquear Veículo",
-                                disp.veiculoId,
-                              )
-                            }
-                            className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-orange-500 hover:bg-orange-600 text-slate-950 transition cursor-pointer active:scale-95 flex items-center gap-1"
-                          >
-                            <Unlock className="h-2.5 w-2.5" /> LIBERAR
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              dispararAcaoRapida(
-                                disp.imei,
-                                "RELAY,1",
-                                "Bloquear Veículo",
-                                disp.veiculoId,
-                              )
-                            }
-                            className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-rose-500 hover:bg-rose-600 text-white transition cursor-pointer active:scale-95 flex items-center gap-1"
-                          >
-                            <Lock className="h-2.5 w-2.5" /> CORTAR
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            dispararAcaoRapida(disp.imei, "RESET#", "Reiniciar Hardware")
-                          }
-                          title="Reiniciar rastreador"
-                          className="p-1 rounded-md text-slate-400 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer active:scale-95"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        </button>
+                        {(() => {
+                          const mod = (disp.modelo || "").toLowerCase();
+                          const ehG900L =
+                            mod.includes("g900") ||
+                            mod.includes("coban") ||
+                            mod.includes("cantrack");
+                          const senha = (senhaDispositivoPadrao || "123456").trim() || "123456";
+                          const cmdStatus = ehG900L ? `status${senha}` : "STATUS#";
+                          const cmdParam = ehG900L ? `check${senha}` : "PARAM#";
+                          const cmdRelayConsulta = ehG900L ? `check${senha}` : "RELAY#";
+                          const cmdReset = ehG900L ? `reset${senha}` : "RESET#";
+                          const cmdReleDesbloqueio = ehG900L ? `resume${senha}` : "RELAY,0";
+                          const cmdReleBloqueio = ehG900L ? `stop${senha}` : "RELAY,1";
+
+                          return (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  dispararAcaoRapida(disp.imei, cmdStatus, `Consulta ${cmdStatus}`)
+                                }
+                                className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
+                              >
+                                {cmdStatus}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  dispararAcaoRapida(disp.imei, cmdParam, `Consulta ${cmdParam}`)
+                                }
+                                className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
+                              >
+                                {cmdParam}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  dispararAcaoRapida(
+                                    disp.imei,
+                                    cmdRelayConsulta,
+                                    `Consulta ${cmdRelayConsulta}`,
+                                  )
+                                }
+                                className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition cursor-pointer active:scale-95"
+                              >
+                                {cmdRelayConsulta}
+                              </button>
+                              {!ehG900L && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    dispararAcaoRapida(
+                                      disp.imei,
+                                      "SZCS#GT06SEL=1#GT06METER=1",
+                                      "Ativar Odômetro MCU",
+                                    )
+                                  }
+                                  title="SZCS#GT06SEL=1#GT06METER=1: Ativa cálculo interno de odômetro MCU"
+                                  className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition cursor-pointer active:scale-95"
+                                >
+                                  METER
+                                </button>
+                              )}
+                              {!ehG900L && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    dispararAcaoRapida(disp.imei, "MILEAGE#", "Consulta MILEAGE#")
+                                  }
+                                  title="MILEAGE#: Consulta quilometragem acumulada no chip J16"
+                                  className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition cursor-pointer active:scale-95"
+                                >
+                                  KM?
+                                </button>
+                              )}
+                              {disp.releStatus ||
+                              disp.bloqueado ||
+                              disp.parametrosAuditados?.relay === "1" ? (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    dispararAcaoRapida(
+                                      disp.imei,
+                                      cmdReleDesbloqueio,
+                                      "Desbloquear Veículo",
+                                      disp.veiculoId,
+                                    )
+                                  }
+                                  className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-orange-500 hover:bg-orange-600 text-slate-950 transition cursor-pointer active:scale-95 flex items-center gap-1"
+                                >
+                                  <Unlock className="h-2.5 w-2.5" /> LIBERAR
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    dispararAcaoRapida(
+                                      disp.imei,
+                                      cmdReleBloqueio,
+                                      "Bloquear Veículo",
+                                      disp.veiculoId,
+                                    )
+                                  }
+                                  className="px-2 py-1 rounded-md text-[10px] font-mono font-bold bg-rose-500 hover:bg-rose-600 text-white transition cursor-pointer active:scale-95 flex items-center gap-1"
+                                >
+                                  <Lock className="h-2.5 w-2.5" /> CORTAR
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  dispararAcaoRapida(disp.imei, cmdReset, "Reiniciar Hardware")
+                                }
+                                title="Reiniciar rastreador"
+                                className="p-1 rounded-md text-slate-400 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer active:scale-95"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          );
+                        })()}
                         <button
                           type="button"
                           onClick={() => setDispositivoModalComandos(disp)}
