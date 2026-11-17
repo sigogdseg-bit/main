@@ -68,26 +68,24 @@ export function sanitizarComandoHardware(cmd: string): string {
       upper.startsWith("RELAY,") || upper.startsWith("DYD") || upper.startsWith("HFYD");
 
     // Comandos de protocolo Coban / G900L / AT Hayes NUNCA devem ter '#' forçado no final
-    const isCobanOuAt =
-      upper.startsWith("ADMINIP") ||
-      upper.startsWith("APN1") ||
-      upper.startsWith("FIX") ||
-      upper.startsWith("NOFIX") ||
-      upper.startsWith("HBT1") ||
-      upper.startsWith("TIME ZONE") ||
-      upper.startsWith("CHECK") ||
-      upper.startsWith("STATUS1") ||
-      upper.startsWith("IMEI1") ||
-      upper.startsWith("GPRS1") ||
-      upper.startsWith("STOP1") ||
-      upper.startsWith("RESUME1") ||
-      upper.startsWith("RESET1") ||
+    // Coban utiliza senhas de 4 a 6 dígitos diretamente anexadas ao comando (ex: check123456, status123456, adminip123456, etc.)
+    // ou sintaxe específica de telemetria Coban (fix030s***n, time zone, etc.)
+    const semHashUpper = upper.replace(/#+$/, "");
+    const isCobanComSenha =
+      /^(ADMINIP|APN|HBT|CHECK|STATUS|IMEI|GPRS|STOP|RESUME|RESET|EXTPOWER|LOWBATTERY|SHOCK|MOVE|ACC|SLEEP|SPEED|BEGIN|DEACTIVATE|PASSWORD)\d{4,6}(\s|$)/i.test(
+        semHashUpper,
+      );
+    const isCobanSintaxe =
+      /^(FIX\d{3}s\*\*\*n|NOFIX|TIME\s*ZONE\d*|G\d{4,6}#?|LESS\s*GPRS|NOGPRS|TCP|UDP|ARM|DISARM)/i.test(
+        semHashUpper,
+      );
+    const isAtHayes =
       upper.startsWith("AT") ||
       upper.startsWith("AT+") ||
       upper.startsWith("ATI") ||
       upper.startsWith("ATE");
 
-    if (isRelayAcaoOuCorte || isCobanOuAt) {
+    if (isRelayAcaoOuCorte || isCobanComSenha || isCobanSintaxe || isAtHayes) {
       // Comandos de ação de relé/corte e protocolo Coban/AT NUNCA levam '#' no final
       while (limpo.endsWith("#")) {
         limpo = limpo.slice(0, -1).trim();
