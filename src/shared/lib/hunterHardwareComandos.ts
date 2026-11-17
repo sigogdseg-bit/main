@@ -67,8 +67,28 @@ export function sanitizarComandoHardware(cmd: string): string {
     const isRelayAcaoOuCorte =
       upper.startsWith("RELAY,") || upper.startsWith("DYD") || upper.startsWith("HFYD");
 
-    if (isRelayAcaoOuCorte) {
-      // Comandos de ação de relé/corte (RELAY,1 / RELAY,0 / DYD / HFYD) NUNCA levam '#' no final
+    // Comandos de protocolo Coban / G900L / AT Hayes NUNCA devem ter '#' forçado no final
+    const isCobanOuAt =
+      upper.startsWith("ADMINIP") ||
+      upper.startsWith("APN1") ||
+      upper.startsWith("FIX") ||
+      upper.startsWith("NOFIX") ||
+      upper.startsWith("HBT1") ||
+      upper.startsWith("TIME ZONE") ||
+      upper.startsWith("CHECK") ||
+      upper.startsWith("STATUS1") ||
+      upper.startsWith("IMEI1") ||
+      upper.startsWith("GPRS1") ||
+      upper.startsWith("STOP1") ||
+      upper.startsWith("RESUME1") ||
+      upper.startsWith("RESET1") ||
+      upper.startsWith("AT") ||
+      upper.startsWith("AT+") ||
+      upper.startsWith("ATI") ||
+      upper.startsWith("ATE");
+
+    if (isRelayAcaoOuCorte || isCobanOuAt) {
+      // Comandos de ação de relé/corte e protocolo Coban/AT NUNCA levam '#' no final
       while (limpo.endsWith("#")) {
         limpo = limpo.slice(0, -1).trim();
       }

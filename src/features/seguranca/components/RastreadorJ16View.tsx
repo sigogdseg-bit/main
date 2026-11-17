@@ -2501,14 +2501,105 @@ export function RastreadorJ16View() {
   const servidorAlvo = usarIpDireto ? ipDedicado : servidorDns;
   const modoServidor = usarIpDireto ? "0" : "1";
 
+  const converterComandoParaModeloHardware = (
+    cmd: string,
+    modeloHardware?: string | null,
+    senhaMestre?: string,
+  ): string => {
+    const isG900L = Boolean(modeloHardware && modeloHardware.toUpperCase().includes("G900"));
+    if (!isG900L) {
+      return sanitizarComandoHardware(cmd);
+    }
+
+    const senha = (senhaMestre || "123456").trim() || "123456";
+    const upper = cmd.trim().toUpperCase().replace(/#+$/, "");
+
+    // Mapeamento automático de comandos GT06/J16 para sintaxe Coban G900L:
+    if (upper.startsWith("SERVER,") || upper.startsWith("SERVER#") || upper === "SERVER") {
+      const partes = cmd.replace(/#+$/, "").split(",");
+      if (partes.length >= 4) {
+        return `adminip${senha} ${partes[2]} ${partes[3]}`;
+      }
+      return `adminip${senha} 167.234.233.82 7003`;
+    }
+
+    if (upper.startsWith("APN,") || upper.startsWith("APN#") || upper === "APN") {
+      const partes = cmd.replace(/#+$/, "").split(",");
+      if (partes.length >= 4) {
+        return `apn${senha} ${partes[1]} ${partes[2]} ${partes[3]}`;
+      } else if (partes.length >= 2) {
+        return `apn${senha} ${partes[1]}`;
+      }
+      return `apn${senha} voxter.br algar 1212`;
+    }
+
+    if (upper.startsWith("TIMER,") || upper.startsWith("TIMER#") || upper === "TIMER") {
+      const partes = cmd.replace(/#+$/, "").split(",");
+      const mov = partes[1] ? String(parseInt(partes[1], 10) || 30).padStart(3, "0") : "030";
+      return `fix${mov}s***n${senha}`;
+    }
+
+    if (upper.startsWith("HBT,") || upper.startsWith("HBT#") || upper === "HBT") {
+      const partes = cmd.replace(/#+$/, "").split(",");
+      const seg = partes[1] || "300";
+      return `hbt${senha} ${seg}`;
+    }
+
+    if (upper.startsWith("GMT,") || upper.startsWith("GMT#") || upper === "GMT") {
+      return `time zone${senha} 0`;
+    }
+
+    if (upper === "PARAM" || upper.startsWith("PARAM#") || upper.startsWith("CHECK")) {
+      return `check${senha}`;
+    }
+
+    if (upper === "STATUS" || upper.startsWith("STATUS#") || upper.startsWith("STATUS1")) {
+      return `status${senha}`;
+    }
+
+    if (upper === "RESET" || upper.startsWith("RESET#") || upper.startsWith("RESET1")) {
+      return `reset${senha}`;
+    }
+
+    if (
+      upper === "WHERE" ||
+      upper.startsWith("WHERE#") ||
+      upper === "URL" ||
+      upper.startsWith("URL#")
+    ) {
+      return `G${senha}#`;
+    }
+
+    if (upper === "RELAY,1" || upper.startsWith("DYD")) {
+      return `stop${senha}`;
+    }
+
+    if (upper === "RELAY,0" || upper.startsWith("HFYD")) {
+      return `resume${senha}`;
+    }
+
+    if (upper.startsWith("SOS,A,") || upper.startsWith("ADMIN#")) {
+      const nums = cmd.replace(/\D/g, "");
+      if (nums.length >= 10) {
+        return `admin${senha} ${nums}`;
+      }
+    }
+
+    return sanitizarComandoHardware(cmd);
+  };
+
   // Disparo direto de comando para um IMEI específico via Gateway TCP/GPRS HTTP e redundância Realtime
   const enviarComandoParaImei = async (
     imeiAlvo: string,
     comandoTexto: string,
     veiculoId?: string | null,
   ) => {
-    // Sanitização Canônica Universal de Comandos de Hardware GT06 / J16 / SZCS
-    const cmdLimpo = sanitizarComandoHardware(comandoTexto);
+    const dispAlvo = dispositivosRef.current.find((d) => d.imei === imeiAlvo);
+    const cmdLimpo = converterComandoParaModeloHardware(
+      comandoTexto,
+      dispAlvo?.modelo,
+      senhaDispositivoPadrao,
+    );
 
     // REGRA IMPERIOSA: S.adm Auditor só pode disparar consultas (leitura), NUNCA alteração de parâmetros
     const sess = obterSessaoCacheada();
@@ -4482,9 +4573,19 @@ export function RastreadorJ16View() {
               {[
                 {
                   id: "servidorDns",
-                  label: "Servidor DNS",
+                  label: "Servidor DNS / Coban",
                   valor: servidorDns,
                   setValor: setServidorDns,
+                  presets: [
+                    {
+                      label: "IP Direto (SERVER)",
+                      valor: `SERVER,${modoServidor},${ipDedicado},${portaTcp},0#`,
+                    },
+                    {
+                      label: "Coban (adminip)",
+                      valor: `adminip${(senhaDispositivoPadrao || "123456").trim()} ${ipDedicado} ${portaTcp}`,
+                    },
+                  ],
                 },
                 { id: "portaTcp", label: "Porta TCP", valor: portaTcp, setValor: setPortaTcp },
                 {
@@ -4493,7 +4594,22 @@ export function RastreadorJ16View() {
                   valor: ipDedicado,
                   setValor: setIpDedicado,
                 },
-                { id: "apnNome", label: "APN do Chip M2M", valor: apnNome, setValor: setApnNome },
+                {
+                  id: "apnNome",
+                  label: "APN do Chip M2M",
+                  valor: apnNome,
+                  setValor: setApnNome,
+                  presets: [
+                    {
+                      label: "J16 (APN,voxter.br...)",
+                      valor: `APN,${apnNome},${apnUser},${apnPass}#`,
+                    },
+                    {
+                      label: "G900L (apn123456...)",
+                      valor: `apn${(senhaDispositivoPadrao || "123456").trim()} ${apnNome} ${apnUser} ${apnPass}`,
+                    },
+                  ],
+                },
                 { id: "apnUser", label: "Usuário APN", valor: apnUser, setValor: setApnUser },
                 { id: "apnPass", label: "Senha APN", valor: apnPass, setValor: setApnPass },
                 {
@@ -4502,9 +4618,13 @@ export function RastreadorJ16View() {
                   valor: timerMovimento,
                   setValor: setTimerMovimento,
                   presets: [
+                    { label: "J16 (30s)", valor: "30" },
+                    {
+                      label: "G900L (fix030s***n)",
+                      valor: `fix030s***n${(senhaDispositivoPadrao || "123456").trim()}`,
+                    },
                     { label: "Padrão Ouro (15s)", valor: "15" },
-                    { label: "12s (Alta Resolução)", valor: "12" },
-                    { label: "20s (Econômico)", valor: "20" },
+                    { label: "12s (Alta)", valor: "12" },
                   ],
                 },
                 {
@@ -4524,9 +4644,13 @@ export function RastreadorJ16View() {
                   valor: hbtLigado,
                   setValor: setHbtLigado,
                   presets: [
-                    { label: "Padrão Voxter (300s / 5m)", valor: "300" },
+                    { label: "J16 (HBT,300,300#)", valor: "HBT,300,300#" },
+                    {
+                      label: "G900L (hbt123456 300)",
+                      valor: `hbt${(senhaDispositivoPadrao || "123456").trim()} 300`,
+                    },
+                    { label: "300s (5m)", valor: "300" },
                     { label: "120s (2m)", valor: "120" },
-                    { label: "60s (1m)", valor: "60" },
                   ],
                 },
                 {
@@ -4728,7 +4852,11 @@ export function RastreadorJ16View() {
                   valor: gmtComando,
                   setValor: setGmtComando,
                   presets: [
-                    { label: "UTC 0 (Padrão)", valor: "GMT,W,0,0#" },
+                    { label: "J16 (GMT,W,0,0#)", valor: "GMT,W,0,0#" },
+                    {
+                      label: "G900L (time zone123456 0)",
+                      valor: `time zone${(senhaDispositivoPadrao || "123456").trim()} 0`,
+                    },
                     { label: "Brasília (-3h)", valor: "GMT,W,3,0#" },
                   ],
                 },
@@ -4853,17 +4981,29 @@ export function RastreadorJ16View() {
                 },
                 {
                   id: "statusDiagnostico",
-                  label: "Status e Bateria (STATUS#)",
+                  label: "Status e Bateria (STATUS# / status123456)",
                   valor: statusComando,
                   setValor: setStatusComando,
-                  presets: [{ label: "STATUS# Padrão", valor: "STATUS#" }],
+                  presets: [
+                    { label: "J16 (STATUS#)", valor: "STATUS#" },
+                    {
+                      label: "G900L (status123456)",
+                      valor: `status${(senhaDispositivoPadrao || "123456").trim()}`,
+                    },
+                  ],
                 },
                 {
                   id: "paramDiagnostico",
-                  label: "Leitura EEPROM (PARAM#)",
+                  label: "Leitura EEPROM (PARAM# / check123456)",
                   valor: paramComando,
                   setValor: setParamComando,
-                  presets: [{ label: "PARAM# Padrão", valor: "PARAM#" }],
+                  presets: [
+                    { label: "J16 (PARAM#)", valor: "PARAM#" },
+                    {
+                      label: "G900L (check123456)",
+                      valor: `check${(senhaDispositivoPadrao || "123456").trim()}`,
+                    },
+                  ],
                 },
                 {
                   id: "relayDiagnostico",
@@ -4874,10 +5014,16 @@ export function RastreadorJ16View() {
                 },
                 {
                   id: "resetFinal",
-                  label: "Reinicialização Limpa [Último Comando] (RESET#)",
+                  label: "Reinicialização Limpa (RESET# / reset123456)",
                   valor: resetFinalCmd,
                   setValor: setResetFinalCmd,
-                  presets: [{ label: "RESET# Padrão", valor: "RESET#" }],
+                  presets: [
+                    { label: "J16 (RESET#)", valor: "RESET#" },
+                    {
+                      label: "G900L (reset123456)",
+                      valor: `reset${(senhaDispositivoPadrao || "123456").trim()}`,
+                    },
+                  ],
                 },
               ].map(
                 (campo: {
