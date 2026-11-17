@@ -438,21 +438,13 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         }
 
         const el = document.createElement("div");
-        if (isGenerico) {
-          el.className = "hunter-marker-generico-flutuante cursor-pointer select-none";
-          el.style.display = "flex";
-          el.style.flexDirection = "column";
-          el.style.alignItems = "center";
-          el.style.justifyContent = "flex-end";
-        } else {
-          el.className = "hunter-marker-3d cursor-pointer select-none";
-          el.style.width = "84px";
-          el.style.height = "84px";
-          el.style.display = "flex";
-          el.style.alignItems = "center";
-          el.style.justifyContent = "center";
-          el.style.position = "relative";
-        }
+        el.className = isGenerico
+          ? "hunter-marker-generico-flutuante cursor-pointer select-none"
+          : "hunter-marker-3d cursor-pointer select-none";
+        el.style.display = "flex";
+        el.style.flexDirection = "column";
+        el.style.alignItems = "center";
+        el.style.justifyContent = "flex-end";
 
         el.innerHTML = gerarMarcador3DHtml({
           placa: v.placa,
@@ -472,22 +464,13 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
           onSelectVeiculoRef.current(atual);
         });
 
-        const marker = new maplibregl.Marker(
-          isGenerico
-            ? {
-                element: el,
-                anchor: "bottom", // Ponta do pino ancorada exatamente na coordenada da rua
-                rotationAlignment: "viewport",
-                pitchAlignment: "viewport",
-                rotation: 0,
-              }
-            : {
-                element: el,
-                rotationAlignment: "map",
-                pitchAlignment: "map",
-                rotation: 0,
-              },
-        )
+        const marker = new maplibregl.Marker({
+          element: el,
+          anchor: "bottom", // Ponta do pino ancorada exatamente na coordenada da rua
+          rotationAlignment: "viewport",
+          pitchAlignment: "viewport",
+          rotation: 0,
+        })
           .setLngLat([estado.visualLng, estado.visualLat])
           .addTo(map);
 

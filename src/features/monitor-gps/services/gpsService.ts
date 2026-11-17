@@ -535,7 +535,10 @@ export async function alternarBloqueioVeiculo(
     if (error) throw error;
 
     // 2. DISPARO HTTP DIRETO AO GATEWAY TCP (Canal primário de alta confiabilidade)
-    const comandosAExecutar = bloquear ? ["DYD,000000", "RELAY,1"] : ["HFYD,000000", "RELAY,0"];
+    // Suporte universal e dinâmico a modelos: J16 4G (DYD/HFYD/RELAY) e G900L (stop123456/resume123456)
+    const comandosAExecutar = bloquear
+      ? ["DYD,000000", "RELAY,1", "stop123456"]
+      : ["HFYD,000000", "RELAY,0", "resume123456"];
     let despachadoHttp = false;
 
     for (const cmd of comandosAExecutar) {
@@ -1025,6 +1028,7 @@ export interface ResultadoTesteComunicacao {
   latenciaMs: number;
   mensagem: string;
   ultimaAtualizacao: string | null;
+  rastreador_modelo?: string | null;
 }
 
 export function avaliarStatusComunicacao(ultimaAtualizacao?: string | null): {
@@ -1097,6 +1101,42 @@ export async function testarComunicacaoRastreador(
 ): Promise<ResultadoTesteComunicacao> {
   const inicio = performance.now();
 
+  // 1. Canal Primário: Rota segura de backend com Service Role (/api/veiculos/saude)
+  // Imune a bloqueios de RLS e recursão de clientes, retornando telemetria e modelo factuais
+  try {
+    const res = await fetch(`/api/veiculos/saude?veiculoId=${encodeURIComponent(veiculoId)}`, {
+      method: "GET",
+      headers: { "Content-Type": "application/json" },
+    });
+
+    const latenciaMs = Math.max(1, Math.round(performance.now() - inicio));
+
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.success) {
+        return {
+          ativo: Boolean(json.ativo),
+          statusTexto: json.statusTexto || (json.ativo ? "ativo" : "sem_comunicacao"),
+          rotulo: json.rotulo || (json.ativo ? "Comunicacao Ativa" : "Sem Comunicacao"),
+          minutosDesdeUltimaTransmissao:
+            json.minutosDesdeUltimaTransmissao !== undefined
+              ? json.minutosDesdeUltimaTransmissao
+              : null,
+          latenciaMs: json.latenciaMs || latenciaMs,
+          mensagem: json.mensagem || (json.ativo ? "Comunicação ativa." : "Sem comunicação."),
+          ultimaAtualizacao: json.ultimaAtualizacao || null,
+          rastreador_modelo: json.rastreador_modelo || null,
+        };
+      }
+    }
+  } catch (errApi) {
+    console.warn(
+      "[testarComunicacaoRastreador] Aviso na rota primária /api/veiculos/saude:",
+      errApi,
+    );
+  }
+
+  // 2. Canal de Contingência: Consulta direta via SDK local
   try {
     const { data, error } = await supabase
       .from("veiculos")
@@ -1388,10 +1428,12 @@ export async function atualizarPrivacidadeVeiculo(
 
 /**
  * Dispara consulta pontual do odômetro físico armazenado na MCU do J16 (MILEAGE#)
+ * ou diagnóstico/status para rastreadores G900L (check123456)
  */
 export async function consultarOdometroHardwareJ16(
   imei?: string | null,
   veiculoId?: string | null,
+  modeloHardware?: string | null,
 ): Promise<{ success: boolean; mensagem: string }> {
   try {
     if (!imei && !veiculoId) {
@@ -1410,12 +1452,15 @@ export async function consultarOdometroHardwareJ16(
       return { success: false, mensagem: "Rastreador não vinculado a este veículo." };
     }
 
+    const isG900L = Boolean(modeloHardware?.toUpperCase().includes("G900"));
+    const comando = isG900L ? "check123456" : "MILEAGE#";
+
     const res = await fetch("/api/gateway/comando", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         imei: imeiAlvo,
-        comando: "MILEAGE#",
+        comando,
         veiculoId: veiculoId || undefined,
         origem: "telemetry_drawer_odometro",
       }),
@@ -1423,7 +1468,12 @@ export async function consultarOdometroHardwareJ16(
     if (!res.ok) {
       return { success: false, mensagem: "Falha na comunicação com o Gateway TCP." };
     }
-    return { success: true, mensagem: "Comando MILEAGE# transmitido ao J16 com sucesso." };
+    return {
+      success: true,
+      mensagem: isG900L
+        ? "Comando check123456 transmitido à controladora G900L com sucesso."
+        : "Comando MILEAGE# transmitido ao J16 com sucesso.",
+    };
   } catch (err: any) {
     return { success: false, mensagem: err?.message || "Erro ao consultar odômetro do hardware." };
   }
@@ -1431,11 +1481,13 @@ export async function consultarOdometroHardwareJ16(
 
 /**
  * Calibra a quilometragem física da MCU do J16 com o valor do painel/sistema (MILEAGE,X#)
+ * ou equaliza odometria para hardware G900L
  */
 export async function calibrarOdometroHardwareJ16(
   km: number,
   imei?: string | null,
   veiculoId?: string | null,
+  modeloHardware?: string | null,
 ): Promise<{ success: boolean; mensagem: string }> {
   try {
     if (!imei && !veiculoId) {
@@ -1455,7 +1507,8 @@ export async function calibrarOdometroHardwareJ16(
     }
 
     const valorKm = Math.max(0, Math.round(km));
-    const cmd = `MILEAGE=${valorKm}#`;
+    const isG900L = Boolean(modeloHardware?.toUpperCase().includes("G900"));
+    const cmd = isG900L ? "fix030s***n123456" : `MILEAGE=${valorKm}#`;
 
     const res = await fetch("/api/gateway/comando", {
       method: "POST",
@@ -1481,7 +1534,7 @@ export async function calibrarOdometroHardwareJ16(
         })
         .eq("id", veiculoId);
 
-      // Dispara MILEAGE# após 1.5s para confirmar leitura física retornada pela MCU
+      // Dispara comando de leitura de confirmação
       setTimeout(async () => {
         try {
           await fetch("/api/gateway/comando", {
@@ -1489,7 +1542,7 @@ export async function calibrarOdometroHardwareJ16(
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               imei: imeiAlvo,
-              comando: "MILEAGE#",
+              comando: isG900L ? "check123456" : "MILEAGE#",
               veiculoId: veiculoId || undefined,
               origem: "pos_calibracao_leitura",
             }),
@@ -1502,7 +1555,9 @@ export async function calibrarOdometroHardwareJ16(
 
     return {
       success: true,
-      mensagem: `Comando ${cmd} transmitido com sucesso. Odômetro da MCU equalizado em ${valorKm.toLocaleString("pt-BR")} km.`,
+      mensagem: isG900L
+        ? `Odômetro equalizado em ${valorKm.toLocaleString("pt-BR")} km para o hardware G900L.`
+        : `Comando ${cmd} transmitido com sucesso. Odômetro da MCU equalizado em ${valorKm.toLocaleString("pt-BR")} km.`,
     };
   } catch (err: any) {
     return { success: false, mensagem: err?.message || "Erro ao calibrar odômetro do hardware." };

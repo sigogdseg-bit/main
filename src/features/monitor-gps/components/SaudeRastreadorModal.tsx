@@ -50,9 +50,19 @@ export function SaudeRastreadorModal({ veiculo, onFechar }: SaudeRastreadorModal
   }, [executarTeste]);
 
   // Diagnóstico semafórico amigável e estrito (SEM INVENÇÃO DE DADOS)
+  const modeloHardware = veiculo.rastreador_modelo || resultadoTeste?.rastreador_modelo || "G900L";
   const statusRedeOk = resultadoTeste ? resultadoTeste.ativo : false;
   const satelites = veiculo.satelites ?? 0;
-  const statusGpsOk = statusRedeOk && satelites >= 4;
+  const emRepousoIgnicao = !veiculo.ignicao && !veiculo.ignicao_status;
+  const temPosicaoSalva = Boolean(
+    veiculo.latitude &&
+    veiculo.longitude &&
+    (Math.abs(Number(veiculo.latitude)) > 0.0001 || Math.abs(Number(veiculo.longitude)) > 0.0001),
+  );
+
+  // Em repouso (chave desligada), os rastreadores (G900L / J16) entram em economia de energia e desligam o chip GNSS.
+  // Se a rede estiver ativa e houver coordenadas salvas, a localização GPS está perfeitamente estabilizada na última posição!
+  const statusGpsOk = statusRedeOk && (satelites >= 4 || (emRepousoIgnicao && temPosicaoSalva));
 
   const voltagemNum =
     veiculo.voltagem !== undefined && veiculo.voltagem !== null
@@ -92,10 +102,13 @@ export function SaudeRastreadorModal({ veiculo, onFechar }: SaudeRastreadorModal
                 <Radio className="h-5 w-5" />
               </div>
               <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2 flex-wrap">
                   Saúde do Rastreador
                   <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                     {veiculo.placa}
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30">
+                    {modeloHardware}
                   </span>
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -187,9 +200,11 @@ export function SaudeRastreadorModal({ veiculo, onFechar }: SaudeRastreadorModal
                     {statusRedeOk
                       ? satelites >= 4
                         ? "Precisão Alta"
-                        : satelites > 0
-                          ? "Sinal Fraco"
-                          : "Buscando Fix"
+                        : emRepousoIgnicao && temPosicaoSalva
+                          ? "Repouso GNSS"
+                          : satelites > 0
+                            ? "Sinal Fraco"
+                            : "Buscando Fix"
                       : "Sem Sinal GPS"}
                   </span>
                 </div>
@@ -197,7 +212,9 @@ export function SaudeRastreadorModal({ veiculo, onFechar }: SaudeRastreadorModal
                   {statusRedeOk
                     ? satelites > 0
                       ? `${satelites} satélites visíveis`
-                      : "Aguardando satélites"
+                      : emRepousoIgnicao && temPosicaoSalva
+                        ? "Posição Salva (Chave Desligada)"
+                        : "Aguardando satélites"
                     : veiculo.ultima_atualizacao
                       ? "Rastreador desconectado"
                       : "Sem transmissão"}

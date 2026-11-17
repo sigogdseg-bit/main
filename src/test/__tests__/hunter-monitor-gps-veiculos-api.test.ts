@@ -33,7 +33,41 @@ describe("Hunter — Monitor GPS: Rota Segura e Carregamento de Frota", () => {
     );
   });
 
-  it("4. Proibição estrita do caractere comercial em gpsService", () => {
+  it("4. server.ts deve conter a rota /api/veiculos/saude para diagnóstico em tempo real", () => {
+    const serverContent = fs.readFileSync("src/server.ts", "utf8");
+    assert.ok(
+      serverContent.includes("/api/veiculos/saude"),
+      "server.ts deve tratar /api/veiculos/saude",
+    );
+  });
+
+  it("5. gpsService.ts deve priorizar /api/veiculos/saude no teste de comunicação e diagnóstico", () => {
+    const gpsServiceContent = fs.readFileSync(
+      "src/features/monitor-gps/services/gpsService.ts",
+      "utf8",
+    );
+    assert.ok(
+      gpsServiceContent.includes("/api/veiculos/saude"),
+      "gpsService.ts deve consultar /api/veiculos/saude",
+    );
+  });
+
+  it("6. Suporte universal a modelos de hardware G900L e J16 no Cockpit e comandos", () => {
+    const gpsServiceContent = fs.readFileSync(
+      "src/features/monitor-gps/services/gpsService.ts",
+      "utf8",
+    );
+    assert.ok(
+      gpsServiceContent.includes("isG900L"),
+      "gpsService.ts deve diferenciar o hardware G900L",
+    );
+    assert.ok(
+      gpsServiceContent.includes("stop123456"),
+      "gpsService.ts deve suportar comando de corte do G900L",
+    );
+  });
+
+  it("7. Proibição estrita do caractere comercial em gpsService", () => {
     const gpsServiceContent = fs.readFileSync(
       "src/features/monitor-gps/services/gpsService.ts",
       "utf8",

@@ -241,12 +241,17 @@ export function VehicleTelemetryDrawer({
 
   const handleConsultarOdometroMcu = async () => {
     if (!veiculo) return;
+    const modeloRastreador = veiculo.rastreador_modelo || "G900L";
     setConsultandoOdometroMcu(true);
     const toastId = toast.loading(
-      `Consultando odômetro interno da MCU (IMEI ${veiculo.rastreador_imei || "—"})...`,
+      `Consultando odômetro / status da MCU (${modeloRastreador} IMEI ${veiculo.rastreador_imei || "—"})...`,
     );
     try {
-      const res = await consultarOdometroHardwareJ16(veiculo.rastreador_imei || null, veiculo.id);
+      const res = await consultarOdometroHardwareJ16(
+        veiculo.rastreador_imei || null,
+        veiculo.id,
+        modeloRastreador,
+      );
       if (res.success) {
         toast.success(res.mensagem, { id: toastId, duration: 5000 });
       } else {
@@ -262,18 +267,22 @@ export function VehicleTelemetryDrawer({
 
   const handleCalibrarOdometroMcu = async () => {
     if (!veiculo) return;
+    const modeloRastreador = veiculo.rastreador_modelo || "G900L";
     const odometroAlvo = Number(veiculo.odometro || 0);
     const confirma = window.confirm(
-      `Deseja sincronizar a MCU J16 gravando o odômetro atual do sistema (${odometroAlvo.toFixed(1)} km) na memória Flash do rastreador?`,
+      `Deseja sincronizar a MCU ${modeloRastreador} gravando o odômetro atual do sistema (${odometroAlvo.toFixed(1)} km) na memória do rastreador?`,
     );
     if (!confirma) return;
     setCalibrandoOdometroMcu(true);
-    const toastId = toast.loading(`Gravando ${odometroAlvo.toFixed(1)} km na MCU do rastreador...`);
+    const toastId = toast.loading(
+      `Gravando ${odometroAlvo.toFixed(1)} km na MCU ${modeloRastreador}...`,
+    );
     try {
       const res = await calibrarOdometroHardwareJ16(
         odometroAlvo,
         veiculo.rastreador_imei || null,
         veiculo.id,
+        modeloRastreador,
       );
       if (res.success) {
         setOdometroMcuLocal(Math.round(odometroAlvo));
@@ -3023,7 +3032,7 @@ function MostradoresCockpit3D({
               </div>
             </TiltCard>
 
-            {/* 3. Odômetro J16 (MCU) */}
+            {/* 3. Odômetro Hardware (MCU Flash / G900L / J16) */}
             <TiltCard
               maxTilt={10}
               spotlightColor="rgba(14, 165, 233, 0.25)"
@@ -3031,10 +3040,13 @@ function MostradoresCockpit3D({
             >
               <div className="flex items-center justify-between text-[11px] font-mono font-bold text-sky-600 dark:text-sky-400 uppercase tracking-wider">
                 <span className="flex items-center gap-1.5 whitespace-nowrap">
-                  <Cpu className="h-3.5 w-3.5" /> 3. J16 (MCU FLASH)
+                  <Cpu className="h-3.5 w-3.5" /> 3. {veiculo.rastreador_modelo || "G900L"} (MCU
+                  FLASH)
                 </span>
                 <span className="px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-700 dark:text-sky-300 text-[9px] border border-sky-500/20 whitespace-nowrap font-bold">
-                  GT06 FLASH
+                  {veiculo.rastreador_modelo?.toUpperCase().includes("G900")
+                    ? "G900L 4G"
+                    : "GT06 FLASH"}
                 </span>
               </div>
 
@@ -3057,7 +3069,7 @@ function MostradoresCockpit3D({
                     {odometroHardware !== null
                       ? dataHardware
                         ? `Lido às ${formatarHoraBrasil(dataHardware, false)}`
-                        : "Flash EEPROM J16 (Auto 5m)"
+                        : `Flash EEPROM ${veiculo.rastreador_modelo || "G900L"} (Auto 5m)`
                       : "Aguardando leitura MCU"}
                   </div>
                 </div>
@@ -3068,7 +3080,11 @@ function MostradoresCockpit3D({
                       onClick={onConsultarOdometroMcu}
                       disabled={consultandoOdometroMcu}
                       className="px-2 py-0.5 text-[9px] font-mono font-bold rounded bg-sky-500/15 hover:bg-sky-500/25 text-sky-700 dark:text-sky-300 border border-sky-500/30 transition active:scale-95 cursor-pointer disabled:opacity-50"
-                      title="Enviar comando MILEAGE# para ler quilometragem interna da MCU"
+                      title={
+                        veiculo.rastreador_modelo?.toUpperCase().includes("G900")
+                          ? "Consultar parâmetros e status da controladora G900L"
+                          : "Enviar comando MILEAGE# para ler quilometragem interna da MCU"
+                      }
                     >
                       {consultandoOdometroMcu ? "LENDO..." : "LER MCU"}
                     </button>
@@ -3077,7 +3093,7 @@ function MostradoresCockpit3D({
                       onClick={onCalibrarOdometroMcu}
                       disabled={calibrandoOdometroMcu}
                       className="px-2 py-0.5 text-[9px] font-mono font-bold rounded bg-orange-500/15 hover:bg-orange-500/25 text-orange-700 dark:text-orange-300 border border-orange-500/30 transition active:scale-95 cursor-pointer disabled:opacity-50"
-                      title={`Gravar ${odometroServidor.toFixed(1)} km na MCU J16`}
+                      title={`Gravar ${odometroServidor.toFixed(1)} km na MCU ${veiculo.rastreador_modelo || "G900L"}`}
                     >
                       {calibrandoOdometroMcu ? "GRAVANDO..." : "EQUALIZAR"}
                     </button>

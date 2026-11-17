@@ -420,8 +420,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           return L.divIcon({
             html: iconeHtml,
             className: "custom-hunter-marker",
-            iconSize: isGenerico ? (mostrarPlaca ? [56, 68] : [44, 48]) : [84, 84],
-            iconAnchor: isGenerico ? (mostrarPlaca ? [28, 68] : [22, 48]) : [42, 42],
+            iconSize: mostrarPlaca ? [56, 72] : [50, 54],
+            iconAnchor: mostrarPlaca ? [28, 72] : [25, 54],
           });
         };
 

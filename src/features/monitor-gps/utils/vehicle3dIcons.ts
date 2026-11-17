@@ -420,57 +420,470 @@ export function getVehicleSvg3DContent(tipo: TipoVeiculo, corStatus: string = "#
 }
 
 /**
- * Retorna o SVG completo do Pino 3D Glossy volumétrico (estilo Maps 3D)
- * Reproduz o pino 3D vertical com perspectiva isométrica,
- * extrusão lateral de profundidade com luz e sombra, furo anular com parede cilíndrica 3D,
- * e reflexos especulares curvados de vidro e resina brilhante.
- *
- * Cores canônicas:
- * - Vermelho: Rastreador Offline / Alerta / Bloqueado
- * - Azul: Rastreador Online com Ignição Desligada
- * - Verde: Rastreador Online com Ignição Ligada
+ * Paleta harmônica de cores para o Pino 3D Glossy (Volumétrico)
+ * Suporta os 4 estados operacionais canônicos do sistema:
+ * - Verde (#10B981): Em Rota (Movimento)
+ * - Azul (#38BDF8 / #2563EB): Parado com Ignição Ligada
+ * - Âmbar / Laranja (#F97316): Estacionado com Ignição Desligada
+ * - Vermelho (#EF4444): Alerta / Bloqueado / Offline
+ */
+export interface PaletaGlossyPin {
+  gradTopo: string;
+  gradCentro: string;
+  gradBase: string;
+  flancoLuz: string;
+  flancoEscuro: string;
+  furoSombra: string;
+  furoLuz: string;
+  fundoVitrine: string;
+}
+
+export function obterPaletaGlossyPin(corHex: string = "#EF4444"): PaletaGlossyPin {
+  const c = corHex.toUpperCase();
+  const isGreen =
+    c.includes("10B981") ||
+    c.includes("059669") ||
+    c.includes("16A34A") ||
+    c.includes("34D399") ||
+    c.includes("22C55E");
+  const isBlue =
+    c.includes("2563EB") ||
+    c.includes("3B82F6") ||
+    c.includes("1D4ED8") ||
+    c.includes("60A5FA") ||
+    c.includes("38BDF8") ||
+    c.includes("0284C7") ||
+    c.includes("0EA5E9");
+  const isAmber =
+    c.includes("F97316") ||
+    c.includes("EA580C") ||
+    c.includes("F59E0B") ||
+    c.includes("D97706") ||
+    c.includes("FB923C") ||
+    c.includes("EAB308");
+
+  if (isGreen) {
+    return {
+      gradTopo: "#34D399",
+      gradCentro: "#10B981",
+      gradBase: "#059669",
+      flancoLuz: "#047857",
+      flancoEscuro: "#064E3B",
+      furoSombra: "#022C22",
+      furoLuz: "#10B981",
+      fundoVitrine: "#022C22",
+    };
+  }
+  if (isBlue) {
+    return {
+      gradTopo: "#60A5FA",
+      gradCentro: "#2563EB",
+      gradBase: "#1D4ED8",
+      flancoLuz: "#1E40AF",
+      flancoEscuro: "#1E3A8A",
+      furoSombra: "#172554",
+      furoLuz: "#2563EB",
+      fundoVitrine: "#0F172A",
+    };
+  }
+  if (isAmber) {
+    return {
+      gradTopo: "#FB923C",
+      gradCentro: "#F97316",
+      gradBase: "#C2410C",
+      flancoLuz: "#9A3412",
+      flancoEscuro: "#7C2D12",
+      furoSombra: "#431407",
+      furoLuz: "#F97316",
+      fundoVitrine: "#1C1917",
+    };
+  }
+  return {
+    gradTopo: "#FF4D4D",
+    gradCentro: "#DC2626",
+    gradBase: "#991B1B",
+    flancoLuz: "#B91C1C",
+    flancoEscuro: "#7F1D1D",
+    furoSombra: "#5B1212",
+    furoLuz: "#DC2626",
+    fundoVitrine: "#1E0B0B",
+  };
+}
+
+/**
+ * Retorna o modelo 3D isométrico/volumétrico do veículo para renderização
+ * no interior da vitrine circular do Pin 3D.
+ * Cada um dos 13 modelos possui detalhes tridimensionais, iluminação e sombras.
+ */
+export function getMiniaturaVeiculo3D(tipo: TipoVeiculo, corStatus: string = "#10B981"): string {
+  switch (tipo) {
+    case "suv":
+      return `
+        <!-- SUV 3D Volumétrico no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="8.5" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Rodas e Pneus Off-road com aros prata -->
+        <rect x="23" y="26" width="3" height="4" rx="1.2" fill="#090D16" />
+        <rect x="37.5" y="26" width="3" height="4" rx="1.2" fill="#090D16" />
+        <circle cx="24.5" cy="28" r="1" fill="#CBD5E1" />
+        <circle cx="39" cy="28" r="1" fill="#CBD5E1" />
+        <!-- Carroçaria encorpada SUV com skid plate prata -->
+        <path d="M22 25 L24 23 L39.5 23 L41.8 26 L41 28.5 L22.5 28.5 Z" fill="#E2E8F0" stroke="#0F172A" stroke-width="0.8" />
+        <rect x="22" y="27.5" width="4" height="1" rx="0.5" fill="#94A3B8" />
+        <!-- Cabine alta e teto reto com rack de expedição longitudinal -->
+        <path d="M25.5 23 L28 18.5 L38 18.5 L39.5 23 Z" fill="#0B132B" />
+        <line x1="27" y1="17.5" x2="38.5" y2="17.5" stroke="#1E293B" stroke-width="1.3" stroke-linecap="round" />
+        <rect x="29" y="17.5" width="1.2" height="1" fill="#475569" />
+        <rect x="36" y="17.5" width="1.2" height="1" fill="#475569" />
+        <!-- Para-brisa e janelas com reflexo de vidro -->
+        <path d="M27 22.5 L28.8 19.3 L32 19.3 L30.5 22.5 Z" fill="#38BDF8" opacity="0.85" />
+        <path d="M33 22.5 L34.5 19.3 L37.8 19.3 L39 22.5 Z" fill="#0284C7" opacity="0.8" />
+        <!-- Faróis duplos LED -->
+        <polygon points="22,25 24,24.5 24,26.5 22,26.5" fill="#FEF08A" />
+        <circle cx="23" cy="27" r="0.7" fill="#38BDF8" />
+      `;
+
+    case "camionete":
+      return `
+        <!-- Camionete / Picape Cabine Dupla 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Rodas 4x4 robustas -->
+        <rect x="23" y="26" width="3.2" height="4.2" rx="1.2" fill="#090D16" />
+        <rect x="37.5" y="26" width="3.2" height="4.2" rx="1.2" fill="#090D16" />
+        <!-- Cabine dupla e caçamba aberta -->
+        <path d="M22 25 L24 23 L35 23 L35 25.5 L42 25.5 L41.5 28.5 L22.5 28.5 Z" fill="#F1F5F9" stroke="#0F172A" stroke-width="0.8" />
+        <!-- Santo-antônio tubular preto curvado atrás da cabine -->
+        <path d="M34.5 20 L36 25.5" stroke="#0F172A" stroke-width="1.4" stroke-linecap="round" />
+        <!-- Cabine com vidros fumê -->
+        <path d="M25.5 23 L28 19 L34.5 19 L34.5 23 Z" fill="#0B132B" />
+        <path d="M27 22.5 L28.8 19.8 L33.5 19.8 L33.5 22.5 Z" fill="#38BDF8" opacity="0.85" />
+        <!-- Grade dianteira cromada e faróis DRL -->
+        <rect x="21.5" y="25" width="2" height="2.5" rx="0.5" fill="#CBD5E1" />
+        <polygon points="22,25 23.5,24.5 23.5,26.5 22,26.5" fill="#FEF08A" />
+      `;
+
+    case "van":
+      return `
+        <!-- Van / Furgão Comercial 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Rodas reforçadas -->
+        <rect x="23" y="26.5" width="2.8" height="3.8" rx="1" fill="#090D16" />
+        <rect x="37.5" y="26.5" width="2.8" height="3.8" rx="1" fill="#090D16" />
+        <!-- Carroçaria monobloco alta com teto estriado -->
+        <path d="M22 26 L23.5 22 L26.5 18 L39.5 18 L41 20 L41 28.5 L22.5 28.5 Z" fill="#F8FAFC" stroke="#0F172A" stroke-width="0.8" />
+        <line x1="28" y1="18" x2="39" y2="18" stroke="#CBD5E1" stroke-width="0.8" />
+        <!-- Para-brisa dianteiro e janela de cabine -->
+        <path d="M24 22 L26.5 18.8 L29.5 18.8 L29.5 23.5 L23.5 23.5 Z" fill="#0B132B" />
+        <path d="M25 21.8 L26.8 19.5 L29 19.5 L29 23 L24.5 23 Z" fill="#38BDF8" opacity="0.85" />
+        <!-- Friso de proteção lateral -->
+        <rect x="23" y="26" width="18" height="1.2" fill="#334155" />
+        <polygon points="22,25 23.5,24.5 23.5,26.5 22,26.5" fill="#FEF08A" />
+      `;
+
+    case "ambulancia":
+      return `
+        <!-- Ambulância / Resgate 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Carroçaria médica em branco puro -->
+        <path d="M22 26 L23.5 22 L26.5 18.5 L39.5 18.5 L41 20.5 L41 28.5 L22.5 28.5 Z" fill="#FFFFFF" stroke="#0F172A" stroke-width="0.8" />
+        <!-- Faixa reflexiva vermelha de resgate -->
+        <rect x="22.5" y="24" width="18.5" height="2" fill="#EF4444" />
+        <!-- Cruz médica vermelha na lateral -->
+        <rect x="34.5" y="21.5" width="1.6" height="4.5" rx="0.3" fill="#EF4444" />
+        <rect x="33" y="23" width="4.5" height="1.6" rx="0.3" fill="#EF4444" />
+        <!-- Barra de Giroflex de Emergência (Sirene Vermelha e Azul) -->
+        <rect x="29" y="16.5" width="6.5" height="2.2" rx="0.8" fill="#0F172A" />
+        <rect x="29.5" y="16.8" width="2.4" height="1.6" rx="0.5" fill="#EF4444" />
+        <rect x="32.6" y="16.8" width="2.4" height="1.6" rx="0.5" fill="#3B82F6" />
+        <circle cx="32.2" cy="17.6" r="0.6" fill="#FFFFFF" />
+        <!-- Para-brisa e faróis dianteiros -->
+        <polygon points="22,25 23.5,24.5 23.5,26.5 22,26.5" fill="#FEF08A" />
+      `;
+
+    case "caminhao":
+      return `
+        <!-- Caminhão Pesado 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Rodas com eixo traseiro duplo -->
+        <rect x="23" y="26.5" width="2.8" height="4" rx="1" fill="#090D16" />
+        <rect x="36" y="26.5" width="2.6" height="4" rx="1" fill="#090D16" />
+        <rect x="39" y="26.5" width="2.6" height="4" rx="1" fill="#090D16" />
+        <!-- Baú traseiro de carga pesada com nervuras -->
+        <rect x="29.5" y="16.5" width="12.5" height="11.5" rx="1" fill="#1E293B" stroke="#0F172A" stroke-width="0.8" />
+        <line x1="33" y1="17" x2="33" y2="27.5" stroke="#334155" stroke-width="0.8" />
+        <line x1="36.5" y1="17" x2="36.5" y2="27.5" stroke="#334155" stroke-width="0.8" />
+        <line x1="40" y1="17" x2="40" y2="27.5" stroke="#334155" stroke-width="0.8" />
+        <!-- Cabine frontal alta imponente com defletor de ar -->
+        <path d="M21.5 27 L22 21 L24 17.5 L29 17.5 L29.5 28 L22 28 Z" fill="#DC2626" stroke="#0F172A" stroke-width="0.8" />
+        <path d="M24 17.5 L29 16.5 L29 17.5 Z" fill="#991B1B" />
+        <!-- Para-brisa panorâmico da cabine -->
+        <path d="M22.5 21 L24.5 18.5 L28.5 18.5 L28.5 22.5 L22.5 22.5 Z" fill="#0B132B" />
+        <path d="M23.5 20.8 L25 19 L28 19 L28 22 L23.5 22 Z" fill="#38BDF8" opacity="0.85" />
+        <polygon points="21.5,27 23,26.5 23,28 21.5,28" fill="#FEF08A" />
+      `;
+
+    case "onibus":
+      return `
+        <!-- Ônibus Panorâmico 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Carroçaria alongada panorâmica -->
+        <rect x="21.5" y="17" width="20.5" height="11" rx="2.5" fill="#F8FAFC" stroke="#0F172A" stroke-width="0.8" />
+        <!-- Janelas panorâmicas laterais fumê -->
+        <rect x="27" y="19" width="14" height="4.5" rx="0.8" fill="#0B132B" />
+        <line x1="30.5" y1="19" x2="30.5" y2="23.5" stroke="#334155" stroke-width="0.6" />
+        <line x1="34" y1="19" x2="34" y2="23.5" stroke="#334155" stroke-width="0.6" />
+        <line x1="37.5" y1="19" x2="37.5" y2="23.5" stroke="#334155" stroke-width="0.6" />
+        <!-- Grande para-brisa frontal com itinerário digital -->
+        <path d="M22 23 L23.5 18.5 L26.5 18.5 L26.5 24 L22 24 Z" fill="#0B132B" />
+        <rect x="23" y="18" width="3.2" height="1" fill="#F59E0B" />
+        <!-- Climatizador de teto -->
+        <rect x="29" y="16" width="7" height="1.2" rx="0.5" fill="#475569" />
+      `;
+
+    case "moto":
+      return `
+        <!-- Motocicleta Esportiva 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="8" ry="1.8" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Roda dianteira com garfo telescópico -->
+        <rect x="23" y="24.5" width="2.5" height="5.5" rx="1.2" fill="#090D16" />
+        <circle cx="24.2" cy="27.2" r="1.3" fill="#64748B" />
+        <line x1="24.2" y1="27.2" x2="27" y2="21" stroke="#94A3B8" stroke-width="1.2" />
+        <!-- Roda traseira esportiva -->
+        <rect x="37" y="24.5" width="3" height="5.5" rx="1.5" fill="#090D16" />
+        <circle cx="38.5" cy="27.2" r="1.5" fill="#64748B" />
+        <!-- Tanque musculoso esculpido -->
+        <path d="M27 21 C29 19, 33 19, 34 22 L30 24 L26 23 Z" fill="#DC2626" stroke="#0F172A" stroke-width="0.6" />
+        <!-- Assento anatômico bipartido -->
+        <path d="M33 22 L37 22 L38 23.5 L34 23.5 Z" fill="#1E293B" />
+        <!-- Guidão com manoplas e farol LED -->
+        <line x1="26" y1="20" x2="28" y2="20" stroke="#F8FAFC" stroke-width="1.4" stroke-linecap="round" />
+        <polygon points="22.5,22 24.5,21.5 24.5,22.8 22.5,22.8" fill="#FEF08A" />
+        <!-- Bloco de motor e escapamento cromado -->
+        <rect x="28.5" y="23.5" width="4.5" height="3.5" rx="0.8" fill="#334155" />
+        <line x1="33" y1="25.5" x2="39" y2="26.5" stroke="#CBD5E1" stroke-width="1.3" stroke-linecap="round" />
+      `;
+
+    case "moto_eletrica":
+      return `
+        <!-- Scooter / Moto Elétrica 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="8" ry="1.8" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Rodas urbanas compactas -->
+        <rect x="23.5" y="25" width="2.4" height="4.8" rx="1.2" fill="#090D16" />
+        <rect x="37" y="25" width="2.4" height="4.8" rx="1.2" fill="#090D16" />
+        <!-- Carenagem aerodinâmica fluida em branco e ciano -->
+        <path d="M24 23 L27 19.5 L30 25 L37 25 L38.5 22 L39.5 25.5 L38 28 L25 28 Z" fill="#F8FAFC" stroke="#0F172A" stroke-width="0.7" />
+        <!-- Pack de Bateria de Lítio com badge ciano luminoso e raio elétrico -->
+        <rect x="29" y="25" width="6.5" height="3" rx="0.8" fill="#0F172A" stroke="#06B6D4" stroke-width="0.8" />
+        <path d="M32.5 25.5 L31.5 26.8 L32.5 26.8 L32 27.8 L33.2 26.5 L32.4 26.5 Z" fill="#06B6D4" />
+        <!-- Banco urbano e guidão com farol LED -->
+        <rect x="32" y="22" width="6" height="2" rx="1" fill="#1E293B" />
+        <line x1="26" y1="19" x2="28" y2="19" stroke="#E2E8F0" stroke-width="1.2" stroke-linecap="round" />
+        <circle cx="23.5" cy="22" r="1.2" fill="#38BDF8" />
+      `;
+
+    case "quadriciculo":
+      return `
+        <!-- Quadriciclo ATV 4x4 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- 4 Pneus Off-road gigantes com garras -->
+        <rect x="22.5" y="25" width="3.4" height="5" rx="1.2" fill="#090D16" stroke="#334155" stroke-width="0.6" />
+        <rect x="37.5" y="25" width="3.4" height="5" rx="1.2" fill="#090D16" stroke="#334155" stroke-width="0.6" />
+        <!-- Chassi tubular e quebra-mato de aço -->
+        <rect x="24" y="24" width="15" height="3.5" rx="1" fill="#1E293B" />
+        <path d="M21.5 24 L24 23 L24 27 L21.5 26 Z" fill="#475569" />
+        <!-- Carenagem esportiva elevada -->
+        <path d="M24 23 L28 20 L35 20 L37 23 Z" fill="#F97316" stroke="#0F172A" stroke-width="0.6" />
+        <!-- Guidão largo esportivo com faróis circulares -->
+        <line x1="26.5" y1="19" x2="31" y2="19" stroke="#F1F5F9" stroke-width="1.4" stroke-linecap="round" />
+        <circle cx="23.5" cy="23.5" r="1" fill="#FEF08A" />
+      `;
+
+    case "triciclo":
+      return `
+        <!-- Triciclo Custom Chopper 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Roda dianteira central com garfo longo inclinado -->
+        <rect x="22" y="25" width="2.4" height="5" rx="1.2" fill="#090D16" />
+        <line x1="23.2" y1="27.5" x2="28" y2="20.5" stroke="#CBD5E1" stroke-width="1.3" />
+        <!-- 2 Rodas traseiras largas paralelas -->
+        <rect x="36.5" y="24.5" width="4.5" height="5.5" rx="1.5" fill="#090D16" />
+        <!-- Chassi rebaixado com tanque em gota -->
+        <path d="M27 21 C29 19.5, 33 19.5, 34 22 L31 24 Z" fill="#9333EA" stroke="#0F172A" stroke-width="0.6" />
+        <!-- Assento duplo com encosto e guidão alto -->
+        <rect x="32.5" y="22" width="4.5" height="2" rx="0.8" fill="#1E293B" />
+        <line x1="36.5" y1="20" x2="36.5" y2="22" stroke="#1E293B" stroke-width="1.2" />
+        <line x1="27" y1="19" x2="29" y2="19" stroke="#E2E8F0" stroke-width="1.3" stroke-linecap="round" />
+      `;
+
+    case "jetski":
+      return `
+        <!-- Jet Ski Náutico 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Casco náutico agressivo em V -->
+        <path d="M21 27 L25 24 L39 24 L41 26 L38 29 L23 29 Z" fill="#0F172A" />
+        <path d="M21 27 L24 23.5 L39 23.5 L40.5 25 L38 27 Z" fill="#0284C7" />
+        <!-- Deck superior colorido com guidão central e assento -->
+        <path d="M25 23.5 L28 20.5 L36 20.5 L37 23.5 Z" fill="#38BDF8" />
+        <rect x="30" y="21" width="5.5" height="2.2" rx="1" fill="#1E293B" />
+        <line x1="27" y1="19.5" x2="29" y2="19.5" stroke="#F1F5F9" stroke-width="1.3" stroke-linecap="round" />
+        <!-- Efeito de espuma/onda na água -->
+        <ellipse cx="32" cy="29" rx="10" ry="2" fill="none" stroke="#BAE6FD" stroke-width="1" stroke-dasharray="2,2" />
+      `;
+
+    case "maquina":
+      return `
+        <!-- Máquina Pesada / Trator / Escavadeira 3D no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="9" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Rodas agrícolas tratoradas gigantes traseiras -->
+        <rect x="23" y="26" width="3" height="4.5" rx="1.2" fill="#090D16" />
+        <rect x="36.5" y="23.5" width="4.8" height="7" rx="2" fill="#090D16" stroke="#475569" stroke-width="0.8" />
+        <line x1="36.5" y1="25.5" x2="41.3" y2="25.5" stroke="#CBD5E1" stroke-width="0.8" />
+        <line x1="36.5" y1="28.5" x2="41.3" y2="28.5" stroke="#CBD5E1" stroke-width="0.8" />
+        <!-- Cabine de segurança ROPS com vidros e giroflex âmbar -->
+        <rect x="29" y="18" width="8" height="6.5" rx="1.2" fill="#0B132B" stroke="#0F172A" stroke-width="0.8" />
+        <rect x="29.8" y="19" width="6.4" height="4.5" rx="0.8" fill="#F8FAFC" opacity="0.35" />
+        <circle cx="33" cy="17" r="1.1" fill="#F59E0B" stroke="#B45309" stroke-width="0.5" />
+        <!-- Capô de motor amarelo industrial pesado e escapamento vertical -->
+        <rect x="24" y="23" width="7" height="4.5" rx="1" fill="#F59E0B" stroke="#78350F" stroke-width="0.8" />
+        <line x1="27" y1="19" x2="27" y2="23" stroke="#334155" stroke-width="1.3" stroke-linecap="round" />
+        <!-- Concha / Lâmina frontal de escavação -->
+        <polygon points="20.5,25 23,24 23,28 20.5,28" fill="#78350F" />
+        <line x1="20.5" y1="25" x2="20.5" y2="28" stroke="#FDE68A" stroke-width="0.8" />
+      `;
+
+    case "carro":
+    default:
+      return `
+        <!-- Carro Sedan 3D Volumétrico no Interior do Pin -->
+        <ellipse cx="32" cy="28.5" rx="8.5" ry="2" fill="rgba(0,0,0,0.6)" filter="blur(0.8px)" />
+        <!-- Pneus e Rodas 3D -->
+        <rect x="23" y="26.5" width="2.8" height="3.5" rx="1" fill="#090D16" />
+        <rect x="37.5" y="26.5" width="2.8" height="3.5" rx="1" fill="#090D16" />
+        <circle cx="24.4" cy="28.2" r="0.9" fill="#94A3B8" />
+        <circle cx="38.9" cy="28.2" r="0.9" fill="#94A3B8" />
+        <!-- Carroçaria esculpida em perfil aerodinâmico -->
+        <path d="M22 25.5 L24.5 24 L38.5 24 L41.5 26.5 L40.5 28.5 L22.5 28.5 Z" fill="#F8FAFC" stroke="#0F172A" stroke-width="0.8" />
+        <!-- Cabine e teto em vidro fumê com reflexos vítreos -->
+        <path d="M26 24 L29 19.5 L36 19.5 L38.5 24 Z" fill="#0F172A" />
+        <path d="M27.5 23.5 L29.8 20.3 L32.2 20.3 L30.5 23.5 Z" fill="#38BDF8" opacity="0.85" />
+        <path d="M33 23.5 L34.5 20.3 L36.8 20.3 L38 23.5 Z" fill="#0284C7" opacity="0.8" />
+        <line x1="29.5" y1="20.3" x2="28" y2="23.5" stroke="#FFFFFF" stroke-width="0.7" opacity="0.9" />
+        <!-- Faróis dianteiros LED -->
+        <polygon points="22,25.5 24,25 24,26.8 22,26.8" fill="#FEF08A" />
+        <rect x="41" y="26.2" width="0.9" height="1.8" rx="0.3" fill="#EF4444" />
+      `;
+  }
+}
+
+/**
+ * Retorna o SVG completo do Pino 3D com o tipo de veículo no interior (estilo Pin 3D Volumétrico com Vitrine).
+ * Reproduz com fidelidade estética o pino de localização 3D estilizado com chanfro lateral,
+ * reflexos especulares curvados de vidro/resina brilhante, parede cilíndrica interna sombreada,
+ * e a miniatura tridimensional do modelo de veículo assentada no interior do anel circular.
+ */
+export function getGlossyPinWithVehicleSvg(
+  tipo: TipoVeiculo,
+  corHex: string = "#EF4444",
+  id: string = "hunter-vpin",
+): string {
+  const paleta = obterPaletaGlossyPin(corHex);
+  const miniaturaSvg = getMiniaturaVeiculo3D(tipo, corHex);
+
+  return `
+    <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Gradiente da Face Frontal 3D da Gota -->
+        <linearGradient id="${id}-front" x1="32" y1="4" x2="32" y2="60" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="${paleta.gradTopo}"/>
+          <stop offset="45%" stop-color="${paleta.gradCentro}"/>
+          <stop offset="100%" stop-color="${paleta.gradBase}"/>
+        </linearGradient>
+
+        <!-- Gradiente de Profundidade Lateral (Chanfro 3D / Extrusão) -->
+        <linearGradient id="${id}-bevel-3d" x1="16" y1="4" x2="52" y2="60" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="${paleta.gradTopo}"/>
+          <stop offset="60%" stop-color="${paleta.flancoLuz}"/>
+          <stop offset="100%" stop-color="${paleta.flancoEscuro}"/>
+        </linearGradient>
+
+        <!-- Gradiente da Parede Interna do Anel Cilíndrico 3D (Efeito Vitrine) -->
+        <linearGradient id="${id}-wall-depth" x1="32" y1="8" x2="32" y2="36" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="${paleta.furoSombra}"/>
+          <stop offset="65%" stop-color="${paleta.furoSombra}"/>
+          <stop offset="100%" stop-color="${paleta.furoLuz}"/>
+        </linearGradient>
+
+        <!-- Gradiente de Fundo Profundo da Vitrine Circular -->
+        <radialGradient id="${id}-vitrine-bg" cx="32" cy="22" r="14" gradientUnits="userSpaceOnUse">
+          <stop offset="60%" stop-color="${paleta.fundoVitrine}" stop-opacity="0.95"/>
+          <stop offset="100%" stop-color="#000000" stop-opacity="0.8"/>
+        </radialGradient>
+
+        <!-- Brilho Especular Superior de Vidro / Resina (Arco Superior Curvo) -->
+        <linearGradient id="${id}-spec-top" x1="20" y1="4" x2="44" y2="16" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+          <stop offset="45%" stop-color="#FFFFFF" stop-opacity="0.65"/>
+          <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+
+      <!-- 1. Ponto de Contato Sutil no Asfalto na Ponta Exata do Pino -->
+      <ellipse cx="32" cy="60" rx="5.5" ry="1.2" fill="rgba(0,0,0,0.5)" />
+
+      <!-- 2. Extrusão / Chanfro 3D Traseiro (Espessura e Volume Tridimensional) -->
+      <path d="
+        M 32 60.5
+        C 27.5 50, 15 35, 15 22
+        C 15 12.6, 22.6 5, 32 5
+        C 41.4 5, 49 12.6, 49 22
+        C 49 35, 36.5 50, 32 60.5
+        Z
+      " fill="${paleta.flancoEscuro}" opacity="0.6" transform="translate(1.8, 1)" />
+
+      <!-- 3. Corpo Frontal Principal do Pino 3D com Abertura Anular Central -->
+      <path fill-rule="evenodd" clip-rule="evenodd" d="
+        M 32 60.5
+        C 27.5 50, 15 35, 15 22
+        C 15 12.6, 22.6 5, 32 5
+        C 41.4 5, 49 12.6, 49 22
+        C 49 35, 36.5 50, 32 60.5
+        Z
+        M 32 36
+        C 39.73 36, 46 29.73, 46 22
+        C 46 14.27, 39.73 8, 32 8
+        C 24.27 8, 18 14.27, 18 22
+        C 18 29.73, 24.27 36, 32 36
+        Z
+      " fill="url(#${id}-front)" stroke="url(#${id}-bevel-3d)" stroke-width="1.3" />
+
+      <!-- 4. Parede Interna Cilíndrica do Anel com Profundidade 3D -->
+      <circle cx="32" cy="22" r="14" fill="url(#${id}-vitrine-bg)" stroke="url(#${id}-wall-depth)" stroke-width="1.5" />
+
+      <!-- 5. Miniatura 3D Volumétrica do Tipo de Veículo Assentada na Vitrine -->
+      <g class="hunter-pin-vehicle-model">
+        ${miniaturaSvg}
+      </g>
+
+      <!-- 6. Efeito Glossy / Vidro: Reflexo Especular Curvo no Topo (Arco Iluminado) -->
+      <path d="
+        M 21 16
+        C 23.5 9.5, 27.5 6.5, 32 6.5
+        C 36.5 6.5, 40.5 9.5, 43 16
+        C 39.5 11.5, 36 9.5, 32 9.5
+        C 28 9.5, 24.5 11.5, 21 16
+        Z
+      " fill="url(#${id}-spec-top)" />
+
+      <!-- 7. Ponto de Luz Intensa (Hotspot Especular Branco Curvado) -->
+      <ellipse cx="25" cy="13.5" rx="3.5" ry="2" transform="rotate(-30 25 13.5)" fill="#FFFFFF" opacity="0.85" />
+    </svg>
+  `;
+}
+
+/**
+ * Retorna o SVG completo do Pino 3D Glossy volumétrico genérico (sem veículo)
  */
 export function getGlossyPin3DSvg(corHex: string = "#EF4444", id: string = "hunter-pin"): string {
-  const isBlue =
-    corHex.includes("#2563EB") ||
-    corHex.includes("#3B82F6") ||
-    corHex.includes("#1D4ED8") ||
-    corHex.includes("#60A5FA");
-  const isGreen =
-    corHex.includes("#10B981") ||
-    corHex.includes("#059669") ||
-    corHex.includes("#16A34A") ||
-    corHex.includes("#34D399");
-
-  const paleta = isGreen
-    ? {
-        gradTopo: "#34D399",
-        gradCentro: "#10B981",
-        gradBase: "#059669",
-        flancoLuz: "#047857",
-        flancoEscuro: "#064E3B",
-        furoSombra: "#022C22",
-        furoLuz: "#10B981",
-      }
-    : isBlue
-      ? {
-          gradTopo: "#60A5FA",
-          gradCentro: "#2563EB",
-          gradBase: "#1D4ED8",
-          flancoLuz: "#1E40AF",
-          flancoEscuro: "#1E3A8A",
-          furoSombra: "#172554",
-          furoLuz: "#2563EB",
-        }
-      : {
-          gradTopo: "#FF4D4D",
-          gradCentro: "#DC2626",
-          gradBase: "#991B1B",
-          flancoLuz: "#B91C1C",
-          flancoEscuro: "#7F1D1D",
-          furoSombra: "#5B1212",
-          furoLuz: "#DC2626",
-        };
+  const paleta = obterPaletaGlossyPin(corHex);
 
   return `
     <svg width="100%" height="100%" viewBox="0 0 64 58" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -799,72 +1212,84 @@ export function gerarMarcador3DHtml(params: {
     `;
   }
 
-  // Ícone de Veículo 3D (modo veículo volumétrico)
-  const svgContent = getVehicleSvg3DContent(tipoNormalizado, corStatus);
+  // Novo padrão: Pino 3D com o Tipo de Veículo no Interior da Vitrine
+  const vPinSvg = getGlossyPinWithVehicleSvg(tipoNormalizado, corStatus, `vpin-${cleanId}`);
 
   return `
-    <div style="position: relative; width: 84px; height: 84px; display: flex; align-items: center; justify-content: center; cursor: pointer;">
+    <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; user-select: none;">
       ${
         temAlerta
-          ? `<div style="position: absolute; width: 84px; height: 84px; border-radius: 50%; background: #EF444450; animation: ping 1s cubic-bezier(0,0,0.2,1) infinite;"></div>`
+          ? `<div style="position: absolute; bottom: 0px; width: 54px; height: 54px; border-radius: 50%; background: #EF444450; animation: ping 1s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
           : isEmRota
-            ? `<div style="position: absolute; width: 80px; height: 80px; border-radius: 50%; background: ${corStatus}25; animation: ping 1.8s cubic-bezier(0,0,0.2,1) infinite;"></div>`
+            ? `<div style="position: absolute; bottom: 0px; width: 50px; height: 50px; border-radius: 50%; background: ${corStatus}30; animation: ping 1.8s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
             : ""
       }
-      
-      <!-- Contêiner do Veículo e Placa Alinhados à Via com Rotação de Rumo -->
-      <div class="vehicle-via-aligned" style="
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
+
+      <!-- Indicador direcional suave na via sob o pino com orientação do rumo -->
+      <div class="vehicle-via-aligned hunter-generico-seta" style="
+        position: absolute;
+        bottom: 0px;
         transform: rotate(${anguloRumo}deg);
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        pointer-events: none;
+        z-index: 5;
       ">
-        <div class="vehicle-3d-symbol" style="
-          position: relative;
-          width: 68px;
-          height: 68px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          filter: drop-shadow(0 3px 6px rgba(0,0,0,0.45))${isSelected ? ` drop-shadow(0 0 14px ${corStatus})` : ""};
-        ">
-          <svg width="68" height="68" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            ${svgContent}
-          </svg>
-        </div>
-        
-        <!-- Mini Placa Mercosul Alinhada à Via como se fosse o Carro (apenas se habilitada) -->
-        ${
-          exibirPlaca
-            ? `
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path d="M12 2L17 14L12 11L7 14L12 2Z" fill="${corStatus}" opacity="0.95" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.5))"/>
+        </svg>
+      </div>
+
+      <!-- 1. Placa Mercosul ACIMA do Pino (apenas se mais de 1 veículo ou com placa ativa) -->
+      ${
+        exibirPlaca
+          ? `
         <div class="mini-placa-mercosul" style="
-          position: relative;
-          margin-top: -10px;
+          margin-bottom: 2px;
           background: #FFFFFF;
-          border: 1.2px solid #0F172A;
-          border-radius: 4px;
-          box-shadow: 0 4px 12px rgba(0,0,0,0.75);
+          border: 1.2px solid ${isSelected ? "#2563EB" : "#0F172A"};
+          border-radius: 3.5px;
+          box-shadow: 0 2px 5px rgba(0,0,0,0.35)${isSelected ? ", 0 0 8px #2563EB80" : ""};
           overflow: hidden;
           white-space: nowrap;
           font-family: monospace;
           text-align: center;
-          z-index: 20;
           pointer-events: none;
+          z-index: 20;
         ">
-          <div style="background: #003399; height: 3.5px; width: 100%; display: flex; align-items: center; justify-content: center;">
+          <div style="background: #003399; height: 3.5px; width: 100%; display: flex; align-items: center; justify-content: center; padding: 0 4px;">
             <span style="color: #FFFFFF; font-size: 4px; font-weight: 900; line-height: 3.5px; letter-spacing: 0.5px;">BRASIL</span>
           </div>
-          <div style="color: #0F172A; font-size: 11px; font-weight: 900; padding: 1px 6px; line-height: 14px; letter-spacing: 0.2px;">
+          <div style="color: #0F172A; font-size: 10px; font-weight: 900; padding: 0.5px 5.5px; line-height: 12px; letter-spacing: 0.2px;">
             ${placaFormatada}
           </div>
         </div>
-        `
-            : ""
-        }
+      `
+          : ""
+      }
+
+      <!-- 2. Pino 3D Glossy com Veículo no Interior em pé na via -->
+      <div class="hunter-3d-pin-standing hunter-pin-floating vehicle-3d-symbol" style="
+        position: relative;
+        width: 50px;
+        height: 52px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        filter: drop-shadow(0 3px 6px rgba(0,0,0,0.38))${isSelected ? ` drop-shadow(0 0 14px ${corStatus})` : ""};
+      ">
+        ${vPinSvg}
       </div>
+
+      <!-- 3. Sombra de contato no solo exatamente sob a ponta do pino -->
+      <div class="hunter-pin-shadow" style="
+        width: 16px;
+        height: 4px;
+        background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 75%);
+        border-radius: 50%;
+        margin-top: -2px;
+        z-index: 5;
+      "></div>
     </div>
   `;
 }

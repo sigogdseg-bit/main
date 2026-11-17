@@ -1815,7 +1815,41 @@ export function RastreadorJ16View() {
   const carregarDispositivos = useCallback(async () => {
     setCarregandoDispositivos(true);
     try {
-      // 1. Busca paralela de rastreadores, veículos, instalações e clientes
+      // 1. Canal Primário: Rota segura de backend com Service Role (/api/rastreadores)
+      // Imune a recursão RLS de clientes e sem bloqueio de tabelas para client anon
+      try {
+        const sess = await supabase.auth.getSession();
+        const token = sess.data.session?.access_token;
+        if (token) {
+          const res = await fetch("/api/rastreadores", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && Array.isArray(json.dispositivos)) {
+              setDispositivos(json.dispositivos);
+              const listaWhats: Array<{ id: string; nome: string; telefone: string }> = [];
+              const idsVistos = new Set<string>();
+              for (const d of json.dispositivos) {
+                if (d.clienteId && d.clienteTelefone && !idsVistos.has(d.clienteId)) {
+                  idsVistos.add(d.clienteId);
+                  listaWhats.push({
+                    id: d.clienteId,
+                    nome: d.clienteNome || "Cliente",
+                    telefone: d.clienteTelefone,
+                  });
+                }
+              }
+              setClientesWhatsapp(listaWhats);
+              return;
+            }
+          }
+        }
+      } catch (errApi) {
+        console.warn("[RastreadorJ16View] Fallback na rota primária /api/rastreadores:", errApi);
+      }
+
+      // 2. Fallback direto via Supabase SDK
       const [
         { data: rastreadoresData },
         { data: veiculosData },
@@ -4891,15 +4925,13 @@ export function RastreadorJ16View() {
             {carregandoDispositivos ? (
               <div className="py-12 text-center space-y-2">
                 <RefreshCw className="h-6 w-6 text-orange-500 animate-spin mx-auto" />
-                <p className="text-xs text-slate-500">
-                  Sincronizando estado dos rastreadores J16...
-                </p>
+                <p className="text-xs text-slate-500">Sincronizando estado dos rastreadores...</p>
               </div>
             ) : dispositivosFiltrados.length === 0 ? (
               <div className="py-12 text-center space-y-2 bg-slate-50 dark:bg-slate-950/50 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
                 <AlertTriangle className="h-6 w-6 text-amber-500 mx-auto" />
                 <p className="text-xs text-slate-600 dark:text-slate-400 font-medium">
-                  Nenhum rastreador J16 encontrado com os filtros atuais.
+                  Nenhum rastreador encontrado com os filtros atuais.
                 </p>
               </div>
             ) : modoVisualizacao === "tabela" ? (

@@ -304,7 +304,7 @@ export function FrotaAnalyticsView() {
   const [abaAtiva, setAbaAtiva] = useState<
     "operacional" | "financeiro" | "seguranca" | "manutencao"
   >("operacional");
-  const [ocultarSemDeslocamento, setOcultarSemDeslocamento] = useState(true);
+  const [ocultarSemDeslocamento, setOcultarSemDeslocamento] = useState(false);
 
   // Estados principais de dados brutos
   const [dados, setDados] = useState<VeiculoAnalyticsData[]>([]);
@@ -451,6 +451,42 @@ export function FrotaAnalyticsView() {
           return;
         }
 
+        // 1. Prioriza rota segura de backend (/api/veiculos) com Service Role para imunidade contra RLS
+        let veiculosCarregados: VeiculoInfo[] = [];
+        try {
+          const sess = await supabase.auth.getSession();
+          const token = sess.data.session?.access_token;
+          if (token) {
+            const urlApi =
+              clienteSelecionadoId && clienteSelecionadoId !== "todos"
+                ? `/api/veiculos?clienteId=${encodeURIComponent(clienteSelecionadoId)}`
+                : `/api/veiculos/monitor`;
+            const res = await fetch(urlApi, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const json = await res.json();
+              if (json.success && Array.isArray(json.veiculos)) {
+                veiculosCarregados = json.veiculos.map((v: any) => ({
+                  id: v.id,
+                  placa: v.placa,
+                  marca_modelo: v.marca_modelo,
+                  cliente_id: v.cliente_id,
+                  odometro_km: v.odometro_km || 0,
+                }));
+              }
+            }
+          }
+        } catch {
+          /* fallback */
+        }
+
+        if (veiculosCarregados.length > 0) {
+          if (ativo) setTodosVeiculos(veiculosCarregados);
+          return;
+        }
+
+        // 2. Fallback direto via Supabase SDK
         let query = supabase
           .from("veiculos")
           .select("id, placa, marca_modelo, cliente_id, odometro_km");
@@ -512,25 +548,53 @@ export function FrotaAnalyticsView() {
         };
         resManut = { data: obterItensManutencaoDegustacaoMaster() };
       } else {
-        let queryVeiculos = supabase
-          .from("veiculos")
-          .select("id, placa, marca_modelo, cliente_id, odometro_km");
-        if (clienteSelecionadoId && clienteSelecionadoId !== "todos") {
-          queryVeiculos = queryVeiculos.eq("cliente_id", clienteSelecionadoId);
-        } else if (!ehAdminOuOperador && session?.clienteId) {
-          queryVeiculos = queryVeiculos.eq("cliente_id", session.clienteId);
+        // 1. Tenta carregar veículos via rota segura de backend (/api/veiculos) com Service Role
+        let veiculosEncontrados: any[] = [];
+        try {
+          const sess = await supabase.auth.getSession();
+          const token = sess.data.session?.access_token;
+          if (token) {
+            const urlApi =
+              clienteSelecionadoId && clienteSelecionadoId !== "todos"
+                ? `/api/veiculos?clienteId=${encodeURIComponent(clienteSelecionadoId)}`
+                : `/api/veiculos/monitor`;
+            const res = await fetch(urlApi, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (res.ok) {
+              const json = await res.json();
+              if (json.success && Array.isArray(json.veiculos)) {
+                veiculosEncontrados = json.veiculos;
+              }
+            }
+          }
+        } catch {
+          /* fallback */
         }
 
-        const { data: dbVeics } = await queryVeiculos;
-        if (!dbVeics || dbVeics.length === 0) {
-          setDados([]);
-          setAbastecimentos([]);
-          setDespesas([]);
-          setAlertas([]);
-          setManutencoes([]);
-          return;
+        if (veiculosEncontrados.length > 0) {
+          veics = veiculosEncontrados;
+        } else {
+          let queryVeiculos = supabase
+            .from("veiculos")
+            .select("id, placa, marca_modelo, cliente_id, odometro_km");
+          if (clienteSelecionadoId && clienteSelecionadoId !== "todos") {
+            queryVeiculos = queryVeiculos.eq("cliente_id", clienteSelecionadoId);
+          } else if (!ehAdminOuOperador && session?.clienteId) {
+            queryVeiculos = queryVeiculos.eq("cliente_id", session.clienteId);
+          }
+
+          const { data: dbVeics } = await queryVeiculos;
+          if (!dbVeics || dbVeics.length === 0) {
+            setDados([]);
+            setAbastecimentos([]);
+            setDespesas([]);
+            setAlertas([]);
+            setManutencoes([]);
+            return;
+          }
+          veics = dbVeics;
         }
-        veics = dbVeics;
 
         const veicIds = veics.map((v) => v.id);
         const dataInicioIso = dataInicio.toISOString();
@@ -858,7 +922,9 @@ export function FrotaAnalyticsView() {
   const avgScore =
     dadosGrafico.length > 0
       ? Math.round(dadosGrafico.reduce((acc, d) => acc + d.score_conducao, 0) / dadosGrafico.length)
-      : 0;
+      : totalKm === 0 && todosVeiculos.length > 0
+        ? 100
+        : 0;
 
   // --------------------------------------------------------------------------
   // FILTRAGEM E ORDENAÇÃO DINÂMICA DA ABA 1 (OPERACIONAL)

@@ -30,6 +30,7 @@ export interface VeiculoGps {
   ano?: number;
   tipo_veiculo?: TipoVeiculo;
   ignicao: boolean;
+  ignicao_status?: boolean;
   bloqueado: boolean;
   bloqueador_instalado?: boolean;
   tipo_bloqueador?: "rele_combustivel" | "outro" | "sem_bloqueador" | null;
@@ -74,6 +75,7 @@ export interface VeiculoGps {
   status_operacional: "em_rota" | "parado_ligado" | "estacionado" | "bloqueado";
   rastreador_id?: string | null;
   rastreador_imei?: string | null;
+  rastreador_modelo?: string | null;
 }
 
 export type MapEngine = "leaflet" | "maplibre";

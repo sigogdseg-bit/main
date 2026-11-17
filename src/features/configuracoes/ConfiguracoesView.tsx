@@ -706,8 +706,8 @@ export function ConfiguracoesView() {
                       iconeGenerico={false}
                       className="mb-1"
                     />
-                    <span className="text-xs font-black">Sistema (3D)</span>
-                    <span className="text-[10px] opacity-65">Modelo Volumétrico</span>
+                    <span className="text-xs font-black">Pin Veículo (3D)</span>
+                    <span className="text-[10px] opacity-65">Tipo no Interior do Pin</span>
                   </button>
 
                   <button
@@ -729,8 +729,8 @@ export function ConfiguracoesView() {
                       iconeGenerico={true}
                       className="mb-1"
                     />
-                    <span className="text-xs font-black text-center">Genérico (3D)</span>
-                    <span className="text-[10px] opacity-65">Pino em Pé na Via</span>
+                    <span className="text-xs font-black text-center">Pin Clássico (3D)</span>
+                    <span className="text-[10px] opacity-65">Genérico sem Veículo</span>
                   </button>
                 </div>
 

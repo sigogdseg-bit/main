@@ -2566,10 +2566,7 @@ async function handleApiClientes(request: Request, env: unknown): Promise<Respon
 
 async function handleApiVeiculos(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
-  if (
-    !url.pathname.startsWith("/api/veiculos") &&
-    !url.pathname.startsWith("/api/instalacoes")
-  ) {
+  if (!url.pathname.startsWith("/api/veiculos") && !url.pathname.startsWith("/api/instalacoes")) {
     return null;
   }
 
@@ -2647,6 +2644,134 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
     );
   }
 
+  // GET /api/veiculos/saude?veiculoId=xxx (Diagnóstico e teste de sinal em tempo real com Service Role)
+  if (request.method === "GET" && url.pathname === "/api/veiculos/saude") {
+    try {
+      const veiculoId = url.searchParams.get("veiculoId");
+      const placa = url.searchParams.get("placa");
+      const imei = url.searchParams.get("imei");
+
+      if (!veiculoId && !placa && !imei) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Identificador do veículo não fornecido." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      let q = adminClient.from("veiculos").select(`
+          id,
+          placa,
+          marca_modelo,
+          ultima_atualizacao,
+          ignicao_status,
+          velocidade_atual,
+          satelites,
+          gps_fixado,
+          voltagem,
+          bateria_veiculo_v,
+          bateria_rastreador_pct,
+          bateria_rastreador_status,
+          sinal_gsm,
+          rastreador_imei,
+          rastreador_id,
+          ultima_latitude,
+          ultima_longitude,
+          rastreadores!veiculos_rastreador_id_fkey (
+            modelo,
+            status,
+            ultima_comunicacao
+          )
+        `);
+
+      if (veiculoId) q = q.eq("id", veiculoId);
+      else if (placa) q = q.eq("placa", placa);
+      else if (imei) q = q.eq("rastreador_imei", imei);
+
+      const { data: v, error: errV } = await q.maybeSingle();
+
+      if (errV || !v) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            ativo: false,
+            statusTexto: "sem_comunicacao",
+            rotulo: "Sem Comunicacao",
+            mensagem: "Veículo não localizado na base de telemetria.",
+          }),
+          { status: 404, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // Avaliação estrita de comunicação com base na última transmissão factual
+      let ativo = false;
+      let rotulo = "Sem Comunicacao";
+      let detalhe = "Sem transmissao recente";
+      let minutos: number | null = null;
+
+      if (v.ultima_atualizacao) {
+        const dataAtual = Date.now();
+        const dataTransmissao = new Date(v.ultima_atualizacao).getTime();
+        if (!isNaN(dataTransmissao)) {
+          minutos = Math.max(0, Math.floor((dataAtual - dataTransmissao) / (1000 * 60)));
+          if (minutos <= 10) {
+            ativo = true;
+            rotulo = "Comunicacao Ativa";
+            detalhe =
+              minutos <= 0
+                ? "Transmitindo agora"
+                : minutos === 1
+                  ? "Ultima transmissao ha 1 minuto"
+                  : `Ultima transmissao ha ${minutos} minutos`;
+          } else if (minutos < 60) {
+            detalhe = `Sem sinal ha ${minutos} minutos`;
+          } else if (minutos < 1440) {
+            const horas = Math.floor(minutos / 60);
+            detalhe = `Sem sinal ha ${horas} ${horas === 1 ? "hora" : "horas"}`;
+          } else {
+            const dias = Math.floor(minutos / 1440);
+            detalhe = `Sem sinal ha ${dias} ${dias === 1 ? "dia" : "dias"}`;
+          }
+        }
+      }
+
+      const modeloHardware = (v as any).rastreadores?.modelo || "G900L";
+      const mensagem = ativo
+        ? `Comunicacao Ativa: Rastreador ${modeloHardware} respondendo normalmente (${detalhe})`
+        : `Sem Comunicacao: Rastreador ${modeloHardware} sem transmissao recente (${detalhe})`;
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          ativo,
+          statusTexto: ativo ? "ativo" : "sem_comunicacao",
+          rotulo,
+          minutosDesdeUltimaTransmissao: minutos,
+          mensagem,
+          ultimaAtualizacao: v.ultima_atualizacao,
+          satelites: v.satelites ?? 0,
+          ignicao_status: v.ignicao_status ?? false,
+          rastreador_modelo: modeloHardware,
+          voltagem: v.voltagem ?? v.bateria_veiculo_v ?? null,
+          bateria_rastreador_pct: v.bateria_rastreador_pct ?? null,
+          bateria_rastreador_status: v.bateria_rastreador_status ?? "carregando",
+          sinal_gsm: v.sinal_gsm ?? null,
+          temLocalizacao: Boolean(v.ultima_latitude && v.ultima_longitude),
+          ultimaLatitude: v.ultima_latitude,
+          ultimaLongitude: v.ultima_longitude,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao consultar saúde do veículo.",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
   // GET /api/veiculos/monitor ou GET /api/veiculos (sem clienteId para visualização geral da frota)
   if (
     request.method === "GET" &&
@@ -2656,7 +2781,8 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
     try {
       let query = adminClient
         .from("veiculos")
-        .select(`
+        .select(
+          `
           id,
           cliente_id,
           placa,
@@ -2705,13 +2831,17 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
           rele_status,
           rastreador_id,
           rastreador_imei,
+          rastreadores!veiculos_rastreador_id_fkey (
+            modelo
+          ),
           clientes (
             user_id,
             nome_razao_social,
             plano,
             privacidade_localizacao
           )
-        `)
+        `,
+        )
         .eq("ativo", true)
         .not("placa", "in", '("HTR4G16","HUN1T26")')
         .order("placa", { ascending: true });
@@ -2737,10 +2867,15 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
         });
       }
 
-      return new Response(
-        JSON.stringify({ success: true, veiculos: veiculosFrota || [] }),
-        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
-      );
+      const veiculosFormatados = (veiculosFrota || []).map((v: any) => ({
+        ...v,
+        rastreador_modelo: v.rastreadores?.modelo || "G900L",
+      }));
+
+      return new Response(JSON.stringify({ success: true, veiculos: veiculosFormatados }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
     } catch (err: any) {
       return new Response(
         JSON.stringify({
@@ -3363,6 +3498,309 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
       headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
     },
   );
+}
+
+async function handleApiRastreadores(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== "/api/rastreadores" && url.pathname !== "/api/rastreadores/listar") {
+    return null;
+  }
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        ...SECURITY_HEADERS,
+      },
+    });
+  }
+
+  if (request.method !== "GET") {
+    return new Response(JSON.stringify({ success: false, message: "Método não permitido." }), {
+      status: 405,
+      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+    });
+  }
+
+  const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = getSupabaseServerParams(env);
+
+  const authHeader = request.headers.get("Authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return new Response(
+      JSON.stringify({ success: false, message: "Não autorizado: Token de sessão ausente." }),
+      {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      },
+    );
+  }
+
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false },
+  });
+  const { data: userData, error: userError } = await userClient.auth.getUser(token);
+
+  if (userError || !userData?.user) {
+    return new Response(
+      JSON.stringify({ success: false, message: "Sessão inválida ou expirada." }),
+      {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      },
+    );
+  }
+
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  const { data: profile } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", userData.user.id)
+    .single();
+
+  const role = profile?.role;
+  const rolesPermitidas = [
+    "superadmin",
+    "adm",
+    "operador",
+    "financeiro",
+    "superadmin_auditor",
+    "instalador",
+    "revendedor",
+    "vendedor",
+  ];
+
+  if (!role || !rolesPermitidas.includes(role)) {
+    return new Response(
+      JSON.stringify({ success: false, message: "Acesso não autorizado aos rastreadores." }),
+      {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      },
+    );
+  }
+
+  try {
+    const [
+      { data: rastreadoresData },
+      { data: veiculosData },
+      { data: instalacoesData },
+      { data: clientesData },
+    ] = await Promise.all([
+      adminClient.from("rastreadores").select(`
+        id,
+        imei,
+        modelo,
+        status,
+        ultima_comunicacao,
+        veiculo_id,
+        chip_linha,
+        chip_operadora
+      `),
+      adminClient.from("veiculos").select(`
+        id,
+        cliente_id,
+        placa,
+        marca_modelo,
+        rastreador_imei,
+        rastreador_id,
+        ignicao_status,
+        voltagem,
+        bateria_veiculo_v,
+        bateria_rastreador_pct,
+        satelites,
+        velocidade_atual,
+        odometro_km,
+        ultima_latitude,
+        ultima_longitude,
+        ultima_atualizacao,
+        rele_status,
+        sinal_gsm,
+        bloqueado
+      `),
+      adminClient.from("instalacoes").select("id, veiculo_id, rastreador_id, status"),
+      adminClient.from("clientes").select("id, nome_razao_social, telefone"),
+    ]);
+
+    const listaMapeada: any[] = [];
+    const imeisAdicionados = new Set<string>();
+
+    const clientesPorId = new Map<string, { nome: string; telefone: string }>();
+    if (clientesData) {
+      for (const c of clientesData) {
+        if (c.id) {
+          let telNorm = (c.telefone || "").replace(/\D/g, "");
+          if (telNorm.length >= 10 && !telNorm.startsWith("55")) {
+            telNorm = "55" + telNorm;
+          }
+          clientesPorId.set(c.id, {
+            nome: c.nome_razao_social || "Cliente",
+            telefone: telNorm || c.telefone || "",
+          });
+        }
+      }
+    }
+
+    const instPorRastreadorId = new Map<string, any>();
+    const instPorVeiculoId = new Map<string, any>();
+    if (instalacoesData) {
+      for (const i of instalacoesData) {
+        if (i.rastreador_id) instPorRastreadorId.set(i.rastreador_id, i);
+        if (i.veiculo_id) instPorVeiculoId.set(i.veiculo_id, i);
+      }
+    }
+
+    const veicPorId = new Map<string, any>();
+    const veicPorRastreadorImei = new Map<string, any>();
+    const veicPorRastreadorId = new Map<string, any>();
+    if (veiculosData) {
+      for (const v of veiculosData) {
+        if (v.id) veicPorId.set(v.id, v);
+        if (v.rastreador_imei) veicPorRastreadorImei.set(v.rastreador_imei, v);
+        if (v.rastreador_id) veicPorRastreadorId.set(v.rastreador_id, v);
+      }
+    }
+
+    if (rastreadoresData) {
+      for (const r of rastreadoresData) {
+        if (!r.imei) continue;
+
+        const inst =
+          (r.id ? instPorRastreadorId.get(r.id) : null) ||
+          (r.veiculo_id ? instPorVeiculoId.get(r.veiculo_id) : null) ||
+          null;
+
+        const veic =
+          (r.veiculo_id ? veicPorId.get(r.veiculo_id) : null) ||
+          veicPorRastreadorImei.get(r.imei) ||
+          (r.id ? veicPorRastreadorId.get(r.id) : null) ||
+          (inst?.veiculo_id ? veicPorId.get(inst.veiculo_id) : null) ||
+          null;
+
+        let statusReal = "estoque";
+        const instStatus = (inst?.status || "").toLowerCase();
+
+        if (
+          instStatus === "agendada" ||
+          instStatus === "em_andamento" ||
+          instStatus === "aguardando" ||
+          r.status === "aguardando_instalacao" ||
+          (veic && !inst && !veic.rastreador_imei)
+        ) {
+          statusReal = "aguardando_instalacao";
+        } else if (
+          r.status === "instalado" ||
+          instStatus === "concluida" ||
+          (veic && veic.rastreador_imei === r.imei)
+        ) {
+          statusReal = "instalado";
+        } else {
+          statusReal = "estoque";
+        }
+
+        const ultData = veic?.ultima_atualizacao || r.ultima_comunicacao;
+        const isRecent = ultData
+          ? Date.now() - new Date(ultData).getTime() < 1000 * 60 * 15
+          : false;
+
+        const cliR = veic?.cliente_id ? clientesPorId.get(veic.cliente_id) : null;
+
+        listaMapeada.push({
+          id: r.id,
+          imei: r.imei,
+          modelo: r.modelo || "G900L",
+          status: statusReal,
+          ultimaComunicacao: r.ultima_comunicacao,
+          veiculoId: veic?.id || r.veiculo_id,
+          placa: veic?.placa,
+          marcaModelo: veic?.marca_modelo,
+          clienteId: veic?.cliente_id || null,
+          clienteNome: cliR?.nome || null,
+          clienteTelefone: cliR?.telefone || null,
+          ignicaoStatus: veic?.ignicao_status,
+          voltagem: veic?.voltagem,
+          bateriaVeiculoV: veic?.bateria_veiculo_v,
+          bateriaRastreadorPct: veic?.bateria_rastreador_pct,
+          satelites: veic?.satelites,
+          velocidade: veic?.velocidade_atual,
+          odometroKm: veic?.odometro_km,
+          ultimaLatitude: veic?.ultima_latitude ? Number(veic.ultima_latitude) : null,
+          ultimaLongitude: veic?.ultima_longitude ? Number(veic.ultima_longitude) : null,
+          ultimaAtualizacao: veic?.ultima_atualizacao,
+          releStatus: veic?.rele_status,
+          sinalGsm: veic?.sinal_gsm,
+          bloqueado: veic?.bloqueado,
+          chipLinha: r.chip_linha,
+          chipOperadora: r.chip_operadora,
+          isTcpOnline: isRecent,
+        });
+        imeisAdicionados.add(r.imei);
+      }
+    }
+
+    if (veiculosData) {
+      for (const v of veiculosData) {
+        if (v.rastreador_imei && !imeisAdicionados.has(v.rastreador_imei)) {
+          const isRecent = v.ultima_atualizacao
+            ? Date.now() - new Date(v.ultima_atualizacao).getTime() < 1000 * 60 * 15
+            : false;
+
+          const cliV = v.cliente_id ? clientesPorId.get(v.cliente_id) : null;
+
+          listaMapeada.push({
+            id: v.id,
+            imei: v.rastreador_imei,
+            modelo: "G900L",
+            status: "instalado",
+            ultimaComunicacao: v.ultima_atualizacao,
+            veiculoId: v.id,
+            placa: v.placa,
+            marcaModelo: v.marca_modelo,
+            clienteId: v.cliente_id || null,
+            clienteNome: cliV?.nome || null,
+            clienteTelefone: cliV?.telefone || null,
+            ignicaoStatus: v.ignicao_status,
+            voltagem: v.voltagem,
+            bateriaVeiculoV: v.bateria_veiculo_v,
+            bateriaRastreadorPct: v.bateria_rastreador_pct,
+            satelites: v.satelites,
+            velocidade: v.velocidade_atual,
+            odometroKm: v.odometro_km,
+            ultimaLatitude: v.ultima_latitude ? Number(v.ultima_latitude) : null,
+            ultimaLongitude: v.ultima_longitude ? Number(v.ultima_longitude) : null,
+            ultimaAtualizacao: v.ultima_atualizacao,
+            releStatus: v.rele_status,
+            sinalGsm: v.sinal_gsm,
+            bloqueado: v.bloqueado,
+            isTcpOnline: isRecent,
+          });
+          imeisAdicionados.add(v.rastreador_imei);
+        }
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, dispositivos: listaMapeada }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+    });
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: err?.message || "Erro ao consultar rastreadores.",
+      }),
+      {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      },
+    );
+  }
 }
 
 async function handleApiEstoque(request: Request, env: unknown): Promise<Response | null> {
@@ -10215,6 +10653,12 @@ export default {
     const clientesResponse = await handleApiClientes(request, env);
     if (clientesResponse) {
       return clientesResponse;
+    }
+
+    // Intercepta rotas de API seguras de rastreadores e hardware (com Service Role, imune a recursão RLS)
+    const rastreadoresResponse = await handleApiRastreadores(request, env);
+    if (rastreadoresResponse) {
+      return rastreadoresResponse;
     }
 
     // Intercepta rotas de API seguras de veículos e distribuição de frota (com Service Role, imune a recursão RLS)

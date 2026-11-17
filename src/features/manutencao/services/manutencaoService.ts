@@ -26,9 +26,40 @@ import type {
 /**
  * Carrega a lista de clientes para a etapa de seleção da Manutenção Preventiva.
  * Apenas acessível por administradores e operadores.
+ * Prioriza a rota segura de backend (/api/clientes) com Service Role para imunidade total contra erro 42P17 de RLS.
  */
 export async function carregarClientesParaManutencao(): Promise<ClienteManutencaoResumo[]> {
   try {
+    // 1. Tenta carregar via rota segura de backend (/api/clientes) com Service Role
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token) {
+        const res = await fetch("/api/clientes", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.clientes)) {
+            return json.clientes.map((c: any) => ({
+              id: c.id,
+              nome_razao_social: c.nome_razao_social,
+              documento: c.documento || null,
+              telefone: c.telefone || null,
+              plano: c.plano || "basico",
+              total_veiculos: Array.isArray(c.veiculos) ? c.veiculos.length : 0,
+            }));
+          }
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+
+    // 2. Fallback direto via Supabase SDK
     const { data, error } = await supabase
       .from("clientes")
       .select(
@@ -74,43 +105,68 @@ export async function carregarVeiculosDoCliente(
       return obterVeiculosManutencaoDegustacaoMaster();
     }
 
-    let query = supabase
-      .from("veiculos")
-      .select(
-        `
-        id,
-        cliente_id,
-        placa,
-        marca_modelo,
-        tipo_veiculo,
-        odometro_km,
-        horimetro_horas,
-        ano,
-        cor,
-        ativo
-      `,
-      )
-      .eq("ativo", true)
-      .not("placa", "in", '("HTR4G16","HUN1T26")')
-      .order("placa", { ascending: true });
+    let veiculosData: any[] = [];
 
-    if (clienteId) {
-      query = query.eq("cliente_id", clienteId);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-      console.warn("Erro ao buscar veiculos com filtro:", error);
-      return [];
-    }
-
-    // Blindagem estrita: garante que apenas veículos do cliente alvo sejam retornados
-    const veiculosData = (data || []).filter((v: any) => {
-      if (clienteId && v.cliente_id && v.cliente_id !== clienteId) {
-        return false;
+    // 1. Canal primário: Rota segura de backend com Service Role
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token) {
+        const urlApi = clienteId
+          ? `/api/veiculos?clienteId=${encodeURIComponent(clienteId)}`
+          : `/api/veiculos`;
+        const res = await fetch(urlApi, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.veiculos)) {
+            veiculosData = json.veiculos.filter((v: any) => v.ativo !== false);
+          }
+        }
       }
-      return true;
-    });
+    } catch {
+      /* fallback */
+    }
+
+    // 2. Fallback direto via Supabase SDK caso a rota não responda
+    if (veiculosData.length === 0) {
+      let query = supabase
+        .from("veiculos")
+        .select(
+          `
+          id,
+          cliente_id,
+          placa,
+          marca_modelo,
+          tipo_veiculo,
+          odometro_km,
+          horimetro_horas,
+          ano,
+          cor,
+          ativo
+        `,
+        )
+        .eq("ativo", true)
+        .not("placa", "in", '("HTR4G16","HUN1T26")')
+        .order("placa", { ascending: true });
+
+      if (clienteId) {
+        query = query.eq("cliente_id", clienteId);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        console.warn("Erro ao buscar veiculos com filtro:", error);
+      } else {
+        veiculosData = (data || []).filter((v: any) => {
+          if (clienteId && v.cliente_id && v.cliente_id !== clienteId) {
+            return false;
+          }
+          return true;
+        });
+      }
+    }
 
     if (veiculosData.length === 0) return [];
 

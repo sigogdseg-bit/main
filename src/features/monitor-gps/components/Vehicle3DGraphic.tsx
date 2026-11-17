@@ -1,6 +1,6 @@
 import React from "react";
 import {
-  getVehicleSvg3DContent,
+  getGlossyPinWithVehicleSvg,
   getGlossyPin3DSvg,
   normalizarTipoVeiculo,
 } from "../utils/vehicle3dIcons";
@@ -15,7 +15,7 @@ export interface Vehicle3DGraphicProps {
 }
 
 /**
- * Componente React para renderizar a imagem 3D moderna do veículo ou o pino 3D vertical
+ * Componente React para renderizar o Pino 3D com o veículo no interior ou o pino clássico
  */
 export const Vehicle3DGraphic: React.FC<Vehicle3DGraphicProps> = ({
   tipo = "carro",
@@ -59,7 +59,7 @@ export const Vehicle3DGraphic: React.FC<Vehicle3DGraphicProps> = ({
     );
   }
 
-  const svgContent = getVehicleSvg3DContent(tipoNormalizado, corStatus);
+  const pinWithVehicleHtml = getGlossyPinWithVehicleSvg(tipoNormalizado, corStatus, idRef.current);
 
   return (
     <div
@@ -67,16 +67,9 @@ export const Vehicle3DGraphic: React.FC<Vehicle3DGraphicProps> = ({
       style={{
         width: size,
         height: size,
-        transform: rumo ? `rotate(${rumo}deg)` : undefined,
-        transition: "transform 0.3s ease",
+        filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.38))",
       }}
-      dangerouslySetInnerHTML={{
-        __html: `
-          <svg width="${size}" height="${size}" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 4px 8px rgba(0,0,0,0.45));">
-            ${svgContent}
-          </svg>
-        `,
-      }}
+      dangerouslySetInnerHTML={{ __html: pinWithVehicleHtml }}
     />
   );
 };
