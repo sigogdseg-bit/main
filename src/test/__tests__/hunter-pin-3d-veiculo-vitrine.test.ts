@@ -6,6 +6,7 @@ import {
   getGlossyPinWithVehicleSvg,
   getGlossyPin3DSvg,
   obterPaletaGlossyPin,
+  obterCorStatusVeiculo,
   gerarMarcador3DHtml,
 } from "../../features/monitor-gps/utils/vehicle3dIcons";
 
@@ -47,6 +48,39 @@ describe("Hunter — Pin 3D Volumétrico com Tipo de Veículo no Interior (DJR-N
     // Vermelho: Alerta / Bloqueado / Offline
     const paletaVermelho = obterPaletaGlossyPin("#EF4444");
     assert.equal(paletaVermelho.gradCentro, "#DC2626");
+
+    // Cinza Slate: Desconectado / Inativo prolongado (NÃO deve ser vermelho)
+    const paletaCinza = obterPaletaGlossyPin("#64748B");
+    assert.equal(paletaCinza.gradCentro, "#64748B");
+  });
+
+  test("2.1. Deve calcular a cor canônica conforme o status operacional do veículo", () => {
+    // Veículo estacionado com chave desligada deve ser Azul (#0284C7)
+    assert.equal(
+      obterCorStatusVeiculo({ velocidade: 0, ignicao: false, status_operacional: "estacionado" }),
+      "#0284C7",
+    );
+
+    // Veículo em trânsito com ignição ligada deve ser Verde (#10B981)
+    assert.equal(
+      obterCorStatusVeiculo({ velocidade: 45, ignicao: true, status_operacional: "em_rota" }),
+      "#10B981",
+    );
+
+    // Veículo parado com ignição ligada deve ser Âmbar (#F59E0B)
+    assert.equal(
+      obterCorStatusVeiculo({ velocidade: 0, ignicao: true, status_operacional: "parado_ligado" }),
+      "#F59E0B",
+    );
+
+    // Veículo bloqueado deve ser Vermelho (#EF4444)
+    assert.equal(
+      obterCorStatusVeiculo({ bloqueado: true, status_operacional: "bloqueado" }),
+      "#EF4444",
+    );
+
+    // Veículo com alerta deve ser Vermelho (#EF4444)
+    assert.equal(obterCorStatusVeiculo({ alerta_acidente: true }), "#EF4444");
   });
 
   test("3. Marcador 3D padrão do mapa deve renderizar o Pino 3D com o tipo do veículo e mini-placa Mercosul", () => {

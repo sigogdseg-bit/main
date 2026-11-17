@@ -7,7 +7,11 @@ import {
   avaliarEstadoRotaDinamica,
 } from "../services/rotaMonitoradaService";
 import { enriquecerTrajetoComMalhaViaria } from "../services/trajetoInteligenteService";
-import { gerarMarcador3DHtml, deveExibirPlacaNoMapa } from "../utils/vehicle3dIcons";
+import {
+  gerarMarcador3DHtml,
+  deveExibirPlacaNoMapa,
+  obterCorStatusVeiculo,
+} from "../utils/vehicle3dIcons";
 import { obterRumoVeiculo } from "../services/orientacaoRuaService";
 import { avaliarStatusComunicacao } from "../services/gpsService";
 import {
@@ -16,9 +20,10 @@ import {
   criarChaveVisualMarcador,
   atualizarRotacaoElementoMarcador,
 } from "../utils/interpolacaoMapaSuave";
+import { clusterizarVeiculos, gerarMarcadorClusterHtml } from "../utils/clusterVeiculos";
 
 export interface MapLibre3DEngineHandle {
-  fitBounds: () => void;
+  fitBounds: (veiculosAlvo?: VeiculoGps[]) => void;
   centralizarVeiculo: (v: VeiculoGps) => void;
 }
 
@@ -52,6 +57,8 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         veiculoAtual: VeiculoGps;
       };
     }>({});
+    const clusterMarkersRef = useRef<{ [id: string]: any }>({});
+    const [zoomAtual, setZoomAtual] = useState(15);
     const controladorMovimentoRef = useRef<ControladorMovimentoSuave>(
       new ControladorMovimentoSuave(),
     );
@@ -120,12 +127,13 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
       };
     };
 
-    // Ajusta a visão para abranger todos os veículos com perspectiva 3D
-    const ajustarVisaoFrota = () => {
+    // Ajusta a visão para abranger todos os veículos sem deixar nenhum de fora
+    const ajustarVisaoFrota = (veiculosAlvo?: VeiculoGps[]) => {
       const map = mapInstanceRef.current;
-      if (!map || veiculos.length === 0) return;
+      const frota = veiculosAlvo && veiculosAlvo.length > 0 ? veiculosAlvo : veiculosRef.current;
+      if (!map || frota.length === 0) return;
 
-      const pontosValidos = veiculos.filter((v) => coordenadaValidaMapa(v.latitude, v.longitude));
+      const pontosValidos = frota.filter((v) => coordenadaValidaMapa(v.latitude, v.longitude));
 
       if (pontosValidos.length === 1) {
         programmaticFlyUntilRef.current =
@@ -133,22 +141,23 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         map.flyTo({
           center: [pontosValidos[0].longitude, pontosValidos[0].latitude],
           zoom: 16,
-          pitch: 60,
-          bearing: pontosValidos[0].rumo || 0,
+          pitch: 0,
+          bearing: 0,
           essential: true,
-          duration: 1200,
+          duration: 1000,
         });
       } else if (pontosValidos.length > 1) {
         const bounds = new maplibregl.LngLatBounds();
         pontosValidos.forEach((v) => bounds.extend([v.longitude, v.latitude]));
         programmaticFlyUntilRef.current =
           (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1300;
+        // PITCH 0 e BEARING 0 garantem enquadramento retangular ortogonal exato para TODOS os veículos distantes sem distorção
         map.fitBounds(bounds, {
-          padding: 60,
-          pitch: 55,
-          bearing: -10,
-          duration: 1200,
-          maxZoom: 17,
+          padding: 80,
+          pitch: 0,
+          bearing: 0,
+          duration: 1000,
+          maxZoom: 16,
         });
       }
     };
@@ -251,6 +260,9 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
           map.on("moveend", () => {
             programmaticFlyUntilRef.current = 0;
           });
+          map.on("zoomend", () => {
+            setZoomAtual(map.getZoom());
+          });
 
           mapInstanceRef.current = map;
 
@@ -344,13 +356,57 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
       const controlador = controladorMovimentoRef.current;
       const isGenerico = localStorage.getItem("@hunter_icone_mapa_generico") === "true";
       const mostrarPlaca = deveExibirPlacaNoMapa(veiculos.length);
-      const idsAtivos = new Set<string>();
+      const idsVeiculosAtivos = new Set<string>();
+      const idsClustersAtivos = new Set<string>();
 
-      veiculos.forEach((v) => {
+      // Agrupamento tático conforme solicitação:
+      // Ao diminuir muito o mapa, exibe quantidade em círculo com fundo laranja escuro e número em preto
+      // Ao dar zoom (ou clicar no número), volta a exibir o pin individual de cada veículo
+      const elementos = clusterizarVeiculos(veiculos, zoomAtual);
+
+      elementos.forEach((item) => {
+        if (item.tipo === "cluster") {
+          const c = item.cluster;
+          idsClustersAtivos.add(c.id);
+
+          const existente = clusterMarkersRef.current[c.id];
+          if (existente) {
+            existente.setLngLat([c.longitude, c.latitude]);
+            existente.getElement().innerHTML = gerarMarcadorClusterHtml(c.quantidade);
+          } else {
+            const elDiv = document.createElement("div");
+            elDiv.className = "hunter-cluster-marker-3d cursor-pointer select-none";
+            elDiv.innerHTML = gerarMarcadorClusterHtml(c.quantidade);
+            elDiv.addEventListener("click", (e) => {
+              e.stopPropagation();
+              if (c.bounds[0][0] !== c.bounds[1][0] || c.bounds[0][1] !== c.bounds[1][1]) {
+                const bounds = new maplibregl.LngLatBounds(
+                  [c.bounds[0][1], c.bounds[0][0]],
+                  [c.bounds[1][1], c.bounds[1][0]],
+                );
+                map.fitBounds(bounds, { padding: 80, maxZoom: 16, duration: 1000 });
+              } else {
+                map.flyTo({
+                  center: [c.longitude, c.latitude],
+                  zoom: Math.min(map.getZoom() + 3, 16),
+                  duration: 1000,
+                });
+              }
+            });
+
+            const marker = new maplibregl.Marker({ element: elDiv })
+              .setLngLat([c.longitude, c.latitude])
+              .addTo(map);
+            clusterMarkersRef.current[c.id] = marker;
+          }
+          return;
+        }
+
+        const v = item.veiculo;
         if (!coordenadaValidaMapa(v.latitude, v.longitude)) {
           return;
         }
-        idsAtivos.add(v.id);
+        idsVeiculosAtivos.add(v.id);
 
         const isSelected = veiculoSelecionado?.id === v.id;
         const isBloqueado = v.bloqueado;
@@ -360,26 +416,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         const statusCom = avaliarStatusComunicacao(v.ultima_atualizacao);
         const isOffline = !statusCom.ativo;
 
-        let corStatus: string;
-        if (isGenerico) {
-          if (isOffline || temAlerta || isBloqueado) {
-            corStatus = "#EF4444"; // Vermelho: offline / sem comunicação / alerta / bloqueado
-          } else if (v.ignicao) {
-            corStatus = "#10B981"; // Verde: online com ignição ligada
-          } else {
-            corStatus = "#2563EB"; // Azul: online com ignição desligada
-          }
-        } else {
-          corStatus = temAlerta
-            ? "#DC2626"
-            : isBloqueado
-              ? "#EF4444"
-              : isEmRota
-                ? "#10B981"
-                : isParadoLigado
-                  ? "#F59E0B"
-                  : "#64748B";
-        }
+        const corStatus = obterCorStatusVeiculo(v);
 
         const anguloRumo = obterRumoVeiculo(v);
         const estado = controlador.atualizarDestino({
@@ -482,17 +519,33 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         };
       });
 
-      // Remove marcadores antigos que não existem mais
+      // Remove marcadores de veículos que não estão mais presentes ou que foram agrupados no cluster
       Object.keys(markersRef.current).forEach((id) => {
-        if (!idsAtivos.has(id)) {
+        if (!idsVeiculosAtivos.has(id)) {
           const entry = markersRef.current[id];
           if (entry?.marker) entry.marker.remove();
           delete markersRef.current[id];
         }
       });
-      controlador.removerVeiculosAusentes(idsAtivos);
+
+      // Remove marcadores de clusters que não estão mais presentes
+      Object.keys(clusterMarkersRef.current).forEach((id) => {
+        if (!idsClustersAtivos.has(id)) {
+          const clusterMarker = clusterMarkersRef.current[id];
+          if (clusterMarker) clusterMarker.remove();
+          delete clusterMarkersRef.current[id];
+        }
+      });
+
+      controlador.removerVeiculosAusentes(idsVeiculosAtivos);
       controlador.agendarLoop(sincronizarQuadrosMapLibre);
-    }, [veiculos, veiculoSelecionado?.id, versaoPreferencia, sincronizarQuadrosMapLibre]);
+    }, [
+      veiculos,
+      veiculoSelecionado?.id,
+      versaoPreferencia,
+      zoomAtual,
+      sincronizarQuadrosMapLibre,
+    ]);
 
     // Atualiza orientação dos veículos ao rotacionar a câmera do mapa 3D (bearing) ou quando o rumo for calibrado
     useEffect(() => {

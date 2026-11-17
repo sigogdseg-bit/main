@@ -748,10 +748,28 @@ function iniciarWatchdogGlobal() {
         if (proxProbe <= 0) {
           const novasTentativas = (item.tentativasEnvio || 0) + 1;
 
+          // Trava de segurança Hunter contra loops infinitos de sondagem (máx 5 tentativas / 75 segundos)
+          if (novasTentativas > 5) {
+            setTimeout(() => {
+              emitirLogConsoleJ16(
+                "erro",
+                `⏱️ [PROBE TIMEOUT] Limite de 5 probes atingido para ${item.placa || item.imei}. Rastreador offline ou em repouso profundo. Encerrando sondagem ativa.`,
+                item.imei,
+              );
+            }, 50);
+
+            return {
+              ...item,
+              status: "cancelado" as const,
+              segundosDecorridoTotal: decorrido,
+              mensagemStatus: "Sondagem finalizada · Dispositivo sem resposta TCP",
+            };
+          }
+
           setTimeout(() => {
             emitirLogConsoleJ16(
               "envio",
-              `📡 [PROBE 15s #${novasTentativas}] Buscando J16 acordado (${item.placa || item.imei}). Enviando "${item.comando}" via socket TCP...`,
+              `📡 [PROBE 15s #${novasTentativas}/5] Buscando rastreador acordado (${item.placa || item.imei}). Enviando "${item.comando}" via socket TCP...`,
               item.imei,
             );
             reenviarComandoParaImei(item.imei, item.comando, {
@@ -769,7 +787,7 @@ function iniciarWatchdogGlobal() {
             tentativasEnvio: novasTentativas,
             status: "transmitindo" as const,
             ultimoDisparoTs: Date.now(),
-            mensagemStatus: `Probe #${novasTentativas} enviado · Buscando rastreador acordado a cada 15s...`,
+            mensagemStatus: `Probe #${novasTentativas}/5 enviado · Buscando rastreador acordado a cada 15s...`,
           };
         }
 

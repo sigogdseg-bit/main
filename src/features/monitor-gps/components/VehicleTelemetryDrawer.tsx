@@ -75,7 +75,11 @@ import { carregarCompartilhamentosAtivos } from "../services/compartilhamentoSer
 import { ResumoDiarioCard } from "./ResumoDiarioCard";
 import { ModalBloqueioSeguroVeiculo } from "./ModalBloqueioSeguroVeiculo";
 import { Vehicle3DGraphic } from "./Vehicle3DGraphic";
-import { obterRotuloTipoVeiculo, formatarPlacaOuChassi } from "../utils/vehicle3dIcons";
+import {
+  obterRotuloTipoVeiculo,
+  formatarPlacaOuChassi,
+  obterCorStatusVeiculo,
+} from "../utils/vehicle3dIcons";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { podeAcessarLocalizacaoVeiculo } from "../utils/privacidadeLocalizacao";
 import { PainelSaudePrivacidadeRastreador } from "./PainelSaudePrivacidadeRastreador";
@@ -319,15 +323,7 @@ export function VehicleTelemetryDrawer({
     session?.email === "novaes@oficial.tec.br",
   );
 
-  const corStatus = temAlerta
-    ? "#DC2626"
-    : isBloqueado
-      ? "#EF4444"
-      : isEmRota
-        ? "#10B981"
-        : isParadoLigado
-          ? "#F59E0B"
-          : "#64748B";
+  const corStatus = obterCorStatusVeiculo(veiculo);
 
   const copiarCoordenadas = () => {
     const texto = `${veiculo.latitude.toFixed(6)}, ${veiculo.longitude.toFixed(6)}`;

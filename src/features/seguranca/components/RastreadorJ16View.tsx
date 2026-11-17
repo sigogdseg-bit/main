@@ -735,6 +735,7 @@ export function RastreadorJ16View() {
   const [filtroStatus, setFiltroStatus] = useState<
     "todos" | "online" | "instalados" | "aguardando" | "estoque"
   >("todos");
+  const [filtroModelo, setFiltroModelo] = useState<"todos" | "j16" | "g900l">("todos");
 
   // Terminal e envio de comandos
   const [comandoLivre, setComandoLivre] = useState("TIMER,12,1800#");
@@ -3528,6 +3529,14 @@ export function RastreadorJ16View() {
   // Filtros dos dispositivos com useMemo
   const dispositivosFiltrados = useMemo(() => {
     return dispositivos.filter((d) => {
+      if (filtroModelo === "j16") {
+        const mod = (d.modelo || "").toLowerCase();
+        if (!mod.includes("j16")) return false;
+      }
+      if (filtroModelo === "g900l") {
+        const mod = (d.modelo || "").toLowerCase();
+        if (!mod.includes("g900")) return false;
+      }
       if (buscaDispositivo) {
         const q = buscaDispositivo.toLowerCase();
         const batePlaca = (d.placa || "").toLowerCase().includes(q);
@@ -3543,7 +3552,7 @@ export function RastreadorJ16View() {
       if (filtroStatus === "estoque") return d.status === "estoque";
       return true;
     });
-  }, [dispositivos, buscaDispositivo, filtroStatus]);
+  }, [dispositivos, buscaDispositivo, filtroStatus, filtroModelo]);
 
   // Ordenação dos dispositivos por cabeçalho clicável com useMemo e tipagem estrita (DJR-LOV Org)
   const dispositivosOrdenados = useMemo(() => {
@@ -4859,7 +4868,55 @@ export function RastreadorJ16View() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                {/* Seletor de Modelo de Hardware (J16 vs G900L) */}
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltroModelo("todos");
+                      setPaginaAtual(1);
+                    }}
+                    className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                      filtroModelo === "todos"
+                        ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltroModelo("j16");
+                      setPaginaAtual(1);
+                    }}
+                    className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                      filtroModelo === "j16"
+                        ? "bg-orange-500 text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                    title="Filtrar estritamente rastreadores modelo J16 4G"
+                  >
+                    Somente J16
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFiltroModelo("g900l");
+                      setPaginaAtual(1);
+                    }}
+                    className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                      filtroModelo === "g900l"
+                        ? "bg-blue-600 text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                    title="Filtrar rastreadores modelo G900L"
+                  >
+                    Somente G900L
+                  </button>
+                </div>
+
                 <div className="relative w-full sm:w-56">
                   <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input

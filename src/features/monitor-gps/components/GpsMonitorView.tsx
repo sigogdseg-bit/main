@@ -1553,11 +1553,11 @@ export function GpsMonitorView({
                   setModoVisaoFrota(proximo);
                   setTimeout(() => {
                     if (modoVisualizacao === "3D") {
-                      maplibreRef.current?.fitBounds();
+                      maplibreRef.current?.fitBounds(veiculosFiltrados);
                     } else {
-                      leafletRef.current?.fitBounds();
+                      leafletRef.current?.fitBounds(veiculosFiltrados);
                     }
-                  }, 120);
+                  }, 100);
                 }}
                 className={`p-1.5 rounded-xl border transition cursor-pointer ${
                   modoVisaoFrota
@@ -1577,10 +1577,11 @@ export function GpsMonitorView({
             {/* FitBounds Mobile */}
             <button
               onClick={() => {
+                const alvos = modoVisaoFrota ? veiculosFiltrados : veiculosNoMapa;
                 if (modoVisualizacao === "3D") {
-                  maplibreRef.current?.fitBounds();
+                  maplibreRef.current?.fitBounds(alvos);
                 } else {
-                  leafletRef.current?.fitBounds();
+                  leafletRef.current?.fitBounds(alvos);
                 }
               }}
               className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
@@ -1856,11 +1857,11 @@ export function GpsMonitorView({
                   setModoVisaoFrota(proximo);
                   setTimeout(() => {
                     if (modoVisualizacao === "3D") {
-                      maplibreRef.current?.fitBounds();
+                      maplibreRef.current?.fitBounds(veiculosFiltrados);
                     } else {
-                      leafletRef.current?.fitBounds();
+                      leafletRef.current?.fitBounds(veiculosFiltrados);
                     }
-                  }, 120);
+                  }, 100);
                 }}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border font-semibold transition cursor-pointer ${
                   modoVisaoFrota
@@ -1881,10 +1882,11 @@ export function GpsMonitorView({
             {/* Botão Ajustar Frota (Fit Bounds) */}
             <button
               onClick={() => {
+                const alvos = modoVisaoFrota ? veiculosFiltrados : veiculosNoMapa;
                 if (modoVisualizacao === "3D") {
-                  maplibreRef.current?.fitBounds();
+                  maplibreRef.current?.fitBounds(alvos);
                 } else {
-                  leafletRef.current?.fitBounds();
+                  leafletRef.current?.fitBounds(alvos);
                 }
               }}
               className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
@@ -2035,11 +2037,11 @@ export function GpsMonitorView({
                         setModoVisaoFrota(true);
                         setTimeout(() => {
                           if (modoVisualizacao === "3D") {
-                            maplibreRef.current?.fitBounds();
+                            maplibreRef.current?.fitBounds(veiculosFiltrados);
                           } else {
-                            leafletRef.current?.fitBounds();
+                            leafletRef.current?.fitBounds(veiculosFiltrados);
                           }
-                        }, 120);
+                        }, 100);
                       }}
                       className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
                         modoVisaoFrota
@@ -2408,11 +2410,11 @@ export function GpsMonitorView({
                     setModoVisaoFrota(true);
                     setTimeout(() => {
                       if (modoVisualizacao === "3D") {
-                        maplibreRef.current?.fitBounds();
+                        maplibreRef.current?.fitBounds(veiculosFiltrados);
                       } else {
-                        leafletRef.current?.fitBounds();
+                        leafletRef.current?.fitBounds(veiculosFiltrados);
                       }
-                    }, 120);
+                    }, 100);
                   }}
                   className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] shadow transition active:scale-95 cursor-pointer shrink-0"
                 >

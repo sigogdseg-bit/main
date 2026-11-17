@@ -11,6 +11,7 @@ import {
   gerarMarcador3DHtml,
   deveExibirPlacaNoMapa,
   formatarPlacaOuChassi,
+  obterCorStatusVeiculo,
 } from "../utils/vehicle3dIcons";
 import { obterRumoVeiculo } from "../services/orientacaoRuaService";
 import { avaliarStatusComunicacao } from "../services/gpsService";
@@ -20,9 +21,10 @@ import {
   criarChaveVisualMarcador,
   atualizarRotacaoElementoMarcador,
 } from "../utils/interpolacaoMapaSuave";
+import { clusterizarVeiculos, gerarMarcadorClusterHtml } from "../utils/clusterVeiculos";
 
 export interface LeafletEngineHandle {
-  fitBounds: () => void;
+  fitBounds: (veiculosAlvo?: VeiculoGps[]) => void;
   centralizarVeiculo: (v: VeiculoGps) => void;
 }
 
@@ -64,6 +66,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         }
       >
     >(new Map());
+    const clusterMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+    const [zoomAtual, setZoomAtual] = useState(14);
     const controladorMovimentoRef = useRef<ControladorMovimentoSuave>(
       new ControladorMovimentoSuave(),
     );
@@ -86,12 +90,13 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
     const veiculosRef = useRef(veiculos);
     veiculosRef.current = veiculos;
 
-    // Ajusta a visão para abranger todos os veículos
-    const ajustarVisaoFrota = () => {
+    // Ajusta a visão para abranger todos os veículos sem deixar nenhum de fora
+    const ajustarVisaoFrota = (veiculosAlvo?: VeiculoGps[]) => {
       const map = mapInstanceRef.current;
-      if (!map || veiculos.length === 0) return;
+      const frota = veiculosAlvo && veiculosAlvo.length > 0 ? veiculosAlvo : veiculosRef.current;
+      if (!map || frota.length === 0) return;
 
-      const pontosValidos = veiculos.filter((v) => coordenadaValidaMapa(v.latitude, v.longitude));
+      const pontosValidos = frota.filter((v) => coordenadaValidaMapa(v.latitude, v.longitude));
 
       if (pontosValidos.length === 1) {
         map.setView([pontosValidos[0].latitude, pontosValidos[0].longitude], 16, {
@@ -99,7 +104,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         });
       } else if (pontosValidos.length > 1) {
         const bounds = L.latLngBounds(pontosValidos.map((v) => [v.latitude, v.longitude]));
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 18, animate: true });
+        // Padding generoso de 80px para garantir que veículos nas bordas ou distantes nunca fiquem fora da visão
+        map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
       }
     };
 
@@ -190,6 +196,9 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         });
         map.on("dragend", () => {
           userDraggingRef.current = false;
+        });
+        map.on("zoomend", () => {
+          setZoomAtual(map.getZoom());
         });
 
         mapInstanceRef.current = map;
@@ -327,13 +336,61 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       const controlador = controladorMovimentoRef.current;
       const isGenerico = localStorage.getItem("@hunter_icone_mapa_generico") === "true";
       const mostrarPlaca = deveExibirPlacaNoMapa(veiculos.length);
-      const idsAtivos = new Set<string>();
+      const idsVeiculosAtivos = new Set<string>();
+      const idsClustersAtivos = new Set<string>();
 
-      veiculos.forEach((v) => {
+      // Agrupamento tático conforme solicitação:
+      // Ao diminuir muito o mapa, exibe quantidade em círculo com fundo laranja escuro e número em preto
+      // Ao dar zoom (ou clicar no número), volta a exibir o pin individual de cada veículo
+      const elementos = clusterizarVeiculos(veiculos, zoomAtual);
+
+      elementos.forEach((el) => {
+        if (el.tipo === "cluster") {
+          const c = el.cluster;
+          idsClustersAtivos.add(c.id);
+
+          const clusterTamanho = c.quantidade > 99 ? 50 : c.quantidade > 9 ? 46 : 42;
+          const divIcon = L.divIcon({
+            html: gerarMarcadorClusterHtml(c.quantidade),
+            className: "custom-hunter-cluster-marker",
+            iconSize: [clusterTamanho, clusterTamanho],
+            iconAnchor: [clusterTamanho / 2, clusterTamanho / 2],
+          });
+
+          const existente = clusterMarkersRef.current.get(c.id);
+          if (existente) {
+            existente.setLatLng([c.latitude, c.longitude]);
+            existente.setIcon(divIcon);
+            if (!markersGroup.hasLayer(existente)) {
+              markersGroup.addLayer(existente);
+            }
+          } else {
+            const marker = L.marker([c.latitude, c.longitude], {
+              icon: divIcon,
+              zIndexOffset: 1000,
+            });
+            marker.on("click", (e) => {
+              L.DomEvent.stopPropagation(e);
+              if (c.bounds[0][0] !== c.bounds[1][0] || c.bounds[0][1] !== c.bounds[1][1]) {
+                const bounds = L.latLngBounds(c.bounds);
+                map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
+              } else {
+                map.setView([c.latitude, c.longitude], Math.min(map.getZoom() + 3, 16), {
+                  animate: true,
+                });
+              }
+            });
+            marker.addTo(markersGroup);
+            clusterMarkersRef.current.set(c.id, marker);
+          }
+          return;
+        }
+
+        const v = el.veiculo;
         if (!coordenadaValidaMapa(v.latitude, v.longitude)) {
           return;
         }
-        idsAtivos.add(v.id);
+        idsVeiculosAtivos.add(v.id);
 
         const isSelected = veiculoSelecionado?.id === v.id;
         const isBloqueado = v.bloqueado;
@@ -343,26 +400,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         const statusCom = avaliarStatusComunicacao(v.ultima_atualizacao);
         const isOffline = !statusCom.ativo;
 
-        let corStatus: string;
-        if (isGenerico) {
-          if (isOffline || temAlerta || isBloqueado) {
-            corStatus = "#EF4444"; // Vermelho: offline / sem comunicação / alerta / bloqueado
-          } else if (v.ignicao) {
-            corStatus = "#10B981"; // Verde: online com ignição ligada
-          } else {
-            corStatus = "#2563EB"; // Azul: online com ignição desligada
-          }
-        } else {
-          corStatus = temAlerta
-            ? "#DC2626"
-            : isBloqueado
-              ? "#EF4444"
-              : isEmRota
-                ? "#10B981"
-                : isParadoLigado
-                  ? "#F59E0B"
-                  : "#64748B";
-        }
+        const corStatus = obterCorStatusVeiculo(v);
 
         const anguloRumo = obterRumoVeiculo(v);
         const estado = controlador.atualizarDestino({
@@ -466,16 +504,25 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         }
       });
 
-      // Remove marcadores de veículos que não estão mais presentes
+      // Remove marcadores de veículos que não estão mais presentes ou que foram agrupados no cluster
       for (const [id, dados] of markersMapRef.current.entries()) {
-        if (!idsAtivos.has(id)) {
+        if (!idsVeiculosAtivos.has(id)) {
           markersGroup.removeLayer(dados.marker);
           markersMapRef.current.delete(id);
         }
       }
-      controlador.removerVeiculosAusentes(idsAtivos);
+
+      // Remove marcadores de clusters que não estão mais presentes
+      for (const [id, marker] of clusterMarkersRef.current.entries()) {
+        if (!idsClustersAtivos.has(id)) {
+          markersGroup.removeLayer(marker);
+          clusterMarkersRef.current.delete(id);
+        }
+      }
+
+      controlador.removerVeiculosAusentes(idsVeiculosAtivos);
       controlador.agendarLoop(sincronizarQuadrosLeaflet);
-    }, [veiculos, veiculoSelecionado?.id, versaoPreferencia, sincronizarQuadrosLeaflet]);
+    }, [veiculos, veiculoSelecionado?.id, versaoPreferencia, zoomAtual, sincronizarQuadrosLeaflet]);
 
     // Listener reativo para atualizar a rotação do veículo assim que a geometria da rua for calculada
     useEffect(() => {
