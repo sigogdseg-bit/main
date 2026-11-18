@@ -25,7 +25,7 @@ const CSP_DIRECTIVES = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  `connect-src 'self' ${SUPABASE_ORIGIN ? `${SUPABASE_ORIGIN} wss://${SUPABASE_HOST}` : ""} https://*.supabase.co https://*.cloudflareinsights.com https://cloudflareinsights.com https://*.openstreetmap.org https://*.project-osrm.org https://router.project-osrm.org https://routing.openstreetmap.de https://*.arcgisonline.com https://*.maptiler.com https://gd.oficial.tec.br https://sigoguardiao.oficial.tec.br https://*.z-api.io https://*.evolution-api.com https://gps.oficial.tec.br:* http://gps.oficial.tec.br:* http://167.234.233.82:* https://167.234.233.82:* http://137.66.4.11:* https://137.66.4.11:* https://gps.sigoguardiao.oficial.tec.br:* http://gps.sigoguardiao.oficial.tec.br:* https://hunter-gps-gateway.fly.dev http://hunter-gps-gateway.fly.dev:* https://hunter-whatsapp-gateway.fly.dev https://generativelanguage.googleapis.com https://trigger.macrodroid.com https://*.macrodroid.com`,
+  `connect-src 'self' ${SUPABASE_ORIGIN ? `${SUPABASE_ORIGIN} wss://${SUPABASE_HOST}` : ""} https://*.supabase.co https://*.cloudflareinsights.com https://cloudflareinsights.com https://*.openstreetmap.org https://photon.komoot.io https://*.project-osrm.org https://router.project-osrm.org https://routing.openstreetmap.de https://*.arcgisonline.com https://*.maptiler.com https://gd.oficial.tec.br https://sigoguardiao.oficial.tec.br https://*.z-api.io https://*.evolution-api.com https://gps.oficial.tec.br:* http://gps.oficial.tec.br:* http://167.234.233.82:* https://167.234.233.82:* http://137.66.4.11:* https://137.66.4.11:* https://gps.sigoguardiao.oficial.tec.br:* http://gps.sigoguardiao.oficial.tec.br:* https://hunter-gps-gateway.fly.dev http://hunter-gps-gateway.fly.dev:* https://hunter-whatsapp-gateway.fly.dev https://generativelanguage.googleapis.com https://trigger.macrodroid.com https://*.macrodroid.com`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -3325,167 +3325,6 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
-  // Módulo Vigilante — Endpoints Canônicos de Postos e Propriedades
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  // GET /api/vigilantes/postos
-  if (request.method === "GET" && url.pathname === "/api/vigilantes/postos") {
-    try {
-      const { data, error } = await adminClient
-        .from("areas_seguras")
-        .select("*")
-        .eq("tipo", "posto_vigilancia")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const postos = (data || []).map((a: any) => ({
-        id: a.id,
-        cliente_id: a.cliente_id,
-        nome: a.nome,
-        endereco: a.poligono_geojson?.endereco || null,
-        latitude: a.latitude,
-        longitude: a.longitude,
-        raio_metros: a.raio_metros || 100,
-        perimetro_poligono: a.poligono_geojson?.coordinates
-          ? {
-              type: "Polygon",
-              coordinates: a.poligono_geojson.coordinates,
-            }
-          : null,
-        ativo: a.ativo ?? true,
-        created_at: a.created_at,
-        updated_at: a.updated_at,
-      }));
-
-      return new Response(JSON.stringify({ success: true, postos }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-      });
-    } catch (err: any) {
-      return new Response(
-        JSON.stringify({ success: false, message: err?.message || "Erro ao listar postos." }),
-        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
-      );
-    }
-  }
-
-  // POST /api/vigilantes/postos
-  if (request.method === "POST" && url.pathname === "/api/vigilantes/postos") {
-    try {
-      const body = (await request.json()) as any;
-      const { id, nome, endereco, latitude, longitude, raio_metros, perimetro_poligono, ativo } =
-        body || {};
-
-      if (!nome || typeof latitude !== "number" || typeof longitude !== "number") {
-        return new Response(
-          JSON.stringify({ success: false, message: "Nome e coordenadas são obrigatórios." }),
-          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
-        );
-      }
-
-      const geojsonSalvar = {
-        type: "Polygon",
-        coordinates: perimetro_poligono?.coordinates || [],
-        endereco: endereco || null,
-      };
-
-      let result: any = null;
-
-      if (id) {
-        const { data, error } = await adminClient
-          .from("areas_seguras")
-          .update({
-            nome,
-            tipo: "posto_vigilancia",
-            latitude,
-            longitude,
-            raio_metros: raio_metros || 100,
-            poligono_geojson: geojsonSalvar,
-            ativo: ativo ?? true,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", id)
-          .select()
-          .single();
-
-        if (error) throw error;
-        result = data;
-      } else {
-        const { data, error } = await adminClient
-          .from("areas_seguras")
-          .insert({
-            nome,
-            tipo: "posto_vigilancia",
-            latitude,
-            longitude,
-            raio_metros: raio_metros || 100,
-            poligono_geojson: geojsonSalvar,
-            regra_entrada: "permitida",
-            regra_saida: "permitida",
-            tolerancia_metros: 50,
-            ativo: ativo ?? true,
-          })
-          .select()
-          .single();
-
-        if (error) throw error;
-        result = data;
-      }
-
-      const postoRetorno = {
-        id: result.id,
-        cliente_id: result.cliente_id,
-        nome: result.nome,
-        endereco: result.poligono_geojson?.endereco || endereco || null,
-        latitude: result.latitude,
-        longitude: result.longitude,
-        raio_metros: result.raio_metros,
-        perimetro_poligono: perimetro_poligono || null,
-        ativo: result.ativo,
-        created_at: result.created_at,
-        updated_at: result.updated_at,
-      };
-
-      return new Response(JSON.stringify({ success: true, posto: postoRetorno }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-      });
-    } catch (err: any) {
-      return new Response(
-        JSON.stringify({ success: false, message: err?.message || "Erro ao salvar posto." }),
-        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
-      );
-    }
-  }
-
-  // DELETE /api/vigilantes/postos
-  if (request.method === "DELETE" && url.pathname === "/api/vigilantes/postos") {
-    try {
-      const id = url.searchParams.get("id");
-      if (!id) {
-        return new Response(JSON.stringify({ success: false, message: "ID é obrigatório." }), {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-        });
-      }
-
-      const { error } = await adminClient.from("areas_seguras").delete().eq("id", id);
-      if (error) throw error;
-
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-      });
-    } catch (err: any) {
-      return new Response(
-        JSON.stringify({ success: false, message: err?.message || "Erro ao excluir posto." }),
-        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
-      );
-    }
-  }
-
   // POST /api/veiculos/distribuir
   if (request.method === "POST" && url.pathname === "/api/veiculos/distribuir") {
     try {
@@ -4025,17 +3864,84 @@ async function handleApiEstoque(request: Request, env: unknown): Promise<Respons
     .single();
 
   const role = profile?.role;
-  if (!role || !["superadmin", "adm", "operador"].includes(role)) {
+  if (!role || !["superadmin", "adm", "operador", "financeiro"].includes(role)) {
     return new Response(
       JSON.stringify({
         success: false,
-        message: "Ação não autorizada: Apenas administradores e operadores podem gerenciar chips.",
+        message:
+          "Ação não autorizada: Apenas administradores e operadores podem gerenciar estoque.",
       }),
       {
         status: 403,
         headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
       },
     );
+  }
+
+  // GET /api/estoque/movimentacoes
+  if (url.pathname === "/api/estoque/movimentacoes" && request.method === "GET") {
+    try {
+      const { data, error } = await adminClient
+        .from("estoque_movimentacoes")
+        .select(
+          `
+          *,
+          item:item_id (
+            nome,
+            codigo_sku,
+            unidade_medida,
+            categoria
+          ),
+          fornecedor:fornecedor_id (
+            nome_fantasia,
+            razao_social
+          ),
+          instalacao:instalacao_id (
+            placa,
+            modelo
+          )
+        `,
+        )
+        .order("data_movimento", { ascending: false })
+        .limit(100);
+
+      if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true, movimentacoes: data || [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao listar movimentações.",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // GET /api/estoque/itens
+  if (url.pathname === "/api/estoque/itens" && request.method === "GET") {
+    try {
+      const { data, error } = await adminClient
+        .from("estoque_itens")
+        .select("*")
+        .order("nome", { ascending: true });
+
+      if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true, itens: data || [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao listar itens." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
   }
 
   // POST /api/estoque/chip
@@ -10906,6 +10812,18 @@ export default {
       return gpsAuditorResponse;
     }
 
+    // Intercepta rotas seguras do Módulo Vigilante (postos e rondas)
+    const vigilantesResponse = await handleApiVigilantes(request, env);
+    if (vigilantesResponse) {
+      return vigilantesResponse;
+    }
+
+    // Intercepta rota segura de geocodificação de endereços
+    const geocodificarResponse = await handleApiGeocodificar(request, env);
+    if (geocodificarResponse) {
+      return geocodificarResponse;
+    }
+
     const entry = await getServerEntry();
     const response = await entry.fetch(request, env, ctx);
 
@@ -12827,4 +12745,330 @@ async function handleApiGpsAuditor(request: Request, env: unknown): Promise<Resp
   }
 
   return null;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// Módulo Vigilante — Endpoints Canônicos de Postos e Propriedades
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleApiVigilantes(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/vigilantes")) {
+    return null;
+  }
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        ...SECURITY_HEADERS,
+      },
+    });
+  }
+
+  const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  // GET /api/vigilantes/postos
+  if (request.method === "GET" && url.pathname === "/api/vigilantes/postos") {
+    try {
+      const { data, error } = await adminClient
+        .from("areas_seguras")
+        .select("*")
+        .eq("tipo", "posto_vigilancia")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const postos = (data || []).map((a: any) => ({
+        id: a.id,
+        cliente_id: a.cliente_id,
+        nome: a.nome,
+        endereco: a.poligono_geojson?.endereco || null,
+        latitude: a.latitude,
+        longitude: a.longitude,
+        raio_metros: a.raio_metros || 100,
+        perimetro_poligono: a.poligono_geojson?.coordinates
+          ? {
+              type: "Polygon",
+              coordinates: a.poligono_geojson.coordinates,
+            }
+          : null,
+        ativo: a.ativo ?? true,
+        created_at: a.created_at,
+        updated_at: a.updated_at,
+      }));
+
+      return new Response(JSON.stringify({ success: true, postos }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao listar postos." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // POST /api/vigilantes/postos
+  if (request.method === "POST" && url.pathname === "/api/vigilantes/postos") {
+    try {
+      const body = (await request.json()) as any;
+      const { id, nome, endereco, latitude, longitude, raio_metros, perimetro_poligono, ativo } =
+        body || {};
+
+      if (!nome || typeof latitude !== "number" || typeof longitude !== "number") {
+        return new Response(
+          JSON.stringify({ success: false, message: "Nome e coordenadas são obrigatórios." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const geojsonSalvar = {
+        type: "Polygon",
+        coordinates: perimetro_poligono?.coordinates || [],
+        endereco: endereco || null,
+      };
+
+      let result: any = null;
+
+      if (id) {
+        const { data, error } = await adminClient
+          .from("areas_seguras")
+          .update({
+            nome,
+            tipo: "posto_vigilancia",
+            latitude,
+            longitude,
+            raio_metros: raio_metros || 100,
+            poligono_geojson: geojsonSalvar,
+            ativo: ativo ?? true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        result = data;
+      } else {
+        const { data, error } = await adminClient
+          .from("areas_seguras")
+          .insert({
+            nome,
+            tipo: "posto_vigilancia",
+            latitude,
+            longitude,
+            raio_metros: raio_metros || 100,
+            poligono_geojson: geojsonSalvar,
+            regra_entrada: "permitida",
+            regra_saida: "permitida",
+            tolerancia_metros: 50,
+            ativo: ativo ?? true,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        result = data;
+      }
+
+      const postoRetorno = {
+        id: result.id,
+        cliente_id: result.cliente_id,
+        nome: result.nome,
+        endereco: result.poligono_geojson?.endereco || endereco || null,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        raio_metros: result.raio_metros,
+        perimetro_poligono: perimetro_poligono || null,
+        ativo: result.ativo,
+        created_at: result.created_at,
+        updated_at: result.updated_at,
+      };
+
+      return new Response(JSON.stringify({ success: true, posto: postoRetorno }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao salvar posto." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // DELETE /api/vigilantes/postos
+  if (request.method === "DELETE" && url.pathname === "/api/vigilantes/postos") {
+    try {
+      const id = url.searchParams.get("id");
+      if (!id) {
+        return new Response(JSON.stringify({ success: false, message: "ID é obrigatório." }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
+      }
+
+      const { error } = await adminClient.from("areas_seguras").delete().eq("id", id);
+      if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao excluir posto." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Geocodificação de Endereço via Nominatim e Photon
+// ─────────────────────────────────────────────────────────────────────────────
+async function handleApiGeocodificar(request: Request, _env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== "/api/geocodificar") {
+    return null;
+  }
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        ...SECURITY_HEADERS,
+      },
+    });
+  }
+
+  if (request.method !== "GET") {
+    return new Response(JSON.stringify({ success: false, message: "Método não permitido." }), {
+      status: 405,
+      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+    });
+  }
+
+  try {
+    const q = (url.searchParams.get("q") || "").trim();
+    if (!q || q.length < 3) {
+      return new Response(
+        JSON.stringify({ success: false, message: "Endereço para busca muito curto." }),
+        { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+
+    const qClean = q
+      .replace(/\bav\.?\b/gi, "Avenida")
+      .replace(/\br\.?\b/gi, "Rua")
+      .replace(/\bsra\.?\b/gi, "Senhora")
+      .replace(/\bsto\.?\b/gi, "Santo")
+      .replace(/\bsta\.?\b/gi, "Santa")
+      .replace(/\bpç\.?\b/gi, "Praça")
+      .replace(/\brod\.?\b/gi, "Rodovia")
+      .replace(/\balm\.?\b/gi, "Almirante");
+
+    // 1. Nominatim (OpenStreetMap) com User-Agent corporativo
+    try {
+      const urlNom = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        qClean,
+      )}&countrycodes=br&limit=1`;
+      const resNom = await fetch(urlNom, {
+        headers: { "User-Agent": "GD-Seguranca-Geocoding/1.0 (contato@gd.oficial.tec.br)" },
+      });
+      if (resNom.ok) {
+        const dNom = (await resNom.json()) as any[];
+        if (dNom?.[0]?.lat && dNom?.[0]?.lon) {
+          return new Response(
+            JSON.stringify({
+              success: true,
+              latitude: parseFloat(dNom[0].lat),
+              longitude: parseFloat(dNom[0].lon),
+              label: dNom[0].display_name,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+          );
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+
+    // 2. Photon (Komoot / OSM)
+    try {
+      const urlPhoton = `https://photon.komoot.io/api/?q=${encodeURIComponent(qClean)}&limit=1`;
+      const resPhoton = await fetch(urlPhoton);
+      if (resPhoton.ok) {
+        const dPhoton = (await resPhoton.json()) as any;
+        if (dPhoton?.features?.[0]?.geometry?.coordinates) {
+          const [lon, lat] = dPhoton.features[0].geometry.coordinates;
+          const nomeProp = dPhoton.features[0].properties.name || qClean;
+          const cidade = dPhoton.features[0].properties.city || "";
+          return new Response(
+            JSON.stringify({
+              success: true,
+              latitude: lat,
+              longitude: lon,
+              label: cidade ? `${nomeProp}, ${cidade}` : nomeProp,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+          );
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+
+    // 3. Fallback simplificado (primeira e última parte)
+    const partes = qClean.split(",").map((p) => p.trim());
+    if (partes.length >= 3) {
+      const querySimplificada = `${partes[0]}, ${partes[partes.length - 1]}`;
+      try {
+        const urlNom2 = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          querySimplificada,
+        )}&countrycodes=br&limit=1`;
+        const resNom2 = await fetch(urlNom2, {
+          headers: { "User-Agent": "GD-Seguranca-Geocoding/1.0 (contato@gd.oficial.tec.br)" },
+        });
+        if (resNom2.ok) {
+          const dNom2 = (await resNom2.json()) as any[];
+          if (dNom2?.[0]?.lat && dNom2?.[0]?.lon) {
+            return new Response(
+              JSON.stringify({
+                success: true,
+                latitude: parseFloat(dNom2[0].lat),
+                longitude: parseFloat(dNom2[0].lon),
+                label: dNom2[0].display_name,
+              }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+              },
+            );
+          }
+        }
+      } catch {}
+    }
+
+    return new Response(
+      JSON.stringify({ success: false, message: "Endereço não localizado pelo mapa." }),
+      { status: 404, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+    );
+  } catch (err: any) {
+    return new Response(
+      JSON.stringify({ success: false, message: err?.message || "Erro na geocodificação." }),
+      { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+    );
+  }
 }

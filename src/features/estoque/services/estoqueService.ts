@@ -14,6 +14,43 @@ import type {
 
 export async function listarItensEstoque(): Promise<ItemEstoque[]> {
   try {
+    // 1. Prioridade máxima: Rota segura do backend (/api/estoque/itens) com Service Role
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token && typeof window !== "undefined") {
+        const res = await fetch("/api/estoque/itens", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.itens)) {
+            return json.itens.map((item: any) => ({
+              id: item.id,
+              codigo_sku: item.codigo_sku,
+              nome: item.nome,
+              descricao: item.descricao,
+              categoria: item.categoria,
+              quantidade_atual: Number(item.quantidade_atual || 0),
+              quantidade_minima: Number(item.quantidade_minima || 0),
+              unidade_medida: item.unidade_medida,
+              custo_medio_unitario: Number(item.custo_medio_unitario || 0),
+              custo_base: Number(item.custo_base ?? item.custo_medio_unitario ?? 0),
+              custo_frete: Number(item.custo_frete || 0),
+              preco_venda: Number(item.preco_venda || 0),
+              markup_percentual: Number(item.markup_percentual || 0),
+              localizacao: item.localizacao,
+              ativo: item.ativo,
+              created_at: item.created_at,
+              updated_at: item.updated_at,
+            })) as ItemEstoque[];
+          }
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+
     const { data, error } = await supabase
       .from("estoque_itens" as any)
       .select("*")
@@ -349,6 +386,42 @@ export async function listarMovimentacoesEstoque(filtros?: {
   limit?: number;
 }): Promise<MovimentacaoEstoque[]> {
   try {
+    // 1. Prioridade máxima: Rota segura de backend (/api/estoque/movimentacoes) com Service Role
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token && typeof window !== "undefined") {
+        const res = await fetch("/api/estoque/movimentacoes", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.movimentacoes)) {
+            let lista = json.movimentacoes;
+            if (filtros?.itemId) {
+              lista = lista.filter((m: any) => m.item_id === filtros.itemId);
+            }
+            if (filtros?.instalacaoId) {
+              lista = lista.filter((m: any) => m.instalacao_id === filtros.instalacaoId);
+            }
+            if (filtros?.tipo && filtros.tipo !== "todos") {
+              lista = lista.filter((m: any) => m.tipo === filtros.tipo);
+            }
+            return lista.slice(0, filtros?.limit || 100).map((m: any) => ({
+              ...m,
+              quantidade: Number(m.quantidade || 0),
+              custo_unitario: Number(m.custo_unitario || 0),
+              valor_total: Number(m.valor_total || 0),
+              saldo_anterior: Number(m.saldo_anterior || 0),
+              saldo_posterior: Number(m.saldo_posterior || 0),
+            })) as MovimentacaoEstoque[];
+          }
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+
     let query = supabase
       .from("estoque_movimentacoes" as any)
       .select(

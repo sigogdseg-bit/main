@@ -35,6 +35,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   EyeOff,
+  Building2,
 } from "lucide-react";
 import type { VeiculoGps, MapTheme, ModoVisualizacao } from "../types";
 import { useGpsRealtime } from "../hooks/useGpsRealtime";
@@ -53,6 +54,8 @@ import {
 import { OverlayPrivacidadeVeiculo } from "./OverlayPrivacidadeVeiculo";
 import { LeafletEngine, type LeafletEngineHandle } from "./LeafletEngine";
 import { MapLibre3DEngine, type MapLibre3DEngineHandle } from "./MapLibre3DEngine";
+import { carregarPostosVigilancia } from "@/features/vigilantes/services/vigilanteService";
+import type { PostoVigilancia } from "@/features/vigilantes/types";
 
 // ErrorBoundary tático para conter falhas de renderização WebGL 3D e fazer fallback suave para 2D
 class MapErrorBoundary extends Component<
@@ -177,6 +180,21 @@ export function GpsMonitorView({
       return [];
     }
   });
+
+  const [postosVigilancia, setPostosVigilancia] = useState<PostoVigilancia[]>([]);
+  const [postosExpandidos, setPostosExpandidos] = useState(true);
+
+  useEffect(() => {
+    let ativo = true;
+    carregarPostosVigilancia().then((res) => {
+      if (ativo && Array.isArray(res)) {
+        setPostosVigilancia(res.filter((p) => p.ativo));
+      }
+    });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Purga filtros legados no mount para evitar que clientes ativos fiquem ocultos silenciosamente
@@ -2129,6 +2147,99 @@ export function GpsMonitorView({
 
             {/* Lista dos Veículos (Agrupada por Cliente para Usuários, ou Direta para Clientes/Instaladores) */}
             <div className="flex-1 overflow-y-auto p-2 space-y-2">
+              {/* Postos de Vigilância Ativos (Integrados ao Mapa Operacional como Clientes) */}
+              {postosVigilancia.length > 0 && (
+                <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-950/20 overflow-hidden shadow-sm mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setPostosExpandidos((prev) => !prev)}
+                    className="w-full flex items-center justify-between p-2.5 hover:bg-emerald-500/10 transition text-left cursor-pointer"
+                    title={
+                      postosExpandidos
+                        ? "Recolher postos de vigilância"
+                        : "Expandir postos de vigilância"
+                    }
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-1.5 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
+                            Postos de Vigilância
+                          </span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500 text-slate-950 font-extrabold">
+                            POSTO
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 mt-0.5">
+                          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                            {postosVigilancia.length}{" "}
+                            {postosVigilancia.length === 1 ? "propriedade" : "propriedades"}{" "}
+                            monitorada{postosVigilancia.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0 ml-1.5">
+                      <ChevronDown
+                        className={`h-4 w-4 text-slate-400 transition-transform duration-200 ${
+                          postosExpandidos ? "rotate-0" : "-rotate-90"
+                        }`}
+                      />
+                    </div>
+                  </button>
+
+                  {postosExpandidos && (
+                    <div className="p-2 space-y-1.5 border-t border-emerald-500/20 bg-white/40 dark:bg-slate-900/40">
+                      {postosVigilancia.map((posto) => (
+                        <div
+                          key={posto.id}
+                          onClick={() => {
+                            leafletRef.current?.centralizarCoordenadas(
+                              posto.latitude,
+                              posto.longitude,
+                              18,
+                            );
+                          }}
+                          className="flex items-center justify-between p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-200 dark:border-slate-700/60 cursor-pointer transition shadow-xs group"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                                {posto.nome}
+                              </span>
+                            </div>
+                            {posto.endereco && (
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                {posto.endereco}
+                              </p>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              leafletRef.current?.centralizarCoordenadas(
+                                posto.latitude,
+                                posto.longitude,
+                                18,
+                              );
+                            }}
+                            className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white transition shrink-0 cursor-pointer"
+                            title="Focar no Mapa"
+                          >
+                            <Crosshair className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
               {veiculosFiltrados.length === 0 ? (
                 <div className="text-center py-10 text-xs text-slate-500 font-mono">
                   {carregando ? "Carregando frota..." : "Nenhum veículo encontrado."}
@@ -2508,6 +2619,10 @@ export function GpsMonitorView({
                 trafegoAtivo={trafegoAtivo}
                 veiculoSelecionado={veiculoSelecionado}
                 onSelectVeiculo={handleSelectVeiculoMapa}
+                postos={postosVigilancia}
+                onSelectPosto={(posto) => {
+                  leafletRef.current?.centralizarCoordenadas(posto.latitude, posto.longitude, 18);
+                }}
                 rotaMonitorada={rotaMonitoradaAtiva}
               />
             ) : (
@@ -2520,6 +2635,14 @@ export function GpsMonitorView({
                     trafegoAtivo={trafegoAtivo}
                     veiculoSelecionado={veiculoSelecionado}
                     onSelectVeiculo={handleSelectVeiculoMapa}
+                    postos={postosVigilancia}
+                    onSelectPosto={(posto) => {
+                      leafletRef.current?.centralizarCoordenadas(
+                        posto.latitude,
+                        posto.longitude,
+                        18,
+                      );
+                    }}
                     rotaMonitorada={rotaMonitoradaAtiva}
                   />
                 }

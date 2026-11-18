@@ -23,9 +23,12 @@ import {
 } from "../utils/interpolacaoMapaSuave";
 import { clusterizarVeiculos, gerarMarcadorClusterHtml } from "../utils/clusterVeiculos";
 
+import type { PostoVigilancia } from "@/features/vigilantes/types";
+
 export interface LeafletEngineHandle {
   fitBounds: (veiculosAlvo?: VeiculoGps[]) => void;
   centralizarVeiculo: (v: VeiculoGps) => void;
+  centralizarCoordenadas: (lat: number, lng: number, zoom?: number) => void;
 }
 
 interface LeafletEngineProps {
@@ -34,6 +37,8 @@ interface LeafletEngineProps {
   trafegoAtivo?: boolean;
   veiculoSelecionado: VeiculoGps | null;
   onSelectVeiculo: (v: VeiculoGps) => void;
+  postos?: PostoVigilancia[];
+  onSelectPosto?: (p: PostoVigilancia) => void;
   rotaMonitorada?: {
     id?: string;
     veiculo_id?: string;
@@ -46,7 +51,16 @@ interface LeafletEngineProps {
 
 export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>(
   function LeafletEngine(
-    { veiculos, theme, trafegoAtivo = false, veiculoSelecionado, onSelectVeiculo, rotaMonitorada },
+    {
+      veiculos,
+      theme,
+      trafegoAtivo = false,
+      veiculoSelecionado,
+      onSelectVeiculo,
+      postos,
+      onSelectPosto,
+      rotaMonitorada,
+    },
     ref,
   ) {
     const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +69,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
     const trafficLayerRef = useRef<L.TileLayer | null>(null);
     const markersGroupRef = useRef<L.LayerGroup | null>(null);
     const rotaGroupRef = useRef<L.LayerGroup | null>(null);
+    const postosGroupRef = useRef<L.LayerGroup | null>(null);
     const markersMapRef = useRef<
       Map<
         string,
@@ -163,6 +178,14 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           });
         }
       },
+      centralizarCoordenadas: (lat: number, lng: number, zoom?: number) => {
+        if (mapInstanceRef.current && coordenadaValidaMapa(lat, lng)) {
+          seguindoCameraRef.current = false;
+          mapInstanceRef.current.setView([lat, lng], zoom || 17, {
+            animate: true,
+          });
+        }
+      },
     }));
 
     // Inicialização do mapa com suporte a dispositivos móveis
@@ -204,6 +227,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         mapInstanceRef.current = map;
         markersGroupRef.current = L.layerGroup().addTo(map);
         rotaGroupRef.current = L.layerGroup().addTo(map);
+        postosGroupRef.current = L.layerGroup().addTo(map);
 
         // Suporte robusto a dispositivos móveis:
         // Disparos escalonados garantem que os tiles do mapa carreguem mesmo com renderização assíncrona da viewport móvel
@@ -795,6 +819,128 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         cancelado = true;
       };
     }, [rotaMonitorada, veiculoSelecionado, veiculos]);
+
+    // Renderização dos Postos de Vigilância Ativos no Mapa Operacional
+    useEffect(() => {
+      const group = postosGroupRef.current;
+      if (!group) return;
+
+      group.clearLayers();
+
+      if (!postos || postos.length === 0) return;
+
+      postos.forEach((posto) => {
+        if (!posto.ativo) return;
+
+        // 1. Polígono de demarcação da área geral do posto
+        if (
+          posto.perimetro_poligono?.coordinates &&
+          posto.perimetro_poligono.coordinates.length >= 3
+        ) {
+          const latlngs = posto.perimetro_poligono.coordinates.map(
+            ([lat, lng]) => [lat, lng] as [number, number],
+          );
+          const poligono = L.polygon(latlngs, {
+            color: "#00CFCC",
+            weight: 2,
+            opacity: 0.9,
+            fillColor: "#00CFCC",
+            fillOpacity: 0.2,
+            dashArray: "4, 6",
+          });
+          poligono.bindTooltip(
+            `<b>${posto.nome}</b><br/><span style="font-size:10px; opacity:0.8;">Posto Tático de Vigilância</span>`,
+            {
+              direction: "top",
+              sticky: true,
+              className: "leaflet-tooltip-tatico",
+            },
+          );
+          poligono.addTo(group);
+        } else if (posto.raio_metros && coordenadaValidaMapa(posto.latitude, posto.longitude)) {
+          const circulo = L.circle([posto.latitude, posto.longitude], {
+            radius: posto.raio_metros,
+            color: "#00CFCC",
+            weight: 1.5,
+            fillColor: "#00CFCC",
+            fillOpacity: 0.15,
+            dashArray: "3, 5",
+          });
+          circulo.addTo(group);
+        }
+
+        // 2. Marcador tático no centro do posto
+        if (coordenadaValidaMapa(posto.latitude, posto.longitude)) {
+          const iconHtml = `
+            <div style="
+              position: relative;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              width: 36px;
+              height: 36px;
+              background: #0f172a;
+              border: 2px solid #00CFCC;
+              border-radius: 12px;
+              box-shadow: 0 4px 12px rgba(0, 207, 204, 0.4), 0 2px 4px rgba(0,0,0,0.5);
+              cursor: pointer;
+            ">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00CFCC" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/>
+                <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/>
+                <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/>
+                <path d="M10 6h4"/>
+                <path d="M10 10h4"/>
+                <path d="M10 14h4"/>
+                <path d="M10 18h4"/>
+              </svg>
+              <span style="
+                position: absolute;
+                top: -3px;
+                right: -3px;
+                width: 9px;
+                height: 9px;
+                background: #10b981;
+                border: 2px solid #0f172a;
+                border-radius: 50%;
+              "></span>
+            </div>
+          `;
+
+          const customIcon = L.divIcon({
+            className: "custom-posto-marker",
+            html: iconHtml,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+            popupAnchor: [0, -18],
+          });
+
+          const marker = L.marker([posto.latitude, posto.longitude], {
+            icon: customIcon,
+          });
+
+          const popupHtml = `
+            <div style="font-family: inherit; font-size: 12px; min-width: 200px; padding: 4px;">
+              <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px;">
+                <span style="background: #00CFCC; color: #0c121c; font-weight: bold; font-size: 9px; padding: 2px 6px; border-radius: 4px;">POSTO TÁTICO</span>
+                <span style="font-weight: 700; color: #1e293b; font-size: 13px;">${posto.nome}</span>
+              </div>
+              ${posto.endereco ? `<p style="margin: 0 0 6px 0; color: #64748b; font-size: 11px;">${posto.endereco}</p>` : ""}
+              <div style="border-top: 1px solid #e2e8f0; padding-top: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #10b981; font-weight: 600; font-size: 10px;">● Vigilância Ativa</span>
+                <span style="color: #64748b; font-size: 10px;">Raio: ${posto.raio_metros || 100}m</span>
+              </div>
+            </div>
+          `;
+
+          marker.bindPopup(popupHtml);
+          marker.on("click", () => {
+            onSelectPosto?.(posto);
+          });
+          marker.addTo(group);
+        }
+      });
+    }, [postos, onSelectPosto]);
 
     return (
       <div

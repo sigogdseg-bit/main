@@ -13,13 +13,34 @@ interface ModalNovoPostoProps {
 }
 
 /**
- * Busca geodésica do endereço no Brasil com suporte a abreviações
+ * Busca geodésica do endereço no Brasil com suporte a abreviações e backend seguro
  */
 async function geocodificarEndereco(
   texto: string,
 ): Promise<{ latitude: number; longitude: number; label: string } | null> {
   const q = texto.trim();
   if (!q || q.length < 3) return null;
+
+  try {
+    // 1. Prioridade máxima: Endpoint seguro de backend (imune a CORS, CSP e bloqueios de User-Agent)
+    const resApi = await fetch(`/api/geocodificar?q=${encodeURIComponent(q)}`);
+    if (resApi.ok) {
+      const data = await resApi.json();
+      if (
+        data?.success &&
+        typeof data.latitude === "number" &&
+        typeof data.longitude === "number"
+      ) {
+        return {
+          latitude: data.latitude,
+          longitude: data.longitude,
+          label: data.label || q,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Falha ao geocodificar via backend:", err);
+  }
 
   const qClean = q
     .replace(/\bav\.?\b/gi, "Avenida")
@@ -32,7 +53,7 @@ async function geocodificarEndereco(
     .replace(/\balm\.?\b/gi, "Almirante");
 
   try {
-    // 1. Tenta Photon (Komoot/OSM - alta precisão e tolerância a termos)
+    // 2. Fallback direto Photon (Komoot/OSM)
     const resPhoton = await fetch(
       `https://photon.komoot.io/api/?q=${encodeURIComponent(qClean)}&limit=1`,
     );
@@ -49,28 +70,8 @@ async function geocodificarEndereco(
         };
       }
     }
-
-    // 2. Fallback Nominatim OpenStreetMap
-    const resNom = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-        qClean,
-      )}&countrycodes=br&limit=1`,
-      {
-        headers: { "User-Agent": "GDSeguranca/1.0" },
-      },
-    );
-    if (resNom.ok) {
-      const dNom = await resNom.json();
-      if (dNom?.[0]?.lat && dNom?.[0]?.lon) {
-        return {
-          latitude: parseFloat(dNom[0].lat),
-          longitude: parseFloat(dNom[0].lon),
-          label: dNom[0].display_name,
-        };
-      }
-    }
   } catch (err) {
-    console.warn("Falha na geocodificação:", err);
+    console.warn("Falha na geocodificação direta:", err);
   }
   return null;
 }

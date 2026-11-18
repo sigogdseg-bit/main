@@ -11,6 +11,15 @@ import type {
   RegistroRonda,
 } from "../types";
 
+function gerarId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    try {
+      return crypto.randomUUID();
+    } catch {}
+  }
+  return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).substring(2, 9);
+}
+
 /**
  * Busca a lista de vigilantes cadastrados
  */
@@ -96,7 +105,7 @@ export async function salvarVigilante(vigilante: Partial<Vigilante>): Promise<Vi
       }
     } else {
       const novo: Vigilante = {
-        id: crypto.randomUUID(),
+        id: gerarId(),
         nome: vigilante.nome!,
         cpf: vigilante.cpf || null,
         matricula: vigilante.matricula || null,
@@ -144,7 +153,12 @@ export async function excluirVigilante(id: string): Promise<boolean> {
 export async function carregarPostosVigilancia(): Promise<PostoVigilancia[]> {
   // 1. Tenta buscar via endpoint de alta disponibilidade no servidor
   try {
-    const res = await fetch("/api/vigilantes/postos");
+    const sess = await supabase.auth.getSession();
+    const token = sess.data.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch("/api/vigilantes/postos", { headers });
     if (res.ok) {
       const json = await res.json();
       if (json?.success && Array.isArray(json?.postos)) {
@@ -221,9 +235,14 @@ export async function salvarPostoVigilancia(
 ): Promise<PostoVigilancia | null> {
   // 1. Tenta salvar via endpoint canônico seguro com Service Role
   try {
+    const sess = await supabase.auth.getSession();
+    const token = sess.data.session?.access_token;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
     const res = await fetch("/api/vigilantes/postos", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(posto),
     });
     if (res.ok) {
@@ -362,7 +381,7 @@ export async function salvarPostoVigilancia(
       }
     } else {
       const novo: PostoVigilancia = {
-        id: crypto.randomUUID(),
+        id: gerarId(),
         nome: posto.nome!,
         endereco: posto.endereco || null,
         latitude: posto.latitude!,
@@ -380,6 +399,34 @@ export async function salvarPostoVigilancia(
     /* ignore */
   }
   return null;
+}
+
+/**
+ * Exclui um posto de vigilância
+ */
+export async function excluirPostoVigilancia(id: string): Promise<boolean> {
+  try {
+    const sess = await supabase.auth.getSession();
+    const token = sess.data.session?.access_token;
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`/api/vigilantes/postos?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.success) return true;
+    }
+  } catch {}
+
+  try {
+    await supabase.from("areas_seguras").delete().eq("id", id);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -475,7 +522,7 @@ export async function salvarCheckpoint(
       }
     } else {
       const novo: RondaCheckpoint = {
-        id: crypto.randomUUID(),
+        id: gerarId(),
         posto_id: postoId,
         nome: checkpoint.nome!,
         latitude: checkpoint.latitude!,
@@ -628,7 +675,7 @@ export async function salvarTurno(
       }
     } else {
       const novo: TurnoVigilancia = {
-        id: crypto.randomUUID(),
+        id: gerarId(),
         vigilante_id: turno.vigilante_id!,
         posto_id: turno.posto_id!,
         rastreador_imei: turno.rastreador_imei!,

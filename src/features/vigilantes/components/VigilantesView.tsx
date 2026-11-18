@@ -425,7 +425,7 @@ export function VigilantesView() {
                 }`}
               >
                 <Plus className="h-3.5 w-3.5" />
-                <span>{modoMarcarPontoNoMapa ? "Clique no Mapa..." : "+ Checkpoint Azul"}</span>
+                <span>{modoMarcarPontoNoMapa ? "Clique no Mapa..." : "Checkpoint Azul"}</span>
               </button>
             </div>
           </div>
@@ -486,7 +486,7 @@ export function VigilantesView() {
 
             {checkpoints.length === 0 ? (
               <div className="text-center py-8 text-xs text-slate-400">
-                Nenhum checkpoint azul cadastrado neste posto. Clique em "+ Checkpoint Azul" para
+                Nenhum checkpoint azul cadastrado neste posto. Clique em "Checkpoint Azul" para
                 adicionar pontos com horários.
               </div>
             ) : (
