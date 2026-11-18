@@ -242,8 +242,8 @@ export const NEUMORPHIC_STYLES = {
   inputSearch:
     "w-full pl-9 pr-3.5 py-2 rounded-xl bg-[#eaf0f8] dark:bg-slate-950 border border-slate-300/50 dark:border-slate-800 text-slate-800 dark:text-slate-100 text-xs shadow-[inset_2px_2px_4px_#c8d4e4,inset_-2px_-2px_4px_#ffffff] dark:shadow-[inset_2px_2px_4px_rgba(0,0,0,0.6)] outline-none focus:ring-2 focus:ring-orange-500 transition",
   btnTactile:
-    "inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs bg-[#eaf0f8] dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300/50 dark:border-slate-700 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none hover:shadow-[3px_3px_8px_#b8c6da] active:shadow-[inset_2px_2px_4px_#c8d4e4] transition",
-  chip: "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-[#eaf0f8] dark:bg-slate-800/80 border border-slate-300/50 dark:border-slate-700 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none text-slate-700 dark:text-slate-300 transition",
+    "inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl font-bold text-xs bg-[#eaf0f8] dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300/50 dark:border-slate-700 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none hover:shadow-[3px_3px_8px_#b8c6da] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98] active:shadow-[inset_2px_2px_4px_#c8d4e4] transition-all duration-150 cursor-pointer",
+  chip: "inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-bold bg-[#eaf0f8] dark:bg-slate-800/80 border border-slate-300/50 dark:border-slate-700 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none text-slate-700 dark:text-slate-300 hover:scale-[1.02] active:scale-[0.98] transition-all duration-150 cursor-pointer",
   tabBtn:
     "flex items-center justify-center gap-1.5 px-3 py-2 rounded-2xl text-xs font-bold transition flex-1 min-w-[140px] sm:min-w-fit text-center min-h-[40px]",
   tabBtnActive: "bg-orange-600 text-white shadow-[2px_2px_8px_rgba(234,88,12,0.35)]",

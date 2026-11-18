@@ -691,14 +691,14 @@ export function MobileDrawer({
 
       {/* Painel do Menu Vertical Lateral */}
       <aside
-        className="relative z-10 w-80 max-w-[88vw] h-full bg-[#f8fafc] dark:bg-slate-900 border-r border-slate-200/90 dark:border-slate-800 flex flex-col justify-between shadow-2xl text-slate-800 dark:text-slate-100 transition-all duration-300 animate-in slide-in-from-left"
+        className="relative z-10 w-80 max-w-[88vw] h-full bg-[#f8fafc] dark:bg-[#0c121c] border-r border-slate-200/90 dark:border-slate-800/90 flex flex-col justify-between shadow-2xl text-slate-800 dark:text-slate-100 transition-all duration-300 animate-in slide-in-from-left"
         role="dialog"
         aria-modal="true"
         aria-label="Menu Principal de Navegação"
       >
         {/* TOPO: Identificação e Botão Fechar */}
         <div
-          className="p-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-900"
+          className="p-4 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/80"
           style={{ paddingTop: "calc(1rem + env(safe-area-inset-top, 0px))" }}
         >
           <div className="flex items-center justify-between">
@@ -711,7 +711,7 @@ export function MobileDrawer({
               <img
                 src="/logo-emblema.png"
                 alt={APP_NOME}
-                className="h-14 w-14 object-contain shrink-0 drop-shadow-md group-hover:scale-105 transition-transform"
+                className="h-14 w-14 object-contain shrink-0 drop-shadow-md group-hover:scale-105 transition-transform duration-200"
               />
               <div>
                 <span className="font-black text-slate-900 dark:text-slate-100 tracking-wider text-sm uppercase block group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
@@ -725,7 +725,7 @@ export function MobileDrawer({
 
             <button
               onClick={onFechar}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer active:scale-95"
               aria-label="Fechar menu"
               title="Fechar Menu"
             >
@@ -734,7 +734,7 @@ export function MobileDrawer({
           </div>
 
           {/* Card do Usuário Logado */}
-          <div className="mt-3.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+          <div className="mt-3.5 p-3 rounded-2xl bg-white/80 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-xs">
             <div className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
               {session.nome}
             </div>
@@ -742,7 +742,7 @@ export function MobileDrawer({
               {session.email}
             </div>
             <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-              <span className="px-2 py-0.5 text-[9px] rounded-md font-bold uppercase tracking-wider bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/20">
+              <span className="px-2 py-0.5 text-[9px] rounded-lg font-bold uppercase tracking-wider bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/25">
                 {session.isAdmin
                   ? "Administrador"
                   : session.isFinanceiro
@@ -754,7 +754,7 @@ export function MobileDrawer({
                         : session.role}
               </span>
               {session.isCliente && session.plano && (
-                <span className="px-2 py-0.5 text-[9px] rounded-md font-bold uppercase tracking-wider bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/20">
+                <span className="px-2 py-0.5 text-[9px] rounded-lg font-bold uppercase tracking-wider bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-500/25">
                   Plano {session.plano}
                 </span>
               )}
@@ -772,10 +772,10 @@ export function MobileDrawer({
                 onFechar();
                 onAbrirManual();
               }}
-              className="w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold text-orange-800 dark:text-orange-300 bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 transition shadow-xs cursor-pointer text-left group"
+              className="w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold text-orange-800 dark:text-orange-300 bg-orange-500/15 hover:bg-orange-500/25 border border-orange-500/30 transition-all duration-150 shadow-xs cursor-pointer text-left group active:scale-[0.98]"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-orange-500/20 text-orange-600 dark:text-orange-400 group-hover:scale-105 transition-transform">
+                <div className="p-2 rounded-xl bg-orange-500/20 text-orange-600 dark:text-orange-400 group-hover:scale-105 transition-transform duration-150">
                   <BookOpen className="h-4 w-4" />
                 </div>
                 <div>
@@ -804,10 +804,10 @@ export function MobileDrawer({
                   onFechar();
                   onAbrirWhatsapp();
                 }}
-                className="w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 transition shadow-xs cursor-pointer text-left group"
+                className="w-full flex items-center justify-between p-3 rounded-2xl text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 transition-all duration-150 shadow-xs cursor-pointer text-left group active:scale-[0.98]"
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-orange-500/20 text-orange-600 dark:text-orange-400 group-hover:scale-105 transition-transform">
+                  <div className="p-2 rounded-xl bg-orange-500/20 text-orange-600 dark:text-orange-400 group-hover:scale-105 transition-transform duration-150">
                     <MessageSquare className="h-4 w-4" />
                   </div>
                   <div>
@@ -841,14 +841,14 @@ export function MobileDrawer({
                       key={item.rota}
                       to={item.rota}
                       onClick={onFechar}
-                      className="flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/80 transition group"
+                      className="flex items-center justify-between px-3 py-2.5 min-h-[44px] rounded-2xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/80 transition-all duration-150 group active:scale-[0.99]"
                       activeProps={{
                         className:
                           "bg-orange-500/15 text-orange-800 dark:text-orange-300 font-bold border border-orange-500/30 shadow-xs",
                       }}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <Icone className="h-4 w-4 text-slate-500 dark:text-slate-400 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition shrink-0" />
+                        <Icone className="h-4 w-4 text-slate-500 dark:text-slate-400 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors shrink-0" />
                         <div className="truncate">
                           <div className="truncate font-semibold">{item.titulo}</div>
                           {item.descricao && (
@@ -860,7 +860,7 @@ export function MobileDrawer({
                       </div>
 
                       {item.badge ? (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 shrink-0">
+                        <span className="px-1.5 py-0.5 rounded-lg text-[9px] font-bold bg-amber-500/20 text-amber-700 dark:text-amber-400 shrink-0">
                           {item.badge}
                         </span>
                       ) : (
@@ -876,7 +876,7 @@ export function MobileDrawer({
 
         {/* RODAPÉ: Tema Visual e Logout Seguro */}
         <div
-          className="p-3.5 border-t border-slate-200/80 dark:border-slate-800/80 bg-white dark:bg-slate-950 space-y-2.5"
+          className="p-3.5 border-t border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 space-y-2.5"
           style={{ paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))" }}
         >
           <div className="flex items-center justify-between px-1">
@@ -891,7 +891,7 @@ export function MobileDrawer({
               onFechar();
               logout();
             }}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] rounded-xl text-xs font-bold text-rose-700 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition shadow-2xs cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] rounded-2xl text-xs font-bold text-rose-700 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-all duration-150 shadow-xs cursor-pointer active:scale-95"
           >
             <LogOut className="h-3.5 w-3.5" />
             <span>Encerrar Sessão com Segurança</span>

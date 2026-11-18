@@ -540,7 +540,7 @@ export function CentralSegurancaView() {
                     }`}
                   >
                     <div className={`text-xs font-bold ${n.cor}`}>{n.label}</div>
-                    <div className="mt-1 text-2xl font-black font-mono text-slate-900 dark:text-slate-100">
+                    <div className="mt-1 text-2xl font-black font-mono text-slate-900 dark:text-slate-100 font-tabular">
                       {qtd}
                     </div>
                     <div className="mt-1 text-[11px] text-slate-500">

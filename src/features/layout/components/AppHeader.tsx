@@ -66,7 +66,7 @@ export function AppHeader() {
   return (
     <>
       <header
-        className="sticky top-0 z-50 w-full px-2.5 sm:px-6 select-none transition-colors duration-200 bg-[#eaf0f8] dark:bg-[#0a0a0c] border-b border-slate-300/60 dark:border-orange-500/20 shadow-[0_3px_10px_rgba(195,207,226,0.35)] dark:shadow-[0_4px_20px_rgba(0,0,0,0.8)]"
+        className="sticky top-0 z-50 w-full px-2.5 sm:px-6 select-none transition-colors duration-200 bg-[#eaf0f8] dark:bg-[#0a0a0c] border-b border-slate-300/70 dark:border-slate-800/80 shadow-[0_4px_16px_rgba(195,207,226,0.35)] dark:shadow-[0_4px_24px_rgba(0,0,0,0.85)]"
         style={{
           paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.5rem)",
           paddingBottom: "0.25rem",
@@ -78,7 +78,7 @@ export function AppHeader() {
           <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 shrink h-full">
             <button
               onClick={() => setMenuMobileAberto(true)}
-              className="p-2 sm:px-3 sm:py-2 min-h-[42px] min-w-[42px] rounded-xl text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-slate-200/60 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-300/80 dark:border-slate-700 transition flex items-center justify-center gap-2 cursor-pointer shadow-2xs shrink-0 active:scale-95"
+              className="p-2 sm:px-3 sm:py-2 min-h-[42px] min-w-[42px] rounded-2xl text-slate-700 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-white/80 dark:bg-slate-900/80 hover:bg-slate-200/80 dark:hover:bg-slate-800 border border-slate-300/80 dark:border-slate-800 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer shadow-xs shrink-0 active:scale-95"
               aria-label="Abrir menu de navegação vertical"
               title="Abrir Menu de Navegação Vertical"
             >
@@ -96,7 +96,7 @@ export function AppHeader() {
                 alt={APP_NOME}
                 fetchPriority="high"
                 decoding="async"
-                className="h-[56px] w-[56px] sm:h-[62px] sm:w-[62px] object-contain drop-shadow-lg group-hover:scale-105 transition-transform shrink-0"
+                className="h-[56px] w-[56px] sm:h-[62px] sm:w-[62px] object-contain drop-shadow-md group-hover:scale-105 transition-transform duration-200 shrink-0"
               />
               <div className="min-w-0 flex flex-col justify-center">
                 <span className="font-black tracking-wider text-xs min-[360px]:text-sm sm:text-base md:text-lg text-slate-900 dark:text-slate-100 uppercase whitespace-nowrap leading-tight truncate">
@@ -117,7 +117,7 @@ export function AppHeader() {
                         window.location.reload();
                       }
                     }}
-                    className="inline-block px-1.5 py-0.5 rounded text-[9px] min-[360px]:text-[10px] font-mono font-bold bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 hover:bg-orange-500/30 cursor-pointer transition-colors shrink-0"
+                    className="inline-block px-1.5 py-0.5 rounded-lg text-[9px] min-[360px]:text-[10px] font-mono font-bold bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 hover:bg-orange-500/25 cursor-pointer transition-colors shrink-0"
                     title="Toque para recarregar o sistema"
                   >
                     v{APP_VERSION_NUMERO}
@@ -131,16 +131,18 @@ export function AppHeader() {
           </div>
 
           {/* Centro: Status do WebSocket Realtime (visível em telas amplas lg:) */}
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/60 dark:bg-slate-950/80 border border-slate-300/60 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 shadow-inner shrink-0">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-orange-500" />
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/80 dark:bg-slate-950/90 border border-slate-300/70 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 shadow-xs shrink-0">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
             </span>
-            <span className="font-medium">Telemetria Realtime</span>
+            <span className="font-mono text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+              Telemetria Realtime
+            </span>
           </div>
 
           {/* Lado Direito: Perfil + Chat + Tema + Senha + Logout */}
-          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Badges de Perfil e Plano com Distinção Máxima (telas md:) */}
             <div className="hidden md:flex items-center gap-1.5">
               {session.isDegustacao || session.role === "superadmin_auditor" ? (

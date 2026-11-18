@@ -2276,8 +2276,8 @@ export function FrotaAnalyticsView() {
                     </span>
                     <Activity className="h-4 w-4 text-blue-500" />
                   </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  <div className="flex items-baseline gap-1.5 font-tabular">
+                    <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
                       {avgScore}
                     </span>
                     <span className="text-xs font-bold text-slate-400">/ 100</span>
@@ -2324,8 +2324,8 @@ export function FrotaAnalyticsView() {
                     </span>
                     <TrendingUp className="h-4 w-4 text-orange-500" />
                   </div>
-                  <div className="flex items-baseline gap-1.5">
-                    <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white">
+                  <div className="flex items-baseline gap-1.5 font-tabular">
+                    <span className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white font-mono">
                       {totalKm.toLocaleString("pt-BR", {
                         minimumFractionDigits: 0,
                         maximumFractionDigits: 2,

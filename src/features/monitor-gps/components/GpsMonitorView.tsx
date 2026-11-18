@@ -1695,30 +1695,30 @@ export function GpsMonitorView({
               )}
             </button>
 
-            <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 font-mono font-bold text-xs">
+            <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 font-mono font-bold text-xs font-tabular">
               Total: <span className="text-orange-600 dark:text-orange-400">{totais.total}</span>
             </span>
 
             {/* Exibe situação operacional apenas para veículos sem restrição de privacidade */}
             {totais.possuiStatusVisivel && (
               <>
-                <span className="inline-flex px-2.5 py-1 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-600 dark:text-orange-400 font-mono font-bold text-xs">
+                <span className="inline-flex px-2.5 py-1 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-600 dark:text-orange-400 font-mono font-bold text-xs font-tabular">
                   Em Rota: {totais.emRota}
                 </span>
 
-                <span className="inline-flex px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-mono font-bold text-xs">
+                <span className="inline-flex px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-mono font-bold text-xs font-tabular">
                   Parados: {totais.parados}
                 </span>
 
                 <span
-                  className="inline-flex px-2.5 py-1 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs"
+                  className="inline-flex px-2.5 py-1 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs font-tabular"
                   title="Veículos estacionados com ignição desligada"
                 >
                   Estacionados: {totais.estacionados}
                 </span>
 
                 {totais.bloqueados > 0 && (
-                  <span className="px-2.5 py-1 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 font-mono font-bold text-xs">
+                  <span className="px-2.5 py-1 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 font-mono font-bold text-xs font-tabular">
                     Bloqueados: {totais.bloqueados}
                   </span>
                 )}
@@ -2213,10 +2213,10 @@ export function GpsMonitorView({
                               <button
                                 key={v.id}
                                 onClick={() => selecionarETestarVeiculo(v)}
-                                className={`w-full text-left p-2 rounded-xl border transition-all duration-200 flex items-center justify-between ${
+                                className={`w-full text-left p-2.5 rounded-xl border transition-all duration-150 flex items-center justify-between interactive-tactile-card active:scale-[0.98] ${
                                   isSelected
-                                    ? "bg-orange-500/15 border-orange-500/60 shadow-sm ring-1 ring-orange-500/30"
-                                    : "bg-white dark:bg-slate-900/80 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                                    ? "bg-orange-500/15 border-orange-500/60 shadow-xs ring-1 ring-orange-500/30"
+                                    : "bg-white dark:bg-slate-900/80 border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 shadow-2xs"
                                 }`}
                               >
                                 <div className="flex items-center gap-2 min-w-0">
@@ -2277,7 +2277,7 @@ export function GpsMonitorView({
                                   </div>
                                 </div>
 
-                                <div className="text-right font-mono text-xs shrink-0 pl-1">
+                                <div className="text-right font-mono text-xs shrink-0 pl-1 font-tabular">
                                   {podeAcessarLocalizacaoVeiculo(session, v) ? (
                                     <span className="text-orange-600 dark:text-orange-400 font-black block text-[11px]">
                                       {v.velocidade} km/h
@@ -2311,10 +2311,10 @@ export function GpsMonitorView({
                     <button
                       key={v.id}
                       onClick={() => selecionarETestarVeiculo(v)}
-                      className={`w-full text-left p-2.5 rounded-2xl border transition-all duration-200 flex items-center justify-between ${
+                      className={`w-full text-left p-2.5 rounded-2xl border transition-all duration-150 flex items-center justify-between interactive-tactile-card active:scale-[0.98] ${
                         isSelected
-                          ? "bg-orange-500/10 border-orange-500/50 shadow-sm"
-                          : "bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700"
+                          ? "bg-orange-500/10 border-orange-500/50 shadow-xs"
+                          : "bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800/80 hover:border-slate-300 dark:hover:border-slate-700 shadow-2xs"
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
