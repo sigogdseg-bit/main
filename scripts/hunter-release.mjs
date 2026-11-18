@@ -27,12 +27,28 @@ function executarComando(cmd, desc) {
   }
 }
 
-function calcularProximaVersao(versaoAtual) {
+export function calcularProximaVersao(versaoAtual, tipo = "D") {
   const partes = versaoAtual.split(".").map(Number);
   if (partes.length !== 4 || partes.some(isNaN)) {
     throw new Error(`Versão atual "${versaoAtual}" não está no formato A.B.C.D`);
   }
-  partes[3] += 1;
+  const t = String(tipo).toUpperCase();
+  if (t === "A" || t === "MAJOR") {
+    partes[0] += 1;
+    partes[1] = 0;
+    partes[2] = 0;
+    partes[3] = 0;
+  } else if (t === "B" || t === "HARDENING" || t === "SEC") {
+    partes[1] += 1;
+    partes[2] = 0;
+    partes[3] = 0;
+  } else if (t === "C" || t === "MODULO" || t === "MODULE" || t === "TELA") {
+    partes[2] += 1;
+    partes[3] = 0;
+  } else {
+    // D = Correções / Refinamentos
+    partes[3] += 1;
+  }
   return partes.join(".");
 }
 
@@ -90,11 +106,15 @@ function aplicarVersaoNosCincoArquivos(novaVersao) {
 async function main() {
   const args = process.argv.slice(2);
   let versaoAlvo = null;
+  let tipoBump = "D";
   let mensagemCommit = null;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--version" && args[i + 1]) {
       versaoAlvo = args[i + 1];
+      i++;
+    } else if ((args[i] === "--bump" || args[i] === "-b") && args[i + 1]) {
+      tipoBump = args[i + 1];
       i++;
     } else if (args[i] === "-m" && args[i + 1]) {
       mensagemCommit = args[i + 1];
@@ -104,9 +124,9 @@ async function main() {
 
   const pkgAtual = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, "package.json"), "utf-8"));
   if (!versaoAlvo) {
-    versaoAlvo = calcularProximaVersao(pkgAtual.version);
+    versaoAlvo = calcularProximaVersao(pkgAtual.version, tipoBump);
     console.log(
-      `ℹ️  Nenhuma versão explicitada. Auto-incrementando para próximo patch: ${versaoAlvo}`,
+      `ℹ️  Auto-incrementando casa [${tipoBump.toUpperCase()}] para a versão: ${versaoAlvo}`,
     );
   }
 
@@ -178,7 +198,9 @@ async function main() {
   console.log("======================================================================\n");
 }
 
-main().catch((err) => {
-  console.error("\n🚨 FALHA CRÍTICA NO RELEASE:", err);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  main().catch((err) => {
+    console.error("\n🚨 FALHA CRÍTICA NO RELEASE:", err);
+    process.exit(1);
+  });
+}

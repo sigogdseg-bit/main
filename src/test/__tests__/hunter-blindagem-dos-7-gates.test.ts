@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { verificarSincronizacaoVersao } from "../../../scripts/hunter-gate-check.mjs";
+import { calcularProximaVersao } from "../../../scripts/hunter-release.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,5 +52,16 @@ describe("Hunter — Blindagem Física dos 7 Gates e Protocolo de Release (AGENT
     assert.ok(pkg.scripts.release, "Deve ter script release");
     assert.ok(pkg.scripts["gate:check"], "Deve ter script gate:check");
     assert.ok(pkg.scripts.prepare, "Deve ter script prepare para manter os hooks instalados");
+  });
+
+  it("5. Semântica Canônica A.B.C.D de Versionamento", () => {
+    // A = Maior / Quebra estrutural
+    assert.equal(calcularProximaVersao("1.0.0.41", "A"), "2.0.0.0");
+    // B = Hardening / Segurança Cibernética
+    assert.equal(calcularProximaVersao("1.0.0.41", "B"), "1.1.0.0");
+    // C = Novos Módulos / Telas / Relatórios (ex: Módulo Vigilante)
+    assert.equal(calcularProximaVersao("1.0.0.41", "C"), "1.0.1.0");
+    // D = Correções / Refinamentos
+    assert.equal(calcularProximaVersao("1.0.0.41", "D"), "1.0.0.42");
   });
 });
