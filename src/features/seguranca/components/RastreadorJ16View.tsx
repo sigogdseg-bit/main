@@ -1206,16 +1206,16 @@ export function RastreadorJ16View() {
     const senha = (senhaDispositivoPadrao || "123456").trim() || "123456";
 
     if (modelo === "g900l") {
-      setServidorDns(`adminip${senha} 167.234.233.82 7003`);
+      setServidorDns("167.234.233.82");
       setPortaTcp("7003");
       setIpDedicado("167.234.233.82");
       setUsarIpDireto(true);
       setApnNome("voxter.br");
       setApnUser("algar");
       setApnPass("1212");
-      setTimerMovimento(`fix030s***n${senha}`);
+      setTimerMovimento("30");
       setTimerParado("3600");
-      setHbtLigado(`hbt${senha} 300`);
+      setHbtLigado("300");
       setHbtDesligado("300");
       setGmtComando(`time zone${senha} 0`);
       setStatusComando(`status${senha}`);
@@ -1522,9 +1522,13 @@ export function RastreadorJ16View() {
         parametrosHabilitadosBatch.portaTcp ||
         parametrosHabilitadosBatch.ipDedicado
       ) {
+        // Se o usuário digitou comando adminip completo no campo, usa diretamente
+        const cmdServidor = servidorAlvo.toLowerCase().startsWith("adminip")
+          ? servidorAlvo
+          : `adminip${senhaAtiva} ${servidorAlvo} ${portaTcp}`;
         comandos.push({
-          cmd: `adminip${senhaAtiva} ${servidorAlvo} ${portaTcp}`,
-          nome: `1. Apontar Servidor e Porta G900L (adminip${senhaAtiva} ${servidorAlvo} ${portaTcp})`,
+          cmd: cmdServidor,
+          nome: `1. Apontar Servidor e Porta G900L (${cmdServidor})`,
         });
       }
       if (
@@ -1532,8 +1536,9 @@ export function RastreadorJ16View() {
         parametrosHabilitadosBatch.apnUser ||
         parametrosHabilitadosBatch.apnPass
       ) {
-        const apnCmd =
-          apnUser && apnPass
+        const apnCmd = apnNome.toLowerCase().startsWith("apn")
+          ? apnNome
+          : apnUser && apnPass
             ? `apn${senhaAtiva} ${apnNome} ${apnUser} ${apnPass}`
             : `apn${senhaAtiva} ${apnNome}`;
         comandos.push({
@@ -1542,16 +1547,26 @@ export function RastreadorJ16View() {
         });
       }
       if (parametrosHabilitadosBatch.timerMovimento || parametrosHabilitadosBatch.timerParado) {
-        const segMov = String(timerMovimento || "30").padStart(3, "0");
+        const valTimer = timerMovimento.trim();
+        const segMov = valTimer.toLowerCase().startsWith("fix")
+          ? valTimer.match(/fix(\d+)/i)?.[1] || "030"
+          : String(parseInt(valTimer, 10) || 30).padStart(3, "0");
+        const cmdTimer = valTimer.toLowerCase().startsWith("fix")
+          ? valTimer
+          : `fix${segMov}s***n${senhaAtiva}`;
         comandos.push({
-          cmd: `fix${segMov}s***n${senhaAtiva}`,
-          nome: `3. Frequência de Transmissão G900L (fix${segMov}s***n${senhaAtiva})`,
+          cmd: cmdTimer,
+          nome: `3. Frequência de Transmissão G900L (${cmdTimer})`,
         });
       }
       if (parametrosHabilitadosBatch.hbtLigado || parametrosHabilitadosBatch.hbtDesligado) {
+        const valHbt = hbtLigado.trim();
+        const cmdHbt = valHbt.toLowerCase().startsWith("hbt")
+          ? valHbt
+          : `hbt${senhaAtiva} ${valHbt || "300"}`;
         comandos.push({
-          cmd: `hbt${senhaAtiva} ${hbtLigado || "300"}`,
-          nome: `4. Heartbeat G900L (hbt${senhaAtiva} ${hbtLigado || "300"})`,
+          cmd: cmdHbt,
+          nome: `4. Heartbeat G900L (${cmdHbt})`,
         });
       }
       if (parametrosHabilitadosBatch.gmtUniversal) {
@@ -2591,13 +2606,42 @@ export function RastreadorJ16View() {
     modeloHardware?: string | null,
     senhaMestre?: string,
   ): string => {
-    const isG900L = Boolean(modeloHardware && modeloHardware.toUpperCase().includes("G900"));
+    const isG900L = Boolean(
+      modeloHardware &&
+      (modeloHardware.toUpperCase().includes("G900") ||
+        modeloHardware.toUpperCase().includes("COBAN") ||
+        modeloHardware.toUpperCase().includes("CANTRACK")),
+    );
     if (!isG900L) {
       return sanitizarComandoHardware(cmd);
     }
 
     const senha = (senhaMestre || "123456").trim() || "123456";
     const upper = cmd.trim().toUpperCase().replace(/#+$/, "");
+
+    // Se o comando já está formatado com sintaxe nativa Coban (ex: adminip..., apn..., fix..., hbt..., status..., check..., reset...), preserva diretamente
+    if (
+      upper.startsWith("ADMINIP") ||
+      upper.startsWith("APN") ||
+      upper.startsWith("FIX") ||
+      upper.startsWith("HBT") ||
+      upper.startsWith("TIME ZONE") ||
+      upper.startsWith("CHECK") ||
+      upper.startsWith("STATUS") ||
+      upper.startsWith("RESET") ||
+      upper.startsWith("STOP") ||
+      upper.startsWith("RESUME") ||
+      upper.startsWith("EXTPOWER") ||
+      upper.startsWith("LOWBATTERY") ||
+      upper.startsWith("SHOCK") ||
+      upper.startsWith("MOVE") ||
+      upper.startsWith("ACC") ||
+      upper.startsWith("SLEEP") ||
+      upper.startsWith("ARM") ||
+      upper.startsWith("DISARM")
+    ) {
+      return sanitizarComandoHardware(cmd);
+    }
 
     // Mapeamento automático de comandos GT06/J16 para sintaxe Coban G900L:
     if (upper.startsWith("SERVER,") || upper.startsWith("SERVER#") || upper === "SERVER") {

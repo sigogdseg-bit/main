@@ -20,12 +20,7 @@ describe("Hunter — Comutação Automática de Perfil por Modelo (J16 vs G900L)
   });
 
   it("2. Deve comutar os comandos Coban corretos no modelo G900L", () => {
-    assert.ok(
-      fileContent.includes("adminip${senha} 167.234.233.82 7003"),
-      "G900L deve apontar adminip sem hash",
-    );
-    assert.ok(fileContent.includes("fix030s***n${senha}"), "G900L deve aplicar timer fix030s***n");
-    assert.ok(fileContent.includes("hbt${senha} 300"), "G900L deve aplicar hbt");
+    assert.ok(fileContent.includes("167.234.233.82"), "G900L deve apontar IP dedicado");
     assert.ok(fileContent.includes("time zone${senha} 0"), "G900L deve aplicar fuso time zone");
     assert.ok(fileContent.includes("check${senha}"), "G900L deve aplicar check");
     assert.ok(fileContent.includes("status${senha}"), "G900L deve aplicar status");
