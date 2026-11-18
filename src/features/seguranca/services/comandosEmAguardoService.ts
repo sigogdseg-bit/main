@@ -634,7 +634,7 @@ export async function reenviarComandoParaImei(
       enfileirado?: boolean;
     } | null;
 
-    // Se o hardware respondeu imediatamente (síncrono 0x15/0x21)
+    // Se o hardware respondeu imediatamente (síncrono 0x15/0x21 ou ASCII Coban)
     if (dados?.resposta) {
       emitirLogConsoleJ16(
         "resposta",
@@ -646,20 +646,7 @@ export async function reenviarComandoParaImei(
       return true;
     }
 
-    if (dados?.enviado || dados?.sucesso) {
-      emitirLogConsoleJ16(
-        "status",
-        `📡 [SOCKET TCP ENTREGUE] Pacote entregue com sucesso ao socket ativo do rastreador ${placaOuImei}. Aguardando retorno da MCU (0x15)...`,
-        imei,
-      );
-      atualizarEstadoComando(imei, {
-        status: "aguardando",
-        mensagemStatus: "Pacote entregue ao socket TCP · Aguardando retorno 0x15",
-      });
-      return true;
-    }
-
-    if (dados?.enfileirado) {
+    if (dados?.enfileirado && !dados?.enviado) {
       emitirLogConsoleJ16(
         "status",
         `⏳ [SPOOLER GATEWAY] Rastreador ${placaOuImei} em repouso/reconexão GSM. Comando retido no Spooler TCP do Gateway.`,
@@ -668,6 +655,19 @@ export async function reenviarComandoParaImei(
       atualizarEstadoComando(imei, {
         status: "aguardando",
         mensagemStatus: "Retido no Spooler TCP · Aguardando pacote GSM",
+      });
+      return true;
+    }
+
+    if (dados?.enviado || (dados?.sucesso && !dados?.enfileirado)) {
+      emitirLogConsoleJ16(
+        "status",
+        `📡 [SOCKET TCP ENTREGUE] Pacote entregue com sucesso ao socket ativo do rastreador ${placaOuImei}. Aguardando retorno da MCU (0x15)...`,
+        imei,
+      );
+      atualizarEstadoComando(imei, {
+        status: "aguardando",
+        mensagemStatus: "Pacote entregue ao socket TCP · Aguardando retorno 0x15",
       });
       return true;
     }

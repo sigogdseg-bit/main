@@ -1104,9 +1104,20 @@ export async function testarComunicacaoRastreador(
   // 1. Canal Primário: Rota segura de backend com Service Role (/api/veiculos/saude)
   // Imune a bloqueios de RLS e recursão de clientes, retornando telemetria e modelo factuais
   try {
+    let headers: Record<string, string> = { "Content-Type": "application/json" };
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+    } catch {
+      /* segue sem token */
+    }
+
     const res = await fetch(`/api/veiculos/saude?veiculoId=${encodeURIComponent(veiculoId)}`, {
       method: "GET",
-      headers: { "Content-Type": "application/json" },
+      headers,
     });
 
     const latenciaMs = Math.max(1, Math.round(performance.now() - inicio));
