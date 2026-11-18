@@ -51,6 +51,9 @@ import {
   PhoneCall,
   Settings,
   Info,
+  Trash2,
+  Filter,
+  Pause,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -739,6 +742,11 @@ export function RastreadorJ16View() {
 
   // Terminal e envio de comandos
   const [comandoLivre, setComandoLivre] = useState("TIMER,12,1800#");
+  const [inputComandoTerminal, setInputComandoTerminal] = useState("");
+  const [filtroTipoLogTerminal, setFiltroTipoLogTerminal] = useState<
+    "todos" | "respostas" | "envios" | "spooler" | "erros"
+  >("todos");
+  const [autoScrollTerminal, setAutoScrollTerminal] = useState(true);
   const [enviandoComando, setEnviandoComando] = useState(false);
   const [dispositivoModalComandos, setDispositivoModalComandos] = useState<DispositivoJ16 | null>(
     null,
@@ -1982,10 +1990,10 @@ export function RastreadorJ16View() {
 
   // Scroll automático restrito estritamente à janela interna do console (sem afetar o rolamento da página)
   useEffect(() => {
-    if (consoleContainerRef.current) {
+    if (autoScrollTerminal && consoleContainerRef.current) {
       consoleContainerRef.current.scrollTop = consoleContainerRef.current.scrollHeight;
     }
-  }, [logsTerminal]);
+  }, [logsTerminal, autoScrollTerminal]);
 
   // Carregar lista de dispositivos e telemetria
   const carregarDispositivos = useCallback(async () => {
@@ -6636,31 +6644,121 @@ export function RastreadorJ16View() {
             </div>
 
             {/* CONSOLE E MONITOR TCP EM TEMPO REAL (ABAIXO DA LISTA DE DISPOSITIVOS) */}
-            <div className="bg-slate-950 text-slate-100 rounded-2xl border border-slate-800 p-3.5 space-y-2 shadow-inner mt-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="p-1.5 rounded-lg bg-orange-500/10 text-orange-400">
+            <div className="bg-slate-950 text-slate-100 rounded-3xl border border-slate-800/90 p-4 sm:p-5 space-y-3.5 shadow-2xl mt-4">
+              {/* Barra Superior do Console */}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="p-2 rounded-xl bg-orange-500/15 text-orange-400 border border-orange-500/20 shadow-xs">
                     <Terminal className="h-4 w-4" />
                   </span>
                   <div>
                     <h3 className="text-xs font-mono font-bold text-white flex items-center gap-2">
                       <span>Console e Monitor TCP em Tempo Real</span>
-                      <span className="text-[10px] font-normal text-orange-400 bg-orange-500/10 px-1.5 py-0.2 rounded border border-orange-500/20 flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />
-                        Gateway de Telemetria • Ativo
+                      <span className="text-[10px] font-normal text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25 flex items-center gap-1.5 font-mono">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Gateway TCP/GPRS • Online
                       </span>
                     </h3>
+                    <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                      Rastreamento e transmissão serial de frames ASCII / Hexadecimal (0x12, 0x15,
+                      0x21)
+                    </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-slate-400 hidden sm:inline">
-                    {logsTerminal.length} evento(s)
-                  </span>
+                {/* Filtros rápidos e Ações */}
+                <div className="flex items-center flex-wrap gap-1.5 sm:gap-2">
+                  {/* Seletor de visualização de tipos de evento */}
+                  <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-0.5 text-[10px] font-mono">
+                    <button
+                      type="button"
+                      onClick={() => setFiltroTipoLogTerminal("todos")}
+                      className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                        filtroTipoLogTerminal === "todos"
+                          ? "bg-slate-800 text-white shadow-xs"
+                          : "text-slate-400 hover:text-slate-200"
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroTipoLogTerminal("respostas")}
+                      className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                        filtroTipoLogTerminal === "respostas"
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                          : "text-slate-400 hover:text-amber-400"
+                      }`}
+                      title="Filtrar respostas e confirmações do hardware (0x15/0x21/ACK)"
+                    >
+                      Respostas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroTipoLogTerminal("envios")}
+                      className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                        filtroTipoLogTerminal === "envios"
+                          ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
+                          : "text-slate-400 hover:text-sky-400"
+                      }`}
+                      title="Filtrar envios e probes"
+                    >
+                      TX
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroTipoLogTerminal("spooler")}
+                      className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                        filtroTipoLogTerminal === "spooler"
+                          ? "bg-orange-500/20 text-orange-300 border border-orange-500/30"
+                          : "text-slate-400 hover:text-orange-400"
+                      }`}
+                      title="Filtrar comandos em spooler e aguardo"
+                    >
+                      Spooler
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFiltroTipoLogTerminal("erros")}
+                      className={`px-2 py-1 rounded-lg font-bold transition cursor-pointer ${
+                        filtroTipoLogTerminal === "erros"
+                          ? "bg-rose-500/20 text-rose-300 border border-rose-500/30"
+                          : "text-slate-400 hover:text-rose-400"
+                      }`}
+                      title="Filtrar erros e timeouts"
+                    >
+                      Erros
+                    </button>
+                  </div>
+
+                  {/* Toggle Auto-scroll */}
+                  <button
+                    type="button"
+                    onClick={() => setAutoScrollTerminal((prev) => !prev)}
+                    className={`px-2 py-1 rounded-xl text-[10px] font-mono font-bold transition cursor-pointer border flex items-center gap-1 ${
+                      autoScrollTerminal
+                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                        : "bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200"
+                    }`}
+                    title={
+                      autoScrollTerminal
+                        ? "Auto-scroll ativo (rolagem automática ligada)"
+                        : "Auto-scroll pausado para análise"
+                    }
+                  >
+                    {autoScrollTerminal ? (
+                      <Check className="h-3 w-3" />
+                    ) : (
+                      <Pause className="h-3 w-3" />
+                    )}
+                    <span>{autoScrollTerminal ? "Auto-scroll" : "Pausado"}</span>
+                  </button>
+
+                  {/* Copiar Console */}
                   <button
                     type="button"
                     onClick={copiarTextoConsole}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold text-orange-400 hover:text-orange-300 bg-slate-900 hover:bg-slate-800 transition cursor-pointer active:scale-95 border border-slate-800 flex items-center gap-1.5"
+                    className="px-2.5 py-1 rounded-xl text-[10px] font-mono font-bold text-orange-400 hover:text-orange-300 bg-slate-900 hover:bg-slate-800 transition cursor-pointer active:scale-95 border border-slate-800 flex items-center gap-1.5 shadow-xs"
                     title="Copiar todo o histórico do console para a área de transferência"
                   >
                     {consoleCopiado ? (
@@ -6671,10 +6769,12 @@ export function RastreadorJ16View() {
                     ) : (
                       <>
                         <Copy className="h-3 w-3" />
-                        <span>Copiar Console</span>
+                        <span>Copiar</span>
                       </>
                     )}
                   </button>
+
+                  {/* Limpar Console */}
                   <button
                     type="button"
                     onClick={() => {
@@ -6688,9 +6788,11 @@ export function RastreadorJ16View() {
                         },
                       ]);
                     }}
-                    className="px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 transition cursor-pointer active:scale-95 border border-slate-800"
+                    className="p-1.5 sm:px-2.5 sm:py-1 rounded-xl text-[10px] font-mono font-bold text-slate-400 hover:text-rose-400 bg-slate-900 hover:bg-slate-800 transition cursor-pointer active:scale-95 border border-slate-800 flex items-center gap-1"
+                    title="Limpar histórico de logs do console"
                   >
-                    Limpar Console
+                    <Trash2 className="h-3 w-3" />
+                    <span className="hidden sm:inline">Limpar</span>
                   </button>
                 </div>
               </div>
@@ -6698,23 +6800,153 @@ export function RastreadorJ16View() {
               {/* Caixa de Logs do Console (Scroll Interno Isolado - Amplo) */}
               <div
                 ref={consoleContainerRef}
-                className="h-64 sm:h-80 overflow-y-auto font-mono text-[11px] space-y-1 select-text bg-slate-900/60 p-3 rounded-xl border border-slate-800/80"
+                className="h-64 sm:h-84 overflow-y-auto font-mono text-[11px] space-y-1.5 select-text bg-slate-900/70 p-3.5 rounded-2xl border border-slate-800/80 shadow-inner"
               >
-                {logsTerminal.map((log) => {
-                  let cor = "text-slate-300";
-                  if (log.tipo === "envio") cor = "text-sky-400 font-bold";
-                  if (log.tipo === "status") cor = "text-orange-400";
-                  if (log.tipo === "resposta") cor = "text-amber-300 font-black";
-                  if (log.tipo === "erro") cor = "text-rose-400 font-bold";
-                  if (log.tipo === "info") cor = "text-slate-400";
+                {logsTerminal
+                  .filter((log) => {
+                    if (filtroTipoLogTerminal === "todos") return true;
+                    if (filtroTipoLogTerminal === "respostas")
+                      return (
+                        log.tipo === "resposta" ||
+                        log.texto.includes("0x15") ||
+                        log.texto.includes("0x21") ||
+                        log.texto.includes("ACK")
+                      );
+                    if (filtroTipoLogTerminal === "envios")
+                      return (
+                        log.tipo === "envio" ||
+                        log.texto.includes("GATEWAY TCP") ||
+                        log.texto.includes("PROBE")
+                      );
+                    if (filtroTipoLogTerminal === "spooler") return log.texto.includes("SPOOLER");
+                    if (filtroTipoLogTerminal === "erros")
+                      return (
+                        log.tipo === "erro" ||
+                        log.texto.includes("TIMEOUT") ||
+                        log.texto.includes("ERRO")
+                      );
+                    return true;
+                  })
+                  .map((log) => {
+                    let corTexto = "text-slate-300";
+                    let badgeLabel = "INFO";
+                    let badgeBg = "bg-slate-800/80 text-slate-400 border-slate-700/60";
 
-                  return (
-                    <div key={log.id} className="leading-relaxed flex items-start gap-2">
-                      <span className="text-slate-600 shrink-0">[{log.hora}]</span>
-                      <span className={cor}>{log.texto}</span>
-                    </div>
-                  );
-                })}
+                    if (
+                      log.tipo === "envio" ||
+                      log.texto.includes("GATEWAY TCP") ||
+                      log.texto.includes("PROBE")
+                    ) {
+                      corTexto = "text-sky-300 font-bold";
+                      badgeLabel = "TX";
+                      badgeBg = "bg-sky-500/15 text-sky-400 border-sky-500/30";
+                    } else if (log.texto.includes("SPOOLER")) {
+                      corTexto = "text-orange-300";
+                      badgeLabel = "SPOOL";
+                      badgeBg = "bg-orange-500/15 text-orange-400 border-orange-500/30";
+                    } else if (
+                      log.tipo === "resposta" ||
+                      log.texto.includes("0x15") ||
+                      log.texto.includes("0x21")
+                    ) {
+                      corTexto = "text-amber-200 font-black";
+                      badgeLabel = "RX/ACK";
+                      badgeBg = "bg-amber-500/20 text-amber-300 border-amber-500/40";
+                    } else if (
+                      log.tipo === "erro" ||
+                      log.texto.includes("TIMEOUT") ||
+                      log.texto.includes("ERRO")
+                    ) {
+                      corTexto = "text-rose-300 font-bold";
+                      badgeLabel = "ERR";
+                      badgeBg = "bg-rose-500/20 text-rose-300 border-rose-500/40";
+                    } else if (log.tipo === "status") {
+                      corTexto = "text-emerald-300";
+                      badgeLabel = "STAT";
+                      badgeBg = "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+                    }
+
+                    return (
+                      <div
+                        key={log.id}
+                        className="leading-relaxed flex items-start gap-2 hover:bg-slate-800/40 px-1.5 py-0.5 rounded-lg transition-colors"
+                      >
+                        <span className="text-slate-500 shrink-0 select-none text-[10px] tabular-nums font-mono pt-0.5">
+                          [{log.hora}]
+                        </span>
+                        <span
+                          className={`text-[9px] font-mono font-bold px-1 py-0.2 rounded border shrink-0 select-none ${badgeBg}`}
+                        >
+                          {badgeLabel}
+                        </span>
+                        <span className={`${corTexto} break-all`}>{log.texto}</span>
+                      </div>
+                    );
+                  })}
+              </div>
+
+              {/* Linha de Prompt Tático Integrado (CLI Direct Input) */}
+              <div className="pt-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-2 border-t border-slate-800/80">
+                <div className="flex items-center gap-2 text-slate-400 font-mono text-xs px-2 shrink-0">
+                  <span className="text-orange-500 font-bold">&gt;</span>
+                  <span className="text-[11px] text-slate-400 truncate max-w-[200px]">
+                    {selectedImeis.size > 0
+                      ? `${selectedImeis.size} alvo(s) [${filtroModelo.toUpperCase()}]`
+                      : "Nenhum alvo selecionado"}
+                  </span>
+                </div>
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={inputComandoTerminal}
+                    onChange={(e) => setInputComandoTerminal(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        inputComandoTerminal.trim() &&
+                        selectedImeis.size > 0 &&
+                        !enviandoComando
+                      ) {
+                        e.preventDefault();
+                        const cmd = inputComandoTerminal.trim();
+                        setInputComandoTerminal("");
+                        void dispararComandoParaSelecionados(cmd, `Terminal CLI (${cmd})`);
+                      }
+                    }}
+                    placeholder={
+                      selectedImeis.size > 0
+                        ? `Digite o comando direto para ${selectedImeis.size} rastreador(es) (ex: STATUS#, PARAM#, check123456)...`
+                        : "Selecione ao menos 1 rastreador na tabela acima para enviar comandos..."
+                    }
+                    disabled={selectedImeis.size === 0 || enviandoComando}
+                    className="w-full pl-3 pr-20 py-2 text-xs rounded-xl bg-slate-900 border border-slate-800 focus:outline-none focus:border-orange-500 text-slate-100 placeholder-slate-500 font-mono transition shadow-inner disabled:opacity-40 disabled:cursor-not-allowed"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        inputComandoTerminal.trim() &&
+                        selectedImeis.size > 0 &&
+                        !enviandoComando
+                      ) {
+                        const cmd = inputComandoTerminal.trim();
+                        setInputComandoTerminal("");
+                        void dispararComandoParaSelecionados(cmd, `Terminal CLI (${cmd})`);
+                      }
+                    }}
+                    disabled={
+                      !inputComandoTerminal.trim() || selectedImeis.size === 0 || enviandoComando
+                    }
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold bg-orange-500 hover:bg-orange-600 text-slate-950 transition cursor-pointer active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-1 shadow-xs"
+                  >
+                    {enviandoComando ? (
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Send className="h-3 w-3" />
+                    )}
+                    <span>Enviar</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
