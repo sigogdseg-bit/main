@@ -22,6 +22,7 @@ export interface ModuloDefinicao {
 
 export const MODULOS_SISTEMA_REGRAS: ModuloDefinicao[] = [
   { id: "monitor-gps", nome: "Mapa Operacional", rota: "/monitor-gps" },
+  { id: "vigilantes", nome: "Módulo Vigilante e Rondas", rota: "/vigilantes" },
   { id: "rotas", nome: "Rotas e Trajetos Inteligentes", rota: "/rotas" },
   { id: "frota", nome: "Desempenho da Frota", rota: "/frota" },
   { id: "abastecimento", nome: "Abastecimento de Veículos", rota: "/abastecimento" },
@@ -104,6 +105,7 @@ export const MODULOS_PADRAO_OPERADOR: string[] = [
   "motorista",
   "motoristas",
   "monitor-gps",
+  "vigilantes",
   "mensalidades",
   "propostas",
   "temas",

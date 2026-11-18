@@ -86,6 +86,14 @@ export function InicioHubView() {
           corTag: "text-orange-500 bg-orange-500/10 border-orange-500/20",
         },
         {
+          titulo: "Módulo Vigilante e Rondas",
+          rota: "/vigilantes",
+          desc: "Rastreamento pessoal de vigilantes, mapas ultra-aproximados e rondas com janela estrita ±3min",
+          icone: ShieldCheck,
+          tag: "Ronda Tática",
+          corTag: "text-blue-500 bg-blue-500/10 border-blue-500/20",
+        },
+        {
           titulo: "Rotas e Trajetos Inteligentes",
           rota: "/rotas",
           desc: "Planejamento com múltiplos pontos, desvios e rotas inteligentes pelas ruas",

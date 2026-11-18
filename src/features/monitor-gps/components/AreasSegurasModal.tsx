@@ -21,14 +21,18 @@ import {
   LogOut,
   Bell,
   BellOff,
+  Layers,
+  CircleDot,
 } from "lucide-react";
 import type { VeiculoGps } from "../types";
 import {
   carregarAreasSeguras,
   salvarAreaSegura,
   excluirAreaSegura,
+  calcularCentroidePoligono,
   type AreaSegura,
 } from "../services/protecaoVeiculoService";
+import { MapaEditorPoligono } from "./MapaEditorPoligono";
 import { ModalPortal } from "@/shared/components/ModalPortal";
 import { toast } from "sonner";
 
@@ -47,6 +51,8 @@ export function AreasSegurasModal({ veiculo, onFechar }: AreasSegurasModalProps)
   // Form State
   const [nome, setNome] = useState("");
   const [tipo, setTipo] = useState<AreaSegura["tipo"]>("casa");
+  const [modoFormato, setModoFormato] = useState<"circular" | "poligono">("circular");
+  const [poligonoPontos, setPoligonoPontos] = useState<[number, number][]>([]);
   const [latitude, setLatitude] = useState(veiculo.latitude);
   const [longitude, setLongitude] = useState(veiculo.longitude);
   const [raioMetros, setRaioMetros] = useState(150);
@@ -77,6 +83,8 @@ export function AreasSegurasModal({ veiculo, onFechar }: AreasSegurasModalProps)
     setAreaEmEdicao(null);
     setNome("");
     setTipo("casa");
+    setModoFormato("circular");
+    setPoligonoPontos([]);
     setLatitude(veiculo.latitude);
     setLongitude(veiculo.longitude);
     setRaioMetros(150);
@@ -104,6 +112,16 @@ export function AreasSegurasModal({ veiculo, onFechar }: AreasSegurasModalProps)
     setDiasSemana(
       area.dias_semana && area.dias_semana.length > 0 ? area.dias_semana : [0, 1, 2, 3, 4, 5, 6],
     );
+
+    const pontosGeo = area.poligono_geojson?.coordinates;
+    if (Array.isArray(pontosGeo) && pontosGeo.length >= 3) {
+      setPoligonoPontos(pontosGeo);
+      setModoFormato("poligono");
+    } else {
+      setPoligonoPontos([]);
+      setModoFormato("circular");
+    }
+
     setModoCriacao(true);
   };
 
@@ -144,17 +162,39 @@ export function AreasSegurasModal({ veiculo, onFechar }: AreasSegurasModalProps)
       return;
     }
 
+    if (modoFormato === "poligono" && poligonoPontos.length < 3) {
+      toast.error("Para salvar uma área em formato polígono, marque pelo menos 3 pontos no mapa.");
+      return;
+    }
+
     setSalvando(true);
     try {
+      let latFinal = latitude;
+      let lonFinal = longitude;
+      let raioFinal = raioMetros;
+      let poligonoGeojson: any = null;
+
+      if (modoFormato === "poligono" && poligonoPontos.length >= 3) {
+        const centroide = calcularCentroidePoligono(poligonoPontos);
+        latFinal = centroide.latitude;
+        lonFinal = centroide.longitude;
+        raioFinal = centroide.raioAproximadoMetros;
+        poligonoGeojson = {
+          type: "Polygon",
+          coordinates: poligonoPontos,
+        };
+      }
+
       const res = await salvarAreaSegura({
         id: areaEmEdicao ? areaEmEdicao.id : undefined,
         veiculo_id: veiculo.id,
         cliente_id: veiculo.cliente_id,
         nome: nome.trim(),
         tipo,
-        latitude,
-        longitude,
-        raio_metros: raioMetros,
+        latitude: latFinal,
+        longitude: lonFinal,
+        raio_metros: raioFinal,
+        poligono_geojson: poligonoGeojson,
         tolerancia_metros: toleranciaMetros,
         regra_entrada: regraEntrada,
         regra_saida: regraSaida,
@@ -396,80 +436,156 @@ export function AreasSegurasModal({ veiculo, onFechar }: AreasSegurasModalProps)
                   </select>
                 </div>
 
-                {/* Coordenadas e botão Posição Atual */}
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                      Posição Central
-                    </span>
+                {/* Seletor de Formato da Área: Raio Circular vs Polígono no Mapa */}
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1.5">
+                    Formato da Geometria
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        setLatitude(veiculo.latitude);
-                        setLongitude(veiculo.longitude);
-                        toast.info("Posição preenchida com a localização atual do veículo.");
-                      }}
-                      className="text-[10px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
+                      onClick={() => setModoFormato("circular")}
+                      className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition cursor-pointer ${
+                        modoFormato === "circular"
+                          ? "bg-orange-500/15 border-orange-500 text-orange-600 dark:text-orange-400 shadow-xs"
+                          : "bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300"
+                      }`}
                     >
-                      <MapPin className="h-3 w-3" />
-                      Usar Local do Veículo
+                      <CircleDot className="h-4 w-4" />
+                      <span>Raio Circular</span>
                     </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-sans">Latitude</span>
-                      <input
-                        type="number"
-                        step="0.00001"
-                        value={latitude}
-                        onChange={(e) => setLatitude(parseFloat(e.target.value) || 0)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-sans">Longitude</span>
-                      <input
-                        type="number"
-                        step="0.00001"
-                        value={longitude}
-                        onChange={(e) => setLongitude(parseFloat(e.target.value) || 0)}
-                        className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs"
-                      />
-                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setModoFormato("poligono")}
+                      className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 text-xs font-bold transition cursor-pointer ${
+                        modoFormato === "poligono"
+                          ? "bg-orange-500/15 border-orange-500 text-orange-600 dark:text-orange-400 shadow-xs"
+                          : "bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300"
+                      }`}
+                    >
+                      <Layers className="h-4 w-4" />
+                      <span>Polígono no Mapa</span>
+                    </button>
                   </div>
                 </div>
 
-                {/* Raio e Tolerância */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                      Raio da Área (m)
-                    </label>
-                    <input
-                      type="number"
-                      min="30"
-                      max="5000"
-                      step="10"
-                      value={raioMetros}
-                      onChange={(e) => setRaioMetros(parseInt(e.target.value) || 100)}
-                      className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono"
+                {modoFormato === "poligono" ? (
+                  /* Modo Polígono Interativo */
+                  <div className="space-y-3 pt-1">
+                    <MapaEditorPoligono
+                      pontosIniciais={poligonoPontos}
+                      latitudeCentro={latitude}
+                      longitudeCentro={longitude}
+                      alturaPx={260}
+                      onPoligonoChange={(novosPontos, centroide) => {
+                        setPoligonoPontos(novosPontos);
+                        if (novosPontos.length >= 3) {
+                          setLatitude(centroide.latitude);
+                          setLongitude(centroide.longitude);
+                          setRaioMetros(centroide.raioAproximadoMetros);
+                        }
+                      }}
                     />
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                        Tolerância Anti-Falso (m)
+                      </label>
+                      <input
+                        type="number"
+                        min="10"
+                        max="200"
+                        step="10"
+                        value={toleranciaMetros}
+                        onChange={(e) => setToleranciaMetros(parseInt(e.target.value) || 50)}
+                        className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                      Tolerância Anti-Falso (m)
-                    </label>
-                    <input
-                      type="number"
-                      min="10"
-                      max="200"
-                      step="10"
-                      value={toleranciaMetros}
-                      onChange={(e) => setToleranciaMetros(parseInt(e.target.value) || 50)}
-                      className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono"
-                    />
-                  </div>
-                </div>
+                ) : (
+                  /* Modo Raio Circular */
+                  <>
+                    {/* Coordenadas e botão Posição Atual */}
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                          Posição Central
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLatitude(veiculo.latitude);
+                            setLongitude(veiculo.longitude);
+                            toast.info("Posição preenchida com a localização atual do veículo.");
+                          }}
+                          className="text-[10px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1"
+                        >
+                          <MapPin className="h-3 w-3" />
+                          Usar Local do Veículo
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs font-mono">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-sans">
+                            Latitude
+                          </span>
+                          <input
+                            type="number"
+                            step="0.00001"
+                            value={latitude}
+                            onChange={(e) => setLatitude(parseFloat(e.target.value) || 0)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-sans">
+                            Longitude
+                          </span>
+                          <input
+                            type="number"
+                            step="0.00001"
+                            value={longitude}
+                            onChange={(e) => setLongitude(parseFloat(e.target.value) || 0)}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-1 text-xs"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Raio e Tolerância */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                          Raio da Área (m)
+                        </label>
+                        <input
+                          type="number"
+                          min="30"
+                          max="5000"
+                          step="10"
+                          value={raioMetros}
+                          onChange={(e) => setRaioMetros(parseInt(e.target.value) || 100)}
+                          className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                          Tolerância Anti-Falso (m)
+                        </label>
+                        <input
+                          type="number"
+                          min="10"
+                          max="200"
+                          step="10"
+                          value={toleranciaMetros}
+                          onChange={(e) => setToleranciaMetros(parseInt(e.target.value) || 50)}
+                          className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 {/* Regras de Entrada e Saída */}
                 <div className="space-y-3 pt-1">

@@ -36,6 +36,7 @@ import {
   CheckCircle2,
   Building,
   DollarSign,
+  ShieldCheck,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { APP_NOME, APP_VERSION_NUMERO } from "@/shared/lib/version";
@@ -203,6 +204,16 @@ export function MobileDrawer({
                   rota: "/monitor-gps",
                   icone: MapPin,
                   descricao: "Telemetria em tempo real e localização",
+                },
+              ]
+            : []),
+          ...(podeAcessarModulo(session, "vigilantes")
+            ? [
+                {
+                  titulo: "Módulo Vigilante e Rondas",
+                  rota: "/vigilantes",
+                  icone: ShieldCheck,
+                  descricao: "Rastreamento pessoal e rondas com tolerância ±3min",
                 },
               ]
             : []),
@@ -502,6 +513,16 @@ export function MobileDrawer({
             icone: MapPin,
             descricao: "Rastreamento tático e bloqueio remoto",
           },
+          ...(podeAcessarModulo(session, "vigilantes")
+            ? [
+                {
+                  titulo: "Módulo Vigilante e Rondas",
+                  rota: "/vigilantes",
+                  icone: ShieldCheck,
+                  descricao: "Rastreamento pessoal e rondas com tolerância ±3min",
+                },
+              ]
+            : []),
           {
             titulo: "Rotas e Trajetos Inteligentes",
             rota: "/rotas",

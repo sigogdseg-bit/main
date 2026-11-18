@@ -41,6 +41,7 @@ import { Route as AuthenticatedPropostasRouteImport } from './routes/_authentica
 import { Route as AuthenticatedRevendedoresRouteImport } from './routes/_authenticated.revendedores'
 import { Route as AuthenticatedRotasRouteImport } from './routes/_authenticated.rotas'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated.usuarios'
+import { Route as AuthenticatedVigilantesRouteImport } from './routes/_authenticated.vigilantes'
 import { Route as CompartilharTokenRouteImport } from './routes/compartilhar.$token'
 import { Route as AuthenticatedConfiguracaoCentralSegurancaRouteImport } from './routes/_authenticated.configuracao.central-seguranca'
 import { Route as AuthenticatedConfiguracaoLogsRouteImport } from './routes/_authenticated.configuracao.logs'
@@ -217,6 +218,11 @@ const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
   path: '/usuarios',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedVigilantesRoute = AuthenticatedVigilantesRouteImport.update({
+  id: '/vigilantes',
+  path: '/vigilantes',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const CompartilharTokenRoute = CompartilharTokenRouteImport.update({
   id: '/compartilhar/$token',
   path: '/compartilhar/$token',
@@ -285,6 +291,7 @@ export interface FileRoutesByFullPath {
   '/revendedores': typeof AuthenticatedRevendedoresRoute
   '/rotas': typeof AuthenticatedRotasRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/vigilantes': typeof AuthenticatedVigilantesRoute
   '/compartilhar/$token': typeof CompartilharTokenRoute
   '/configuracao/central-seguranca': typeof AuthenticatedConfiguracaoCentralSegurancaRoute
   '/configuracao/logs': typeof AuthenticatedConfiguracaoLogsRoute
@@ -324,6 +331,7 @@ export interface FileRoutesByTo {
   '/revendedores': typeof AuthenticatedRevendedoresRoute
   '/rotas': typeof AuthenticatedRotasRoute
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/vigilantes': typeof AuthenticatedVigilantesRoute
   '/compartilhar/$token': typeof CompartilharTokenRoute
   '/configuracao/central-seguranca': typeof AuthenticatedConfiguracaoCentralSegurancaRoute
   '/configuracao/logs': typeof AuthenticatedConfiguracaoLogsRoute
@@ -365,6 +373,7 @@ export interface FileRoutesById {
   '/_authenticated/revendedores': typeof AuthenticatedRevendedoresRoute
   '/_authenticated/rotas': typeof AuthenticatedRotasRoute
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
+  '/_authenticated/vigilantes': typeof AuthenticatedVigilantesRoute
   '/compartilhar/$token': typeof CompartilharTokenRoute
   '/_authenticated/configuracao/central-seguranca': typeof AuthenticatedConfiguracaoCentralSegurancaRoute
   '/_authenticated/configuracao/logs': typeof AuthenticatedConfiguracaoLogsRoute
@@ -406,6 +415,7 @@ export interface FileRouteTypes {
     | '/revendedores'
     | '/rotas'
     | '/usuarios'
+    | '/vigilantes'
     | '/compartilhar/$token'
     | '/configuracao/central-seguranca'
     | '/configuracao/logs'
@@ -445,6 +455,7 @@ export interface FileRouteTypes {
     | '/revendedores'
     | '/rotas'
     | '/usuarios'
+    | '/vigilantes'
     | '/compartilhar/$token'
     | '/configuracao/central-seguranca'
     | '/configuracao/logs'
@@ -485,6 +496,7 @@ export interface FileRouteTypes {
     | '/_authenticated/revendedores'
     | '/_authenticated/rotas'
     | '/_authenticated/usuarios'
+    | '/_authenticated/vigilantes'
     | '/compartilhar/$token'
     | '/_authenticated/configuracao/central-seguranca'
     | '/_authenticated/configuracao/logs'
@@ -732,6 +744,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsuariosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/vigilantes': {
+      id: '/_authenticated/vigilantes'
+      path: '/vigilantes'
+      fullPath: '/vigilantes'
+      preLoaderRoute: typeof AuthenticatedVigilantesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/compartilhar/$token': {
       id: '/compartilhar/$token'
       path: '/compartilhar/$token'
@@ -801,6 +820,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedRevendedoresRoute: typeof AuthenticatedRevendedoresRoute
   AuthenticatedRotasRoute: typeof AuthenticatedRotasRoute
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
+  AuthenticatedVigilantesRoute: typeof AuthenticatedVigilantesRoute
   AuthenticatedConfiguracaoCentralSegurancaRoute: typeof AuthenticatedConfiguracaoCentralSegurancaRoute
   AuthenticatedConfiguracaoLogsRoute: typeof AuthenticatedConfiguracaoLogsRoute
   AuthenticatedConfiguracaoRastreadorJ16Route: typeof AuthenticatedConfiguracaoRastreadorJ16Route
@@ -832,6 +852,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedRevendedoresRoute: AuthenticatedRevendedoresRoute,
   AuthenticatedRotasRoute: AuthenticatedRotasRoute,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
+  AuthenticatedVigilantesRoute: AuthenticatedVigilantesRoute,
   AuthenticatedConfiguracaoCentralSegurancaRoute:
     AuthenticatedConfiguracaoCentralSegurancaRoute,
   AuthenticatedConfiguracaoLogsRoute: AuthenticatedConfiguracaoLogsRoute,

@@ -89,8 +89,63 @@ export function calcularDistanciaMetros(
 }
 
 /**
+ * Algoritmo Ray-Casting clássico (ponto em polígono)
+ */
+export function pontoDentroDoPoligono(
+  ponto: [number, number], // [lat, lng]
+  poligono: [number, number][], // [[lat, lng], ...]
+): boolean {
+  if (!poligono || poligono.length < 3) return false;
+  const [x, y] = ponto;
+  let inside = false;
+  for (let i = 0, j = poligono.length - 1; i < poligono.length; j = i++) {
+    const xi = poligono[i][0];
+    const yi = poligono[i][1];
+    const xj = poligono[j][0];
+    const yj = poligono[j][1];
+
+    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+/**
+ * Calcula o centroide (média de lat e lon) de um polígono
+ */
+export function calcularCentroidePoligono(pontos: [number, number][]): {
+  latitude: number;
+  longitude: number;
+  raioAproximadoMetros: number;
+} {
+  if (!pontos || pontos.length === 0) {
+    return { latitude: 0, longitude: 0, raioAproximadoMetros: 100 };
+  }
+  let sumLat = 0;
+  let sumLon = 0;
+  for (const [lat, lon] of pontos) {
+    sumLat += lat;
+    sumLon += lon;
+  }
+  const centroLat = sumLat / pontos.length;
+  const centroLon = sumLon / pontos.length;
+
+  let maxDist = 0;
+  for (const [lat, lon] of pontos) {
+    const d = calcularDistanciaMetros(centroLat, centroLon, lat, lon);
+    if (d > maxDist) maxDist = d;
+  }
+
+  return {
+    latitude: centroLat,
+    longitude: centroLon,
+    raioAproximadoMetros: Math.max(50, Math.round(maxDist)),
+  };
+}
+
+/**
  * Verifica se um ponto geográfico está dentro do perímetro da área segura
- * considerando o raio e a margem de tolerância.
+ * considerando polígono (se configurado) ou raio e margem de tolerância.
  */
 export function verificarPontoNaAreaSegura(
   lat: number,
@@ -100,8 +155,21 @@ export function verificarPontoNaAreaSegura(
     longitude: number;
     raio_metros: number;
     tolerancia_metros?: number;
+    poligono_geojson?: any;
   },
 ): { dentro: boolean; distanciaMetros: number } {
+  // Se a área possuir polígono estruturado
+  if (
+    area.poligono_geojson &&
+    Array.isArray(area.poligono_geojson.coordinates) &&
+    area.poligono_geojson.coordinates.length >= 3
+  ) {
+    const coords = area.poligono_geojson.coordinates as [number, number][];
+    const dentroPoligono = pontoDentroDoPoligono([lat, lon], coords);
+    const distCentro = calcularDistanciaMetros(lat, lon, area.latitude, area.longitude);
+    return { dentro: dentroPoligono, distanciaMetros: Math.round(distCentro) };
+  }
+
   const dist = calcularDistanciaMetros(lat, lon, area.latitude, area.longitude);
   const margem = area.tolerancia_metros || 0;
   const dentro = dist <= area.raio_metros + margem;
@@ -190,6 +258,7 @@ export async function salvarAreaSegura(area: Partial<AreaSegura>): Promise<AreaS
           latitude: area.latitude,
           longitude: area.longitude,
           raio_metros: area.raio_metros,
+          poligono_geojson: area.poligono_geojson || null,
           regra_entrada: area.regra_entrada,
           regra_saida: area.regra_saida,
           hora_inicio: area.hora_inicio,
@@ -216,6 +285,7 @@ export async function salvarAreaSegura(area: Partial<AreaSegura>): Promise<AreaS
           latitude: area.latitude!,
           longitude: area.longitude!,
           raio_metros: area.raio_metros || 100,
+          poligono_geojson: area.poligono_geojson || null,
           regra_entrada: area.regra_entrada || "permitida",
           regra_saida: area.regra_saida || "permitida",
           hora_inicio: area.hora_inicio || null,
