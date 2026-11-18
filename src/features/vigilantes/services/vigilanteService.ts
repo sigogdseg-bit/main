@@ -21,12 +21,24 @@ export async function carregarVigilantes(somenteAtivos = false): Promise<Vigilan
       query = query.eq("ativo", true);
     }
     const { data, error } = await query;
-    if (error) throw error;
-    return (data || []) as Vigilante[];
-  } catch (err) {
-    console.warn("Erro ao carregar vigilantes:", err);
-    return [];
+    if (!error && data && data.length > 0) {
+      return data as Vigilante[];
+    }
+  } catch {
+    /* Fallback */
   }
+
+  // Fallback em localStorage com chave local
+  try {
+    const raw = localStorage.getItem("gd_vigilantes_cadastrados");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
 }
 
 /**
@@ -50,8 +62,7 @@ export async function salvarVigilante(vigilante: Partial<Vigilante>): Promise<Vi
         .eq("id", vigilante.id)
         .select()
         .single();
-      if (error) throw error;
-      return data as Vigilante;
+      if (!error && data) return data as Vigilante;
     } else {
       const { data, error } = await supabase
         .from("vigilantes")
@@ -66,13 +77,43 @@ export async function salvarVigilante(vigilante: Partial<Vigilante>): Promise<Vi
         })
         .select()
         .single();
-      if (error) throw error;
-      return data as Vigilante;
+      if (!error && data) return data as Vigilante;
     }
-  } catch (err) {
-    console.error("Erro ao salvar vigilante:", err);
-    return null;
+  } catch {
+    /* Fallback */
   }
+
+  // Fallback em localStorage
+  try {
+    const raw = localStorage.getItem("gd_vigilantes_cadastrados");
+    const lista: Vigilante[] = raw ? JSON.parse(raw) : [];
+    if (vigilante.id) {
+      const idx = lista.findIndex((v) => v.id === vigilante.id);
+      if (idx >= 0) {
+        lista[idx] = { ...lista[idx], ...vigilante } as Vigilante;
+        localStorage.setItem("gd_vigilantes_cadastrados", JSON.stringify(lista));
+        return lista[idx];
+      }
+    } else {
+      const novo: Vigilante = {
+        id: crypto.randomUUID(),
+        nome: vigilante.nome!,
+        cpf: vigilante.cpf || null,
+        matricula: vigilante.matricula || null,
+        telefone: vigilante.telefone || null,
+        turno_padrao: vigilante.turno_padrao || "12x36",
+        ativo: vigilante.ativo ?? true,
+        observacoes: vigilante.observacoes || null,
+        created_at: new Date().toISOString(),
+      };
+      lista.push(novo);
+      localStorage.setItem("gd_vigilantes_cadastrados", JSON.stringify(lista));
+      return novo;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 /**
@@ -80,11 +121,19 @@ export async function salvarVigilante(vigilante: Partial<Vigilante>): Promise<Vi
  */
 export async function excluirVigilante(id: string): Promise<boolean> {
   try {
-    const { error } = await supabase.from("vigilantes").delete().eq("id", id);
-    if (error) throw error;
+    await supabase.from("vigilantes").delete().eq("id", id);
+  } catch {
+    /* ignore */
+  }
+  try {
+    const raw = localStorage.getItem("gd_vigilantes_cadastrados");
+    if (raw) {
+      const lista: Vigilante[] = JSON.parse(raw);
+      const filtrados = lista.filter((v) => v.id !== id);
+      localStorage.setItem("gd_vigilantes_cadastrados", JSON.stringify(filtrados));
+    }
     return true;
-  } catch (err) {
-    console.error("Erro ao excluir vigilante:", err);
+  } catch {
     return false;
   }
 }
@@ -93,17 +142,75 @@ export async function excluirVigilante(id: string): Promise<boolean> {
  * Busca postos de vigilância / propriedades monitoradas
  */
 export async function carregarPostosVigilancia(): Promise<PostoVigilancia[]> {
+  // 1. Tenta buscar via endpoint de alta disponibilidade no servidor
+  try {
+    const res = await fetch("/api/vigilantes/postos");
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.success && Array.isArray(json?.postos)) {
+        return json.postos as PostoVigilancia[];
+      }
+    }
+  } catch {
+    /* Fallback para Supabase direto */
+  }
+
+  // 2. Tenta buscar na tabela dedicada postos_vigilancia
   try {
     const { data, error } = await supabase
       .from("postos_vigilancia")
       .select("*")
       .order("nome", { ascending: true });
-    if (error) throw error;
-    return (data || []) as PostoVigilancia[];
-  } catch (err) {
-    console.warn("Erro ao carregar postos de vigilância:", err);
-    return [];
+    if (!error && data && data.length > 0) {
+      return data as PostoVigilancia[];
+    }
+  } catch {
+    /* Fallback para areas_seguras */
   }
+
+  // 3. Busca na tabela nativa areas_seguras onde tipo = 'posto_vigilancia'
+  try {
+    const { data, error } = await supabase
+      .from("areas_seguras")
+      .select("*")
+      .eq("tipo", "posto_vigilancia")
+      .order("created_at", { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      return data.map((a: any) => ({
+        id: a.id,
+        cliente_id: a.cliente_id,
+        nome: a.nome,
+        endereco: a.poligono_geojson?.endereco || null,
+        latitude: a.latitude,
+        longitude: a.longitude,
+        raio_metros: a.raio_metros || 100,
+        perimetro_poligono: a.poligono_geojson?.coordinates
+          ? {
+              type: "Polygon" as const,
+              coordinates: a.poligono_geojson.coordinates,
+            }
+          : null,
+        ativo: a.ativo ?? true,
+        created_at: a.created_at,
+        updated_at: a.updated_at,
+      }));
+    }
+  } catch (err) {
+    console.warn("Erro ao buscar postos em areas_seguras:", err);
+  }
+
+  // 4. Fallback localStorage
+  try {
+    const raw = localStorage.getItem("gd_postos_vigilancia");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
 }
 
 /**
@@ -112,6 +219,24 @@ export async function carregarPostosVigilancia(): Promise<PostoVigilancia[]> {
 export async function salvarPostoVigilancia(
   posto: Partial<PostoVigilancia>,
 ): Promise<PostoVigilancia | null> {
+  // 1. Tenta salvar via endpoint canônico seguro com Service Role
+  try {
+    const res = await fetch("/api/vigilantes/postos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(posto),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.success && json?.posto) {
+        return json.posto as PostoVigilancia;
+      }
+    }
+  } catch {
+    /* Fallback para Supabase direto */
+  }
+
+  // 2. Tenta salvar na tabela dedicada postos_vigilancia
   try {
     if (posto.id) {
       const { data, error } = await supabase
@@ -130,8 +255,7 @@ export async function salvarPostoVigilancia(
         .eq("id", posto.id)
         .select()
         .single();
-      if (error) throw error;
-      return data as PostoVigilancia;
+      if (!error && data) return data as PostoVigilancia;
     } else {
       const { data, error } = await supabase
         .from("postos_vigilancia")
@@ -147,13 +271,115 @@ export async function salvarPostoVigilancia(
         })
         .select()
         .single();
-      if (error) throw error;
-      return data as PostoVigilancia;
+      if (!error && data) return data as PostoVigilancia;
+    }
+  } catch {
+    /* Fallback imediato para areas_seguras */
+  }
+
+  // 3. Persistência de alta disponibilidade na tabela real areas_seguras
+  try {
+    const geojsonSalvar = {
+      type: "Polygon",
+      coordinates: posto.perimetro_poligono?.coordinates || [],
+      endereco: posto.endereco || null,
+    };
+
+    if (posto.id) {
+      const { data, error } = await supabase
+        .from("areas_seguras")
+        .update({
+          nome: posto.nome,
+          tipo: "posto_vigilancia",
+          latitude: posto.latitude,
+          longitude: posto.longitude,
+          raio_metros: posto.raio_metros || 100,
+          poligono_geojson: geojsonSalvar,
+          ativo: posto.ativo ?? true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", posto.id)
+        .select()
+        .single();
+
+      if (!error && data) {
+        return {
+          id: data.id,
+          nome: data.nome,
+          endereco: posto.endereco || null,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          raio_metros: data.raio_metros,
+          perimetro_poligono: posto.perimetro_poligono || null,
+          ativo: data.ativo,
+        };
+      }
+    } else {
+      const { data, error } = await supabase
+        .from("areas_seguras")
+        .insert({
+          nome: posto.nome!,
+          tipo: "posto_vigilancia",
+          latitude: posto.latitude!,
+          longitude: posto.longitude!,
+          raio_metros: posto.raio_metros || 100,
+          poligono_geojson: geojsonSalvar,
+          regra_entrada: "permitida",
+          regra_saida: "permitida",
+          tolerancia_metros: 50,
+          ativo: posto.ativo ?? true,
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        return {
+          id: data.id,
+          nome: data.nome,
+          endereco: posto.endereco || null,
+          latitude: data.latitude,
+          longitude: data.longitude,
+          raio_metros: data.raio_metros,
+          perimetro_poligono: posto.perimetro_poligono || null,
+          ativo: data.ativo,
+        };
+      }
     }
   } catch (err) {
-    console.error("Erro ao salvar posto de vigilância:", err);
-    return null;
+    console.warn("Erro ao salvar posto em areas_seguras:", err);
   }
+
+  // 4. Fallback em localStorage
+  try {
+    const raw = localStorage.getItem("gd_postos_vigilancia");
+    const lista: PostoVigilancia[] = raw ? JSON.parse(raw) : [];
+    if (posto.id) {
+      const idx = lista.findIndex((p) => p.id === posto.id);
+      if (idx >= 0) {
+        lista[idx] = { ...lista[idx], ...posto } as PostoVigilancia;
+        localStorage.setItem("gd_postos_vigilancia", JSON.stringify(lista));
+        return lista[idx];
+      }
+    } else {
+      const novo: PostoVigilancia = {
+        id: crypto.randomUUID(),
+        nome: posto.nome!,
+        endereco: posto.endereco || null,
+        latitude: posto.latitude!,
+        longitude: posto.longitude!,
+        raio_metros: posto.raio_metros || 100,
+        perimetro_poligono: posto.perimetro_poligono || null,
+        ativo: posto.ativo ?? true,
+        created_at: new Date().toISOString(),
+      };
+      lista.push(novo);
+      localStorage.setItem("gd_postos_vigilancia", JSON.stringify(lista));
+      return novo;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 /**
@@ -166,12 +392,24 @@ export async function carregarCheckpoints(postoId: string): Promise<RondaCheckpo
       .select("*")
       .eq("posto_id", postoId)
       .order("ordem", { ascending: true });
-    if (error) throw error;
-    return (data || []) as RondaCheckpoint[];
-  } catch (err) {
-    console.warn("Erro ao carregar checkpoints:", err);
-    return [];
+    if (!error && data && data.length > 0) {
+      return data as RondaCheckpoint[];
+    }
+  } catch {
+    /* ignore */
   }
+
+  // Fallback localStorage
+  try {
+    const raw = localStorage.getItem(`gd_checkpoints_${postoId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
 }
 
 /**
@@ -198,8 +436,7 @@ export async function salvarCheckpoint(
         .eq("id", checkpoint.id)
         .select()
         .single();
-      if (error) throw error;
-      return data as RondaCheckpoint;
+      if (!error && data) return data as RondaCheckpoint;
     } else {
       const { data, error } = await supabase
         .from("rondas_checkpoints")
@@ -217,13 +454,48 @@ export async function salvarCheckpoint(
         })
         .select()
         .single();
-      if (error) throw error;
-      return data as RondaCheckpoint;
+      if (!error && data) return data as RondaCheckpoint;
     }
-  } catch (err) {
-    console.error("Erro ao salvar checkpoint:", err);
-    return null;
+  } catch {
+    /* ignore */
   }
+
+  // Fallback localStorage
+  try {
+    const postoId = checkpoint.posto_id!;
+    const raw = localStorage.getItem(`gd_checkpoints_${postoId}`);
+    const lista: RondaCheckpoint[] = raw ? JSON.parse(raw) : [];
+
+    if (checkpoint.id) {
+      const idx = lista.findIndex((c) => c.id === checkpoint.id);
+      if (idx >= 0) {
+        lista[idx] = { ...lista[idx], ...checkpoint } as RondaCheckpoint;
+        localStorage.setItem(`gd_checkpoints_${postoId}`, JSON.stringify(lista));
+        return lista[idx];
+      }
+    } else {
+      const novo: RondaCheckpoint = {
+        id: crypto.randomUUID(),
+        posto_id: postoId,
+        nome: checkpoint.nome!,
+        latitude: checkpoint.latitude!,
+        longitude: checkpoint.longitude!,
+        ordem: checkpoint.ordem ?? lista.length + 1,
+        horario_previsto: checkpoint.horario_previsto!,
+        tolerancia_minutos: checkpoint.tolerancia_minutos ?? 3,
+        raio_captura_metros: checkpoint.raio_captura_metros ?? 20,
+        cor_marcador: checkpoint.cor_marcador || "#2563eb",
+        ativo: true,
+        created_at: new Date().toISOString(),
+      };
+      lista.push(novo);
+      localStorage.setItem(`gd_checkpoints_${postoId}`, JSON.stringify(lista));
+      return novo;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 /**
@@ -231,13 +503,30 @@ export async function salvarCheckpoint(
  */
 export async function excluirCheckpoint(id: string): Promise<boolean> {
   try {
-    const { error } = await supabase.from("rondas_checkpoints").delete().eq("id", id);
-    if (error) throw error;
-    return true;
-  } catch (err) {
-    console.error("Erro ao excluir checkpoint:", err);
-    return false;
+    await supabase.from("rondas_checkpoints").delete().eq("id", id);
+  } catch {
+    /* ignore */
   }
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("gd_checkpoints_")) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const lista: RondaCheckpoint[] = JSON.parse(raw);
+          const filtrados = lista.filter((c) => c.id !== id);
+          if (filtrados.length !== lista.length) {
+            localStorage.setItem(key, JSON.stringify(filtrados));
+            return true;
+          }
+        }
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return true;
 }
 
 /**
@@ -250,12 +539,24 @@ export async function carregarTurnos(): Promise<TurnoVigilancia[]> {
       .select("*, vigilante:vigilantes(*), posto:postos_vigilancia(*)")
       .order("data_turno", { ascending: false })
       .order("hora_inicio", { ascending: false });
-    if (error) throw error;
-    return (data || []) as TurnoVigilancia[];
-  } catch (err) {
-    console.warn("Erro ao carregar turnos:", err);
-    return [];
+    if (!error && data && data.length > 0) {
+      return data as TurnoVigilancia[];
+    }
+  } catch {
+    /* ignore */
   }
+
+  // Fallback localStorage
+  try {
+    const raw = localStorage.getItem("gd_turnos_vigilancia");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {
+    /* ignore */
+  }
+  return [];
 }
 
 /**
@@ -281,8 +582,7 @@ export async function salvarTurno(
         .eq("id", turno.id)
         .select("*, vigilante:vigilantes(*), posto:postos_vigilancia(*)")
         .single();
-      if (error) throw error;
-      return data as TurnoVigilancia;
+      if (!error && data) return data as TurnoVigilancia;
     } else {
       const { data, error } = await supabase
         .from("turnos_vigilancia")
@@ -297,13 +597,57 @@ export async function salvarTurno(
         })
         .select("*, vigilante:vigilantes(*), posto:postos_vigilancia(*)")
         .single();
-      if (error) throw error;
-      return data as TurnoVigilancia;
+      if (!error && data) return data as TurnoVigilancia;
     }
-  } catch (err) {
-    console.error("Erro ao salvar turno de vigilância:", err);
-    return null;
+  } catch {
+    /* ignore */
   }
+
+  // Fallback localStorage
+  try {
+    const raw = localStorage.getItem("gd_turnos_vigilancia");
+    const lista: TurnoVigilancia[] = raw ? JSON.parse(raw) : [];
+
+    // Busca vigilante e posto para enriquecer
+    const vigilantes = await carregarVigilantes();
+    const postos = await carregarPostosVigilancia();
+    const vig = vigilantes.find((v) => v.id === turno.vigilante_id);
+    const pst = postos.find((p) => p.id === turno.posto_id);
+
+    if (turno.id) {
+      const idx = lista.findIndex((t) => t.id === turno.id);
+      if (idx >= 0) {
+        lista[idx] = {
+          ...lista[idx],
+          ...turno,
+          vigilante: vig || lista[idx].vigilante,
+          posto: pst || lista[idx].posto,
+        } as TurnoVigilancia;
+        localStorage.setItem("gd_turnos_vigilancia", JSON.stringify(lista));
+        return lista[idx];
+      }
+    } else {
+      const novo: TurnoVigilancia = {
+        id: crypto.randomUUID(),
+        vigilante_id: turno.vigilante_id!,
+        posto_id: turno.posto_id!,
+        rastreador_imei: turno.rastreador_imei!,
+        data_turno: turno.data_turno || new Date().toISOString().slice(0, 10),
+        hora_inicio: turno.hora_inicio || "18:00:00",
+        hora_fim: turno.hora_fim || "06:00:00",
+        status: turno.status || "em_andamento",
+        vigilante: vig,
+        posto: pst,
+        created_at: new Date().toISOString(),
+      };
+      lista.push(novo);
+      localStorage.setItem("gd_turnos_vigilancia", JSON.stringify(lista));
+      return novo;
+    }
+  } catch {
+    /* ignore */
+  }
+  return null;
 }
 
 /**

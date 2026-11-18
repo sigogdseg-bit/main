@@ -69,6 +69,16 @@ export function MapaEditorPoligono({
     };
   }, [latitudeCentro, longitudeCentro]);
 
+  // Desloca o mapa dinamicamente quando o centro mudar (ex.: via busca de endereço)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !latitudeCentro || !longitudeCentro) return;
+    map.flyTo([latitudeCentro, longitudeCentro], 18, {
+      duration: 1.2,
+      animate: true,
+    });
+  }, [latitudeCentro, longitudeCentro]);
+
   // Renderiza polígono, polylines e vértices clicáveis
   useEffect(() => {
     const map = mapRef.current;

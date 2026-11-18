@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, Building2, Check, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { X, Building2, Check, Loader2, MapPin, Search } from "lucide-react";
 import { ModalPortal } from "@/shared/components/ModalPortal";
 import { MapaEditorPoligono } from "@/features/monitor-gps/components/MapaEditorPoligono";
 import { salvarPostoVigilancia } from "../services/vigilanteService";
@@ -12,6 +12,69 @@ interface ModalNovoPostoProps {
   onSalvo: () => void;
 }
 
+/**
+ * Busca geodésica do endereço no Brasil com suporte a abreviações
+ */
+async function geocodificarEndereco(
+  texto: string,
+): Promise<{ latitude: number; longitude: number; label: string } | null> {
+  const q = texto.trim();
+  if (!q || q.length < 3) return null;
+
+  const qClean = q
+    .replace(/\bav\.?\b/gi, "Avenida")
+    .replace(/\br\.?\b/gi, "Rua")
+    .replace(/\bsra\.?\b/gi, "Senhora")
+    .replace(/\bsto\.?\b/gi, "Santo")
+    .replace(/\bsta\.?\b/gi, "Santa")
+    .replace(/\bpç\.?\b/gi, "Praça")
+    .replace(/\brod\.?\b/gi, "Rodovia")
+    .replace(/\balm\.?\b/gi, "Almirante");
+
+  try {
+    // 1. Tenta Photon (Komoot/OSM - alta precisão e tolerância a termos)
+    const resPhoton = await fetch(
+      `https://photon.komoot.io/api/?q=${encodeURIComponent(qClean)}&limit=1`,
+    );
+    if (resPhoton.ok) {
+      const dPhoton = await resPhoton.json();
+      if (dPhoton?.features?.[0]?.geometry?.coordinates) {
+        const [lon, lat] = dPhoton.features[0].geometry.coordinates;
+        const nomeProp = dPhoton.features[0].properties.name || qClean;
+        const cidade = dPhoton.features[0].properties.city || "";
+        return {
+          latitude: lat,
+          longitude: lon,
+          label: cidade ? `${nomeProp}, ${cidade}` : nomeProp,
+        };
+      }
+    }
+
+    // 2. Fallback Nominatim OpenStreetMap
+    const resNom = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        qClean,
+      )}&countrycodes=br&limit=1`,
+      {
+        headers: { "User-Agent": "GDSeguranca/1.0" },
+      },
+    );
+    if (resNom.ok) {
+      const dNom = await resNom.json();
+      if (dNom?.[0]?.lat && dNom?.[0]?.lon) {
+        return {
+          latitude: parseFloat(dNom[0].lat),
+          longitude: parseFloat(dNom[0].lon),
+          label: dNom[0].display_name,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn("Falha na geocodificação:", err);
+  }
+  return null;
+}
+
 export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPostoProps) {
   const [nome, setNome] = useState(postoEmEdicao?.nome || "");
   const [endereco, setEndereco] = useState(postoEmEdicao?.endereco || "");
@@ -22,6 +85,52 @@ export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPo
     postoEmEdicao?.perimetro_poligono?.coordinates || [],
   );
   const [salvando, setSalvando] = useState(false);
+  const [buscandoEndereco, setBuscandoEndereco] = useState(false);
+  const timerDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Desloca o mapa para o endereço informado
+  const executarBuscaEndereco = async (texto: string, silencioso = false) => {
+    if (!texto || texto.trim().length < 4) return;
+    setBuscandoEndereco(true);
+    try {
+      const loc = await geocodificarEndereco(texto);
+      if (loc) {
+        setLatitude(loc.latitude);
+        setLongitude(loc.longitude);
+        toast.info(`Mapa deslocado para: ${loc.label}`);
+      } else if (!silencioso) {
+        toast.warning(
+          "Endereço não localizado pelo mapa. Tente incluir bairro ou cidade (ex: Voldac, Volta Redonda).",
+        );
+      }
+    } finally {
+      setBuscandoEndereco(false);
+    }
+  };
+
+  // Monitora digitação do endereço com debounce
+  const handleEnderecoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const valor = e.target.value;
+    setEndereco(valor);
+
+    if (timerDebounceRef.current) {
+      clearTimeout(timerDebounceRef.current);
+    }
+
+    if (valor.trim().length >= 5) {
+      timerDebounceRef.current = setTimeout(() => {
+        executarBuscaEndereco(valor, true);
+      }, 900);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerDebounceRef.current) {
+        clearTimeout(timerDebounceRef.current);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +219,7 @@ export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPo
               <input
                 type="text"
                 required
-                placeholder="Ex: Condomínio Alphaville - Portaria 1, Fábrica Sul"
+                placeholder="Ex: 28º Batalhão, Condomínio Alphaville, Fábrica Sul"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
@@ -119,15 +228,37 @@ export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPo
 
             <div>
               <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                Endereço / Referência
+                Endereço / Referência (Desloca o Mapa Automaticamente)
               </label>
-              <input
-                type="text"
-                placeholder="Ex: Av. Principal, 1200 - Bairro Industrial"
-                value={endereco}
-                onChange={(e) => setEndereco(e.target.value)}
-                className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
-              />
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    placeholder="Ex: av nossa sra do amparo, voldac, volta redonda"
+                    value={endereco}
+                    onChange={handleEnderecoChange}
+                    className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 pr-8 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                  />
+                  {buscandoEndereco && (
+                    <Loader2 className="h-4 w-4 text-emerald-500 animate-spin absolute right-2.5 top-2.5" />
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => executarBuscaEndereco(endereco, false)}
+                  disabled={buscandoEndereco || !endereco.trim()}
+                  className="px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 shrink-0 shadow-sm"
+                  title="Deslocar o mapa para este endereço agora"
+                >
+                  <MapPin className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Deslocar Mapa</span>
+                </button>
+              </div>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
+                Ao digitar ou clicar em Deslocar Mapa, o mapa se move instantaneamente para a rua
+                informada.
+              </span>
             </div>
 
             {/* Demarcação da Área Geral por Polígono Interativo */}
@@ -139,7 +270,7 @@ export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPo
                 pontosIniciais={poligonoPontos}
                 latitudeCentro={latitude}
                 longitudeCentro={longitude}
-                alturaPx={240}
+                alturaPx={260}
                 onPoligonoChange={(novosPontos, centroide) => {
                   setPoligonoPontos(novosPontos);
                   if (novosPontos.length >= 3) {

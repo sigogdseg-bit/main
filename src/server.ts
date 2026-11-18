@@ -3325,6 +3325,167 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // Módulo Vigilante — Endpoints Canônicos de Postos e Propriedades
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // GET /api/vigilantes/postos
+  if (request.method === "GET" && url.pathname === "/api/vigilantes/postos") {
+    try {
+      const { data, error } = await adminClient
+        .from("areas_seguras")
+        .select("*")
+        .eq("tipo", "posto_vigilancia")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const postos = (data || []).map((a: any) => ({
+        id: a.id,
+        cliente_id: a.cliente_id,
+        nome: a.nome,
+        endereco: a.poligono_geojson?.endereco || null,
+        latitude: a.latitude,
+        longitude: a.longitude,
+        raio_metros: a.raio_metros || 100,
+        perimetro_poligono: a.poligono_geojson?.coordinates
+          ? {
+              type: "Polygon",
+              coordinates: a.poligono_geojson.coordinates,
+            }
+          : null,
+        ativo: a.ativo ?? true,
+        created_at: a.created_at,
+        updated_at: a.updated_at,
+      }));
+
+      return new Response(JSON.stringify({ success: true, postos }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao listar postos." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // POST /api/vigilantes/postos
+  if (request.method === "POST" && url.pathname === "/api/vigilantes/postos") {
+    try {
+      const body = (await request.json()) as any;
+      const { id, nome, endereco, latitude, longitude, raio_metros, perimetro_poligono, ativo } =
+        body || {};
+
+      if (!nome || typeof latitude !== "number" || typeof longitude !== "number") {
+        return new Response(
+          JSON.stringify({ success: false, message: "Nome e coordenadas são obrigatórios." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const geojsonSalvar = {
+        type: "Polygon",
+        coordinates: perimetro_poligono?.coordinates || [],
+        endereco: endereco || null,
+      };
+
+      let result: any = null;
+
+      if (id) {
+        const { data, error } = await adminClient
+          .from("areas_seguras")
+          .update({
+            nome,
+            tipo: "posto_vigilancia",
+            latitude,
+            longitude,
+            raio_metros: raio_metros || 100,
+            poligono_geojson: geojsonSalvar,
+            ativo: ativo ?? true,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        result = data;
+      } else {
+        const { data, error } = await adminClient
+          .from("areas_seguras")
+          .insert({
+            nome,
+            tipo: "posto_vigilancia",
+            latitude,
+            longitude,
+            raio_metros: raio_metros || 100,
+            poligono_geojson: geojsonSalvar,
+            regra_entrada: "permitida",
+            regra_saida: "permitida",
+            tolerancia_metros: 50,
+            ativo: ativo ?? true,
+          })
+          .select()
+          .single();
+
+        if (error) throw error;
+        result = data;
+      }
+
+      const postoRetorno = {
+        id: result.id,
+        cliente_id: result.cliente_id,
+        nome: result.nome,
+        endereco: result.poligono_geojson?.endereco || endereco || null,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        raio_metros: result.raio_metros,
+        perimetro_poligono: perimetro_poligono || null,
+        ativo: result.ativo,
+        created_at: result.created_at,
+        updated_at: result.updated_at,
+      };
+
+      return new Response(JSON.stringify({ success: true, posto: postoRetorno }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao salvar posto." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // DELETE /api/vigilantes/postos
+  if (request.method === "DELETE" && url.pathname === "/api/vigilantes/postos") {
+    try {
+      const id = url.searchParams.get("id");
+      if (!id) {
+        return new Response(JSON.stringify({ success: false, message: "ID é obrigatório." }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
+      }
+
+      const { error } = await adminClient.from("areas_seguras").delete().eq("id", id);
+      if (error) throw error;
+
+      return new Response(JSON.stringify({ success: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao excluir posto." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
   // POST /api/veiculos/distribuir
   if (request.method === "POST" && url.pathname === "/api/veiculos/distribuir") {
     try {
