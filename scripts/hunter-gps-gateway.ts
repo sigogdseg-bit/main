@@ -90,6 +90,7 @@ interface ConexaoRastreador {
   placa?: string;
   modeloVeiculo?: string;
   rastreadorId?: string;
+  protocoloDispositivo?: "gt06" | "coban";
   ignicaoStatus?: boolean;
   alimentacaoExternaStatus?: boolean;
   bloqueadorInstalado?: boolean;
@@ -140,6 +141,31 @@ export function montarPacoteComandoGT06(comandoAscii: string, serialNumber = 1):
   return buf.subarray(0, offset);
 }
 
+// Montador de comandos ASCII para hardware Coban / G900L (terminação canônica em ;)
+export function montarPacoteComandoCoban(comandoAscii: string): Buffer {
+  const cmdLimpo = comandoAscii.trim().replace(/;+$/, "");
+  return Buffer.from(`${cmdLimpo};\r\n`, "ascii");
+}
+
+// Determina se o comando ou dispositivo utiliza protocolo Coban / ASCII direto
+export function ehProtocoloCoban(comandoOuProtocolo?: string): boolean {
+  if (!comandoOuProtocolo) return false;
+  const upper = comandoOuProtocolo.toUpperCase();
+  return (
+    upper === "COBAN" ||
+    upper.startsWith("ADMINIP") ||
+    upper.startsWith("APN123456") ||
+    upper.startsWith("FIX") ||
+    upper.startsWith("HBT123456") ||
+    upper.startsWith("TIME ZONE") ||
+    upper.startsWith("CHECK123456") ||
+    upper.startsWith("STATUS123456") ||
+    upper.startsWith("RESET123456") ||
+    upper.startsWith("STOP123456") ||
+    upper.startsWith("RESUME123456")
+  );
+}
+
 // Fila spooler de comandos pendentes para rastreadores temporariamente em ciclo de reconexão/reboot
 const comandosPendentesPorImei = new Map<string, string[]>();
 
@@ -174,9 +200,12 @@ export async function processarComandosPendentes(imei: string, socket: net.Socke
       break;
     }
 
-    const pkt = montarPacoteComandoGT06(cmd);
+    const ehCoban = conn.protocoloDispositivo === "coban" || ehProtocoloCoban(cmd);
+    const pkt = ehCoban ? montarPacoteComandoCoban(cmd) : montarPacoteComandoGT06(cmd);
     socket.write(pkt);
-    console.log(`📡 [SPOOLER ENVIADO] IMEI ${imei}: "${cmd}" (${pkt.toString("hex")})`);
+    console.log(
+      `📡 [SPOOLER ENVIADO ${ehCoban ? "COBAN" : "GT06"}] IMEI ${imei}: "${cmd}" (${pkt.toString("hex")})`,
+    );
 
     try {
       await canalComandos.send({
@@ -315,7 +344,10 @@ export async function enviarComandoParaRastreador(
         return { enviado: false, enfileirado: false };
       }
 
-      const pkt = montarPacoteComandoGT06(comandoAscii);
+      const ehCoban = conn.protocoloDispositivo === "coban" || ehProtocoloCoban(comandoAscii);
+      const pkt = ehCoban
+        ? montarPacoteComandoCoban(comandoAscii)
+        : montarPacoteComandoGT06(comandoAscii);
       socket.write(pkt);
       const isDesbloqueio = comandoAscii.startsWith("HFYD") || comandoAscii.startsWith("RELAY,0");
       if (isCorte) {
@@ -331,7 +363,9 @@ export async function enviarComandoParaRastreador(
         comando: comandoAscii,
         timestamp: Date.now(),
       });
-      console.log(`📡 [COMANDO ENVIADO] IMEI ${imei}: "${comandoAscii}" (${pkt.toString("hex")})`);
+      console.log(
+        `📡 [COMANDO ENVIADO ${ehCoban ? "COBAN" : "GT06"}] IMEI ${imei}: "${comandoAscii}" (${pkt.toString("hex")})`,
+      );
       return { enviado: true, enfileirado: false };
     }
 
@@ -490,13 +524,86 @@ const server = net.createServer((socket) => {
 });
 
 async function processarPacote(socket: net.Socket, buf: Buffer) {
+  if (buf.length < 2) return;
+
+  const rawAscii = buf.toString("ascii").trim();
+  const conn = conexoesAtivas.get(socket) || {};
+
+  // ── RECONHECIMENTO NATIVO PROTOCOLO COBAN / G900L (ASCII) ──
+  // Login / Handshake Coban: ##,imei:865893084742487,A; ou **,imei:865893084742487,A;
+  const matchLoginCoban = rawAscii.match(/(?:##|\*\*)[^;]*imei:(\d{15})/i);
+  if (matchLoginCoban && matchLoginCoban[1]) {
+    const imei = matchLoginCoban[1];
+    conn.imei = imei;
+    conn.protocoloDispositivo = "coban";
+    conexoesAtivas.set(socket, conn);
+
+    // Encerra e expurga conexões zumbis anteriores do mesmo IMEI
+    for (const [antigoSocket, antigaConn] of conexoesAtivas.entries()) {
+      if (antigaConn.imei === imei && antigoSocket !== socket) {
+        console.log(`🧹 [PURGE ZUMBI COBAN] Encerrando socket TCP antigo órfão do IMEI ${imei}`);
+        try {
+          antigoSocket.destroy();
+        } catch {}
+        conexoesAtivas.delete(antigoSocket);
+      }
+    }
+
+    console.log(`\n========================================================`);
+    console.log(`📡 [LOGIN COBAN/G900L] Rastreador conectado com sucesso!`);
+    console.log(`🔑 IMEI Identificado: ${imei}`);
+    console.log(`========================================================`);
+
+    // Resposta de Handshake padrão Coban (LOAD)
+    try {
+      socket.write(Buffer.from("LOAD\r\n", "ascii"));
+    } catch {}
+
+    await vincularRastreadorAoVeiculo(conn, imei);
+
+    setTimeout(async () => {
+      await processarComandosPendentes(imei, socket);
+    }, 1500);
+    return;
+  }
+
+  // Respostas de Comandos Coban (ex: "check ok!", "status ok!", "adminip ok!", "fix ok!", "reset ok!")
+  if (
+    conn.protocoloDispositivo === "coban" ||
+    rawAscii.toLowerCase().includes("ok!") ||
+    rawAscii.toLowerCase().includes("fail") ||
+    rawAscii.toLowerCase().includes("bat:") ||
+    rawAscii.toLowerCase().includes("gsm:") ||
+    rawAscii.toLowerCase().includes("gprs:")
+  ) {
+    const imei = conn.imei || "Desconhecido";
+    console.log(`\n📥 [RESPOSTA COMANDO COBAN/G900L] IMEI: ${imei}`);
+    console.log(`   Conteúdo retornado pelo G900L: "${rawAscii}"`);
+
+    if (imei && rawAscii) {
+      notificarRespostaHardwareJ16(imei, rawAscii);
+      try {
+        await canalComandos.send({
+          type: "broadcast",
+          event: "resposta_comando",
+          payload: {
+            imei,
+            resposta: rawAscii,
+            dataHora: new Date().toISOString(),
+          },
+        });
+      } catch {}
+    }
+    return;
+  }
+
   // Pacotes GT06 começam com 0x78 0x78 (Standard) ou 0x79 0x79 (Extendido)
   if (buf.length < 5) return;
 
   const header = buf.readUInt16BE(0);
   if (header !== 0x7878 && header !== 0x7979) {
     console.log(
-      `[RAW] Pacote não reconhecido (Header 0x${header.toString(16)}): ${buf.toString("hex")}`,
+      `[RAW] Pacote não reconhecido (Header 0x${header.toString(16)}): ${buf.toString("hex")} | ASCII: "${rawAscii}"`,
     );
     return;
   }
