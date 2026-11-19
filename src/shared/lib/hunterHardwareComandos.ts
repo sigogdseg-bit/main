@@ -192,3 +192,54 @@ export function ehComandoConsultaSomenteLeitura(cmd: string): boolean {
   // Consultas Concox / GT06 padrão (sem argumentos de escrita)
   return CONSULTAS_CONCOX_PERMITIDAS.has(semHashFinal);
 }
+
+/**
+ * Verifica se um comando é estritamente de bloqueio / corte de combustível.
+ * Utilizado para controle granular independente de permissões do perfil Locatário.
+ */
+export function ehComandoBloqueio(cmd: string): boolean {
+  const upper = (cmd || "").trim().toUpperCase().replace(/[\r\n]/g, "");
+  if (!upper) return false;
+
+  // Comandos Concox / GT06 / J16 para armar relé ou cortar combustível
+  if (upper.startsWith("RELAY,1") || upper.startsWith("DYD")) {
+    return true;
+  }
+
+  // Comandos Coban / G900L com senha para corte
+  if (/^STOP\d{4,6}/i.test(upper)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Verifica se um comando é estritamente de desbloqueio / liberação de combustível.
+ * Utilizado para controle granular independente de permissões do perfil Locatário.
+ */
+export function ehComandoDesbloqueio(cmd: string): boolean {
+  const upper = (cmd || "").trim().toUpperCase().replace(/[\r\n]/g, "");
+  if (!upper) return false;
+
+  // Comandos Concox / GT06 / J16 para desarme de relé ou restaurar combustível
+  if (upper.startsWith("RELAY,0") || upper.startsWith("HFYD")) {
+    return true;
+  }
+
+  // Comandos Coban / G900L com senha para liberação
+  if (/^RESUME\d{4,6}/i.test(upper)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Verifica se um comando é de bloqueio ou desbloqueio de veículo.
+ * Mantido para auditorias gerais e compatibilidade.
+ */
+export function ehComandoBloqueioOuDesbloqueio(cmd: string): boolean {
+  return ehComandoBloqueio(cmd) || ehComandoDesbloqueio(cmd);
+}
+

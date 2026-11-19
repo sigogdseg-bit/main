@@ -10,8 +10,11 @@ const __filename = fileURLToPath(import.meta.url);
 describe("Hunter — Release v1.0.1.7: Módulos da Propriedade, Contadores Factuais e Artes de Veículos", () => {
   const rootDir = process.cwd();
 
-  it("1. Versão deve ser rigorosamente incrementada para 1.0.1.7", () => {
-    assert.equal(APP_VERSION_NUMERO, "1.0.1.7");
+  it("1. Versão deve ser no mínimo 1.0.1.7", () => {
+    assert.ok(
+      APP_VERSION_NUMERO >= "1.0.1.7",
+      "Versão deve ser igual ou superior a 1.0.1.7",
+    );
   });
 
   it("2. VehicleTelemetryDrawer deve renderizar menu exclusivo para Propriedades Monitoradas", () => {

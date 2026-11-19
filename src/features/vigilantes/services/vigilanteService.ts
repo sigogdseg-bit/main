@@ -150,7 +150,7 @@ export async function excluirVigilante(id: string): Promise<boolean> {
 /**
  * Busca postos de vigilância / propriedades monitoradas
  */
-export async function carregarPostosVigilancia(): Promise<PostoVigilancia[]> {
+export async function carregarPostosVigilancia(clienteId?: string): Promise<PostoVigilancia[]> {
   // 1. Tenta buscar via endpoint de alta disponibilidade no servidor
   try {
     const sess = await supabase.auth.getSession();
@@ -158,7 +158,11 @@ export async function carregarPostosVigilancia(): Promise<PostoVigilancia[]> {
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
-    const res = await fetch("/api/vigilantes/postos", { headers });
+    const params = new URLSearchParams();
+    if (clienteId) params.set("clienteId", clienteId);
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+
+    const res = await fetch(`/api/vigilantes/postos${queryString}`, { headers });
     if (res.ok) {
       const json = await res.json();
       if (json?.success && Array.isArray(json?.postos)) {
@@ -171,10 +175,13 @@ export async function carregarPostosVigilancia(): Promise<PostoVigilancia[]> {
 
   // 2. Tenta buscar na tabela dedicada postos_vigilancia
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("postos_vigilancia")
-      .select("*")
-      .order("nome", { ascending: true });
+      .select("*");
+    if (clienteId) {
+      query = query.eq("cliente_id", clienteId);
+    }
+    const { data, error } = await query.order("nome", { ascending: true });
     if (!error && data && data.length > 0) {
       return data as PostoVigilancia[];
     }
@@ -184,11 +191,14 @@ export async function carregarPostosVigilancia(): Promise<PostoVigilancia[]> {
 
   // 3. Busca na tabela nativa areas_seguras onde tipo = 'posto_vigilancia'
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from("areas_seguras")
       .select("*")
-      .eq("tipo", "posto_vigilancia")
-      .order("created_at", { ascending: false });
+      .eq("tipo", "posto_vigilancia");
+    if (clienteId) {
+      query = query.eq("cliente_id", clienteId);
+    }
+    const { data, error } = await query.order("created_at", { ascending: false });
 
     if (!error && data && data.length > 0) {
       return data.map((a: any) => ({
@@ -219,7 +229,12 @@ export async function carregarPostosVigilancia(): Promise<PostoVigilancia[]> {
     const raw = localStorage.getItem("gd_postos_vigilancia");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed)) {
+        if (clienteId) {
+          return parsed.filter((p: any) => p.cliente_id === clienteId);
+        }
+        return parsed;
+      }
     }
   } catch {
     /* ignore */
@@ -308,6 +323,7 @@ export async function salvarPostoVigilancia(
       const { data, error } = await supabase
         .from("areas_seguras")
         .update({
+          cliente_id: posto.cliente_id || null,
           nome: posto.nome,
           tipo: "posto_vigilancia",
           latitude: posto.latitude,
@@ -324,6 +340,7 @@ export async function salvarPostoVigilancia(
       if (!error && data) {
         return {
           id: data.id,
+          cliente_id: data.cliente_id,
           nome: data.nome,
           endereco: posto.endereco || null,
           latitude: data.latitude,
@@ -337,6 +354,7 @@ export async function salvarPostoVigilancia(
       const { data, error } = await supabase
         .from("areas_seguras")
         .insert({
+          cliente_id: posto.cliente_id || null,
           nome: posto.nome!,
           tipo: "posto_vigilancia",
           latitude: posto.latitude!,
@@ -354,6 +372,7 @@ export async function salvarPostoVigilancia(
       if (!error && data) {
         return {
           id: data.id,
+          cliente_id: data.cliente_id,
           nome: data.nome,
           endereco: posto.endereco || null,
           latitude: data.latitude,

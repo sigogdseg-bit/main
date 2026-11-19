@@ -5,6 +5,8 @@ import { MapaEditorPoligono } from "@/features/monitor-gps/components/MapaEditor
 import { salvarPostoVigilancia } from "../services/vigilanteService";
 import type { PostoVigilancia } from "../types";
 import { toast } from "sonner";
+import { useAuth } from "@/features/auth/context/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ModalNovoPostoProps {
   postoEmEdicao?: PostoVigilancia | null;
@@ -54,8 +56,11 @@ async function geocodificarEndereco(
 
   try {
     // 2. Fallback direto Photon (Komoot/OSM)
+    const paramsPhoton = new URLSearchParams();
+    paramsPhoton.set("q", qClean);
+    paramsPhoton.set("limit", "1");
     const resPhoton = await fetch(
-      `https://photon.komoot.io/api/?q=${encodeURIComponent(qClean)}&limit=1`,
+      `https://photon.komoot.io/api/?${paramsPhoton.toString()}`,
     );
     if (resPhoton.ok) {
       const dPhoton = await resPhoton.json();
@@ -77,7 +82,12 @@ async function geocodificarEndereco(
 }
 
 export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPostoProps) {
+  const { session } = useAuth();
   const [nome, setNome] = useState(postoEmEdicao?.nome || "");
+  const [clienteId, setClienteId] = useState<string>(
+    postoEmEdicao?.cliente_id || session?.clienteId || "",
+  );
+  const [clientes, setClientes] = useState<{ id: string; nome_razao_social: string }[]>([]);
   const [endereco, setEndereco] = useState(postoEmEdicao?.endereco || "");
   const [latitude, setLatitude] = useState(postoEmEdicao?.latitude || -22.48);
   const [longitude, setLongitude] = useState(postoEmEdicao?.longitude || -44.05);
@@ -88,6 +98,24 @@ export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPo
   const [salvando, setSalvando] = useState(false);
   const [buscandoEndereco, setBuscandoEndereco] = useState(false);
   const timerDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Carrega a lista de clientes para vinculação obrigatória de cada posto fixo
+  useEffect(() => {
+    async function carregarListaClientes() {
+      try {
+        const { data } = await supabase
+          .from("clientes")
+          .select("id, nome_razao_social")
+          .order("nome_razao_social", { ascending: true });
+        if (data && data.length > 0) {
+          setClientes(data);
+        }
+      } catch (e) {
+        console.warn("Erro ao buscar clientes para posto fixo:", e);
+      }
+    }
+    carregarListaClientes();
+  }, []);
 
   // Desloca o mapa para o endereço informado
   const executarBuscaEndereco = async (texto: string, silencioso = false) => {
@@ -157,6 +185,7 @@ export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPo
 
       const res = await salvarPostoVigilancia({
         id: postoEmEdicao ? postoEmEdicao.id : undefined,
+        cliente_id: clienteId || null,
         nome: nome.trim(),
         endereco: endereco.trim() || null,
         latitude,
@@ -225,6 +254,29 @@ export function ModalNovoPosto({ postoEmEdicao, onFechar, onSalvo }: ModalNovoPo
                 onChange={(e) => setNome(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
               />
+            </div>
+
+            {/* Cliente Titular do Posto Fixo */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                Cliente Titular da Propriedade (Posto Fixo)
+              </label>
+              <select
+                value={clienteId}
+                onChange={(e) => setClienteId(e.target.value)}
+                disabled={session?.role === "cliente"}
+                className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500 disabled:opacity-60 cursor-pointer"
+              >
+                <option value="">Selecione o cliente responsável...</option>
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.nome_razao_social}
+                  </option>
+                ))}
+              </select>
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">
+                Todo posto fixo pertence a um cliente para acompanhamento em sua central exclusiva.
+              </span>
             </div>
 
             <div>

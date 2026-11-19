@@ -360,10 +360,30 @@ export function podeAcessarModulo(session: UserSession | null, moduloId: string)
       "motoristas",
       "motorista",
       "funcionarios",
+      "locatarios",
       "mensalidades",
       "atendimento",
       "chat",
       "configuracoes",
+    ].includes(moduloId);
+  }
+
+  // Locatário: mesmas permissões operacionais do cliente titular, com BLOQUEIO ESTRITO das financeiras
+  if (session.isLocatario || session.role === "locatario") {
+    // Proibição estrita de acesso a módulos e recursos financeiros
+    if (["mensalidades", "financeiro", "propostas"].includes(moduloId)) {
+      return false;
+    }
+    return [
+      "monitor-gps",
+      "rotas",
+      "frota",
+      "abastecimento",
+      "manutencao",
+      "atendimento",
+      "chat",
+      "configuracoes",
+      "temas",
     ].includes(moduloId);
   }
 
@@ -449,7 +469,42 @@ export function podeAcessarRota(session: UserSession | null, rota: string): bool
     rotaNormalizada === "/configuracoes" ||
     rotaNormalizada === "/configuracao/temas"
   ) {
+    // Locatário pode acessar recursos globais
+    if (session.isLocatario || session.role === "locatario") {
+      return true;
+    }
     return true;
+  }
+
+  // Regra para Perfil Locatário: mesmas rotas operacionais do cliente titular, bloqueando estritamente financeiro
+  if (session.isLocatario || session.role === "locatario") {
+    if (
+      rotaNormalizada === "/mensalidades" ||
+      rotaNormalizada === "/financeiro" ||
+      rotaNormalizada === "/propostas" ||
+      rotaNormalizada === "/usuarios" ||
+      rotaNormalizada === "/clientes" ||
+      rotaNormalizada === "/funcionarios" ||
+      rotaNormalizada === "/locatarios" ||
+      rotaNormalizada.startsWith("/configuracao/central-seguranca") ||
+      rotaNormalizada.startsWith("/configuracao/rastreador-j16") ||
+      rotaNormalizada.startsWith("/configuracao/logs")
+    ) {
+      return false;
+    }
+    return [
+      "/inicio",
+      "",
+      "/monitor-gps",
+      "/rotas",
+      "/frota",
+      "/abastecimento",
+      "/manutencao",
+      "/atendimento",
+      "/chat",
+      "/configuracoes",
+      "/configuracao/temas",
+    ].some((r) => rotaNormalizada === r || rotaNormalizada.startsWith(`${r}/`));
   }
 
   // Regra para Perfil Financeiro: Precedência dos módulos concedidos (com padrão financeiro canônico)

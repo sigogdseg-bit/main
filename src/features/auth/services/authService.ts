@@ -241,6 +241,12 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
     let clienteCreatedAt: string | undefined = undefined;
 
     let acessoMapaMotorista: boolean | undefined = undefined;
+    let locatarioClienteId: string | undefined;
+    let veiculosPermitidos: string[] = [];
+    let podeBloquear = false;
+    let podeDesbloquear = false;
+    let podeBloquearDesbloquear = false;
+
     if (role === "cliente") {
       let { data: cliente } = await supabase
         .from("clientes")
@@ -384,6 +390,26 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
           planoContratado = "master";
         }
       }
+    } else if (role === "locatario") {
+      let locCliId = profile?.cliente_id;
+      const { data: locData } = await supabase
+        .from("locatarios_cliente" as any)
+        .select("cliente_id, veiculos_permitidos, pode_bloquear, pode_desbloquear, pode_bloquear_desbloquear, ativo")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (locData) {
+        if (!locCliId) locCliId = (locData as any).cliente_id;
+        locatarioClienteId = (locData as any).cliente_id;
+        veiculosPermitidos = (locData as any).veiculos_permitidos || [];
+        podeBloquear = Boolean((locData as any).pode_bloquear);
+        podeDesbloquear = Boolean((locData as any).pode_desbloquear);
+        podeBloquearDesbloquear = Boolean((locData as any).pode_bloquear_desbloquear || (podeBloquear && podeDesbloquear));
+      }
+
+      clienteId = locCliId || undefined;
+      plano = "master";
+      planoContratado = "master";
     }
 
     // 3. Carrega módulos autorizados
@@ -569,6 +595,12 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
       isAdmin: role === "superadmin" || role === "adm",
       isOperador: role === "superadmin" || role === "adm" || role === "operador",
       isCliente: role === "cliente",
+      isLocatario: role === "locatario",
+      locatarioClienteId,
+      veiculosPermitidos,
+      podeBloquear,
+      podeDesbloquear,
+      podeBloquearDesbloquear,
       isInstalador: role === "instalador",
       isMotorista: role === "motorista",
       isFuncionario: role === "funcionario",

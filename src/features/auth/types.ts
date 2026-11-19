@@ -35,6 +35,12 @@ export interface UserSession {
   isInstalador: boolean;
   isMotorista: boolean;
   isFuncionario?: boolean;
+  isLocatario?: boolean;
+  locatarioClienteId?: string;
+  veiculosPermitidos?: string[];
+  podeBloquear?: boolean;
+  podeDesbloquear?: boolean;
+  podeBloquearDesbloquear?: boolean;
   isFinanceiro?: boolean;
   isRevendedor?: boolean;
   isVendedor?: boolean;

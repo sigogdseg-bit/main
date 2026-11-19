@@ -36,6 +36,9 @@ import { createClient } from "@supabase/supabase-js";
 import { APP_PUBLIC_URL } from "./shared/lib/version";
 import {
   ehComandoConsultaSomenteLeitura,
+  ehComandoBloqueio,
+  ehComandoDesbloqueio,
+  ehComandoBloqueioOuDesbloqueio,
   sanitizarComandoHardware,
 } from "./shared/lib/hunterHardwareComandos";
 import {
@@ -2564,6 +2567,642 @@ async function handleApiClientes(request: Request, env: unknown): Promise<Respon
   }
 }
 
+/**
+ * Endpoint de Gestão de Locatários e Auto-Cadastro Seguro
+ * Permite ao Cliente Locador convidar, listar, editar, bloquear e resetar senhas de locatários.
+ * Permite ao Locatário validar convite e concluir auto-cadastro público.
+ */
+async function handleApiLocatarios(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/locatarios")) {
+    return null;
+  }
+
+  if (request.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        ...SECURITY_HEADERS,
+      },
+    });
+  }
+
+  const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = getSupabaseServerParams(env);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  // 1. GET /api/locatarios/validar-convite?token=... (Público)
+  if (url.pathname === "/api/locatarios/validar-convite" && request.method === "GET") {
+    const token = (url.searchParams.get("token") || "").trim();
+    if (!token) {
+      return new Response(
+        JSON.stringify({ valido: false, mensagem: "Token do convite não fornecido." }),
+        { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+
+    const { data: locRow, error: errLoc } = await adminClient
+      .from("locatarios_cliente")
+      .select("*, cliente:clientes!locatarios_cliente_cliente_id_fkey(id, nome_razao_social)")
+      .eq("convite_token", token)
+      .maybeSingle();
+
+    if (errLoc || !locRow) {
+      return new Response(
+        JSON.stringify({ valido: false, mensagem: "Link de convite inválido ou expirado." }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+
+    if (!locRow.ativo) {
+      return new Response(
+        JSON.stringify({ valido: false, mensagem: "Este convite foi desativado pelo cliente titular." }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+
+    if (locRow.user_id) {
+      return new Response(
+        JSON.stringify({ valido: false, mensagem: "Este convite já foi utilizado e concluído." }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+
+    if (locRow.convite_expira_em && new Date(locRow.convite_expira_em).getTime() < Date.now()) {
+      return new Response(
+        JSON.stringify({ valido: false, mensagem: "O prazo deste convite expirou. Solicite um novo link ao titular." }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+
+    // Busca detalhes dos veículos autorizados
+    let veiculosDetalhes: any[] = [];
+    const permitidos = Array.isArray(locRow.veiculos_permitidos) ? locRow.veiculos_permitidos : [];
+    if (permitidos.length > 0) {
+      const { data: vData } = await adminClient
+        .from("veiculos")
+        .select("id, placa, marca, modelo, ano_modelo, cor")
+        .in("id", permitidos);
+      veiculosDetalhes = vData || [];
+    }
+
+    return new Response(
+      JSON.stringify({
+        valido: true,
+        convite: {
+          id: locRow.id,
+          nome: locRow.nome,
+          email: locRow.email,
+          telefone: locRow.telefone,
+          cpf_cnpj: locRow.cpf_cnpj,
+          cliente_id: locRow.cliente_id,
+          cliente_nome: locRow.cliente?.nome_razao_social || "Cliente Locador",
+          pode_bloquear: Boolean(locRow.pode_bloquear),
+          pode_desbloquear: Boolean(locRow.pode_desbloquear),
+          pode_bloquear_desbloquear: Boolean(
+            locRow.pode_bloquear_desbloquear || (locRow.pode_bloquear && locRow.pode_desbloquear),
+          ),
+          veiculos: veiculosDetalhes,
+        },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+    );
+  }
+
+  // 2. POST /api/locatarios/concluir-auto-cadastro (Público)
+  if (url.pathname === "/api/locatarios/concluir-auto-cadastro" && request.method === "POST") {
+    try {
+      const body = await request.json();
+      const token = (body?.token || "").trim();
+      const nome = (body?.nome || "").trim();
+      const email = (body?.email || "").trim().toLowerCase();
+      const senha = (body?.senha || "").trim();
+      const telefone = (body?.telefone || "").trim();
+      const cpf_cnpj = (body?.cpf_cnpj || "").trim();
+
+      if (!token || !nome || !email || !senha) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Campos obrigatórios ausentes (nome, email e senha)." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      if (senha.length < 6) {
+        return new Response(
+          JSON.stringify({ success: false, message: "A senha deve ter no mínimo 6 caracteres." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: locRow, error: errLoc } = await adminClient
+        .from("locatarios_cliente")
+        .select("*")
+        .eq("convite_token", token)
+        .maybeSingle();
+
+      if (errLoc || !locRow || !locRow.ativo) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Convite de locatário inválido ou expirado." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      if (locRow.user_id) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Este cadastro já foi concluído anteriormente." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // Cria usuário no Supabase Auth
+      let userId = "";
+      const { data: authCreated, error: authErr } = await adminClient.auth.admin.createUser({
+        email,
+        password: senha,
+        email_confirm: true,
+        user_metadata: {
+          role: "locatario",
+          nome,
+          cliente_id: locRow.cliente_id,
+        },
+      });
+
+      if (authErr) {
+        if (
+          authErr.message?.toLowerCase().includes("already registered") ||
+          authErr.message?.toLowerCase().includes("already been registered")
+        ) {
+          const { data: listData } = await adminClient.auth.admin.listUsers();
+          const existUser = listData?.users?.find((u) => u.email?.toLowerCase() === email);
+          if (existUser) {
+            userId = existUser.id;
+            await adminClient.auth.admin.updateUserById(userId, {
+              password: senha,
+              user_metadata: { role: "locatario", nome, cliente_id: locRow.cliente_id },
+            });
+          } else {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                message: "Este email já possui cadastro. Faça login ou use outro email.",
+              }),
+              { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+            );
+          }
+        } else {
+          return new Response(
+            JSON.stringify({ success: false, message: `Falha ao criar acesso: ${authErr.message}` }),
+            { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+          );
+        }
+      } else if (authCreated?.user) {
+        userId = authCreated.user.id;
+      }
+
+      // Cria ou atualiza profile com role 'locatario'
+      await adminClient.from("profiles").upsert(
+        {
+          id: userId,
+          role: "locatario",
+          nome,
+          email,
+          telefone: telefone || null,
+          ativo: true,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "id" },
+      );
+
+      // Atualiza registro em locatarios_cliente
+      await adminClient
+        .from("locatarios_cliente")
+        .update({
+          user_id: userId,
+          nome,
+          email,
+          telefone: telefone || null,
+          cpf_cnpj: cpf_cnpj || null,
+          convite_token: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", locRow.id);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Cadastro concluído com sucesso! Você já pode entrar com seu email e senha.",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro interno ao concluir cadastro." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // --- Rotas Autenticadas a partir daqui ---
+  const authHeader = request.headers.get("Authorization") || "";
+  const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+  if (!token) {
+    return new Response(
+      JSON.stringify({ success: false, message: "Não autorizado: Token de sessão ausente." }),
+      { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+    );
+  }
+
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+  const { data: userData, error: userError } = await userClient.auth.getUser(token);
+  if (userError || !userData?.user) {
+    return new Response(
+      JSON.stringify({ success: false, message: "Sessão inválida ou expirada." }),
+      { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+    );
+  }
+
+  const { data: profile } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", userData.user.id)
+    .maybeSingle();
+
+  const role = profile?.role || "cliente";
+  const isAdmOuOperador = ["superadmin", "superadmin_auditor", "adm", "operador"].includes(role);
+
+  // Busca cliente_id se for cliente
+  let clienteIdVinculado = "";
+  if (role === "cliente") {
+    const { data: cliRow } = await adminClient
+      .from("clientes")
+      .select("id")
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+    clienteIdVinculado = cliRow?.id || userData.user.id;
+  }
+
+  // 3. GET /api/locatarios
+  if (url.pathname === "/api/locatarios" && request.method === "GET") {
+    try {
+      let query = adminClient
+        .from("locatarios_cliente")
+        .select("*, cliente:clientes!locatarios_cliente_cliente_id_fkey(id, nome_razao_social)")
+        .order("created_at", { ascending: false });
+
+      if (role === "cliente") {
+        query = query.eq("cliente_id", clienteIdVinculado);
+      } else if (isAdmOuOperador) {
+        const paramClienteId = url.searchParams.get("clienteId");
+        if (paramClienteId) {
+          query = query.eq("cliente_id", paramClienteId);
+        }
+      } else {
+        return new Response(
+          JSON.stringify({ success: false, message: "Acesso não autorizado." }),
+          { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: locs, error: errLocs } = await query;
+      if (errLocs) {
+        return new Response(
+          JSON.stringify({ success: false, message: errLocs.message }),
+          { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const formatados = (locs || []).map((l: any) => ({
+        ...l,
+        cliente_nome: l.cliente?.nome_razao_social || undefined,
+      }));
+
+      return new Response(
+        JSON.stringify({ success: true, locatarios: formatados }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao consultar locatários." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // 4. POST /api/locatarios/gerar-link-convite
+  if (url.pathname === "/api/locatarios/gerar-link-convite" && request.method === "POST") {
+    try {
+      const body = await request.json();
+      const targetClienteId = isAdmOuOperador && body?.cliente_id ? body.cliente_id : clienteIdVinculado;
+
+      if (!targetClienteId) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Identificador do cliente locador não localizado." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const veiculosPermitidos = Array.isArray(body?.veiculos_permitidos) ? body.veiculos_permitidos : [];
+      if (veiculosPermitidos.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Selecione ao menos um veículo para o locatário." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // Validação: Garante que os veículos pertencem ao cliente alvo
+      const { data: veiculosValidos } = await adminClient
+        .from("veiculos")
+        .select("id")
+        .eq("cliente_id", targetClienteId)
+        .in("id", veiculosPermitidos);
+
+      const idsValidos = (veiculosValidos || []).map((v) => v.id);
+      if (idsValidos.length === 0) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Nenhum veículo selecionado pertence à sua base de ativos." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const conviteToken = crypto.randomUUID().replace(/-/g, "");
+      const expiraEm = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+      const podeBloquear =
+        typeof body?.pode_bloquear === "boolean"
+          ? body.pode_bloquear
+          : Boolean(body?.pode_bloquear_desbloquear);
+      const podeDesbloquear =
+        typeof body?.pode_desbloquear === "boolean"
+          ? body.pode_desbloquear
+          : Boolean(body?.pode_bloquear_desbloquear);
+
+      const { data: novoLoc, error: errInsert } = await adminClient
+        .from("locatarios_cliente")
+        .insert({
+          cliente_id: targetClienteId,
+          nome: (body?.nome || "Locatário Convidado").trim(),
+          email: (body?.email || "").trim(),
+          telefone: (body?.telefone || null)?.trim(),
+          cpf_cnpj: (body?.cpf_cnpj || null)?.trim(),
+          veiculos_permitidos: idsValidos,
+          pode_bloquear: podeBloquear,
+          pode_desbloquear: podeDesbloquear,
+          pode_bloquear_desbloquear: Boolean(podeBloquear && podeDesbloquear),
+          ativo: true,
+          convite_token: conviteToken,
+          convite_expira_em: expiraEm,
+        })
+        .select()
+        .single();
+
+      if (errInsert || !novoLoc) {
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro ao gerar convite: ${errInsert?.message}` }),
+          { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const urlConvite = `${url.origin}/cadastro-locatario?token=${conviteToken}`;
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          token: conviteToken,
+          url_convite: urlConvite,
+          locatario: novoLoc,
+          message: "Link de convite gerado com sucesso!",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao gerar convite." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // 5. POST /api/locatarios/bloquear
+  if (url.pathname === "/api/locatarios/bloquear" && request.method === "POST") {
+    try {
+      const body = await request.json();
+      const locatarioId = body?.locatario_id;
+      const ativo = Boolean(body?.ativo);
+
+      if (!locatarioId) {
+        return new Response(
+          JSON.stringify({ success: false, message: "ID do locatário é obrigatório." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: locRow } = await adminClient
+        .from("locatarios_cliente")
+        .select("id, cliente_id, user_id")
+        .eq("id", locatarioId)
+        .maybeSingle();
+
+      if (!locRow) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Locatário não encontrado." }),
+          { status: 404, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      if (!isAdmOuOperador && locRow.cliente_id !== clienteIdVinculado) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Você não tem permissão para alterar este locatário." }),
+          { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      await adminClient
+        .from("locatarios_cliente")
+        .update({ ativo, updated_at: new Date().toISOString() })
+        .eq("id", locatarioId);
+
+      if (locRow.user_id) {
+        await adminClient
+          .from("profiles")
+          .update({ ativo, updated_at: new Date().toISOString() })
+          .eq("id", locRow.user_id);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: ativo
+            ? "Acesso do locatário desbloqueado com sucesso."
+            : "Acesso do locatário bloqueado com sucesso.",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao alterar status de acesso." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // 6. POST /api/locatarios/resetar-senha
+  if (url.pathname === "/api/locatarios/resetar-senha" && request.method === "POST") {
+    try {
+      const body = await request.json();
+      const locatarioId = body?.locatario_id;
+
+      if (!locatarioId) {
+        return new Response(
+          JSON.stringify({ success: false, message: "ID do locatário é obrigatório." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: locRow } = await adminClient
+        .from("locatarios_cliente")
+        .select("id, cliente_id, user_id, email, nome")
+        .eq("id", locatarioId)
+        .maybeSingle();
+
+      if (!locRow) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Locatário não encontrado." }),
+          { status: 404, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      if (!isAdmOuOperador && locRow.cliente_id !== clienteIdVinculado) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Você não tem permissão para gerenciar a senha deste locatário.",
+          }),
+          { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      if (!locRow.user_id) {
+        return new Response(
+          JSON.stringify({ success: false, message: "O locatário ainda não concluiu seu primeiro cadastro." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const novaSenha = body?.nova_senha?.trim() || `Gd@${Math.floor(100000 + Math.random() * 900000)}`;
+
+      const { error: resetErr } = await adminClient.auth.admin.updateUserById(locRow.user_id, {
+        password: novaSenha,
+      });
+
+      if (resetErr) {
+        return new Response(
+          JSON.stringify({ success: false, message: `Erro ao redefinir senha: ${resetErr.message}` }),
+          { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          novaSenha,
+          message: "Senha do locatário redefinida com sucesso!",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao resetar senha." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // 7. PUT /api/locatarios (Atualizar dados, veículos e permissões)
+  if (url.pathname === "/api/locatarios" && request.method === "PUT") {
+    try {
+      const body = await request.json();
+      const locatarioId = body?.locatario_id;
+
+      if (!locatarioId) {
+        return new Response(
+          JSON.stringify({ success: false, message: "ID do locatário é obrigatório." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: locRow } = await adminClient
+        .from("locatarios_cliente")
+        .select("id, cliente_id, user_id")
+        .eq("id", locatarioId)
+        .maybeSingle();
+
+      if (!locRow) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Locatário não encontrado." }),
+          { status: 404, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      if (!isAdmOuOperador && locRow.cliente_id !== clienteIdVinculado) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Você não tem permissão para editar este locatário." }),
+          { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const updates: any = { updated_at: new Date().toISOString() };
+      if (typeof body?.nome === "string") updates.nome = body.nome.trim();
+      if (typeof body?.telefone === "string") updates.telefone = body.telefone.trim();
+      if (typeof body?.cpf_cnpj === "string") updates.cpf_cnpj = body.cpf_cnpj.trim();
+      if (typeof body?.pode_bloquear === "boolean") {
+        updates.pode_bloquear = body.pode_bloquear;
+      }
+      if (typeof body?.pode_desbloquear === "boolean") {
+        updates.pode_desbloquear = body.pode_desbloquear;
+      }
+      if (typeof body?.pode_bloquear_desbloquear === "boolean") {
+        updates.pode_bloquear_desbloquear = body.pode_bloquear_desbloquear;
+        if (typeof body?.pode_bloquear !== "boolean") updates.pode_bloquear = body.pode_bloquear_desbloquear;
+        if (typeof body?.pode_desbloquear !== "boolean") updates.pode_desbloquear = body.pode_bloquear_desbloquear;
+      }
+
+      if (Array.isArray(body?.veiculos_permitidos)) {
+        const { data: veiculosValidos } = await adminClient
+          .from("veiculos")
+          .select("id")
+          .eq("cliente_id", locRow.cliente_id)
+          .in("id", body.veiculos_permitidos);
+        updates.veiculos_permitidos = (veiculosValidos || []).map((v) => v.id);
+      }
+
+      await adminClient.from("locatarios_cliente").update(updates).eq("id", locatarioId);
+
+      if (locRow.user_id && (updates.nome || updates.telefone)) {
+        const profUpdates: any = { updated_at: new Date().toISOString() };
+        if (updates.nome) profUpdates.nome = updates.nome;
+        if (updates.telefone) profUpdates.telefone = updates.telefone;
+        await adminClient.from("profiles").update(profUpdates).eq("id", locRow.user_id);
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: "Dados do locatário atualizados com sucesso." }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao atualizar locatário." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  return null;
+}
+
 async function handleApiVeiculos(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
   if (!url.pathname.startsWith("/api/veiculos") && !url.pathname.startsWith("/api/instalacoes")) {
@@ -2857,6 +3496,28 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
         } else {
           query = query.eq("cliente_id", userData.user.id);
         }
+      } else if (role === "locatario") {
+        const { data: locRow } = await adminClient
+          .from("locatarios_cliente")
+          .select("id, ativo, veiculos_permitidos")
+          .eq("user_id", userData.user.id)
+          .maybeSingle();
+
+        if (!locRow || !locRow.ativo) {
+          return new Response(JSON.stringify({ success: true, veiculos: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+          });
+        }
+
+        const permitidos = Array.isArray(locRow.veiculos_permitidos) ? locRow.veiculos_permitidos : [];
+        if (permitidos.length === 0) {
+          return new Response(JSON.stringify({ success: true, veiculos: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+          });
+        }
+        query = query.in("id", permitidos);
       }
 
       const { data: veiculosFrota, error: errFrota } = await query;
@@ -9894,6 +10555,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
       const authHeader = request.headers.get("Authorization") || "";
       const token = authHeader.replace(/^Bearer\s+/i, "").trim();
       let userRole: string | null = null;
+      let authUserId: string | null = null;
       if (token) {
         try {
           const { supabaseUrl, supabaseAnonKey } = getSupabaseServerParams(env);
@@ -9902,6 +10564,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
           });
           const { data: userData } = await userClient.auth.getUser(token);
           if (userData?.user?.id) {
+            authUserId = userData.user.id;
             const { data: pData } = await userClient
               .from("profiles")
               .select("role")
@@ -9924,6 +10587,76 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
             }),
             { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
           );
+        }
+      }
+
+      if (userRole === "locatario" && authUserId) {
+        const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
+        const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+          auth: { persistSession: false },
+        });
+        const { data: locRow } = await adminClient
+          .from("locatarios_cliente")
+          .select("ativo, veiculos_permitidos, pode_bloquear, pode_desbloquear, pode_bloquear_desbloquear")
+          .eq("user_id", authUserId)
+          .maybeSingle();
+
+        if (!locRow || !locRow.ativo) {
+          return new Response(
+            JSON.stringify({
+              sucesso: false,
+              mensagem:
+                "Acesso bloqueado: Seu usuário locatário está inativo ou bloqueado pelo cliente titular.",
+            }),
+            { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+          );
+        }
+
+        const comandoTexto = body?.comando || "";
+        const isBloqueio = ehComandoBloqueio(comandoTexto);
+        const isDesbloqueio = ehComandoDesbloqueio(comandoTexto);
+
+        const temPermissaoBloqueio = Boolean(
+          locRow.pode_bloquear || locRow.pode_bloquear_desbloquear,
+        );
+        const temPermissaoDesbloqueio = Boolean(
+          locRow.pode_desbloquear || locRow.pode_bloquear_desbloquear,
+        );
+
+        if (isBloqueio && !temPermissaoBloqueio) {
+          return new Response(
+            JSON.stringify({
+              sucesso: false,
+              mensagem:
+                "Ação não permitida: Seu perfil de locatário não possui autorização para bloquear veículos.",
+            }),
+            { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+          );
+        }
+
+        if (isDesbloqueio && !temPermissaoDesbloqueio) {
+          return new Response(
+            JSON.stringify({
+              sucesso: false,
+              mensagem:
+                "Ação não permitida: Seu perfil de locatário não possui autorização para desbloquear veículos.",
+            }),
+            { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+          );
+        }
+
+        if (body?.veiculo_id) {
+          const permitidos = Array.isArray(locRow.veiculos_permitidos) ? locRow.veiculos_permitidos : [];
+          if (!permitidos.includes(body.veiculo_id)) {
+            return new Response(
+              JSON.stringify({
+                sucesso: false,
+                mensagem:
+                  "Ação não autorizada: Este veículo não está atribuído ao seu usuário locatário.",
+              }),
+              { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+            );
+          }
         }
       }
       const hosts = [
@@ -10720,6 +11453,12 @@ export default {
     const clientesResponse = await handleApiClientes(request, env);
     if (clientesResponse) {
       return clientesResponse;
+    }
+
+    // Intercepta rotas de API seguras de gestão de locatários e auto-cadastro
+    const locatariosResponse = await handleApiLocatarios(request, env);
+    if (locatariosResponse) {
+      return locatariosResponse;
     }
 
     // Intercepta rotas de API seguras de rastreadores e hardware (com Service Role, imune a recursão RLS)
@@ -12775,11 +13514,17 @@ async function handleApiVigilantes(request: Request, env: unknown): Promise<Resp
   // GET /api/vigilantes/postos
   if (request.method === "GET" && url.pathname === "/api/vigilantes/postos") {
     try {
-      const { data, error } = await adminClient
+      const clienteIdParam = url.searchParams.get("clienteId") || url.searchParams.get("cliente_id");
+      let query = adminClient
         .from("areas_seguras")
         .select("*")
-        .eq("tipo", "posto_vigilancia")
-        .order("created_at", { ascending: false });
+        .eq("tipo", "posto_vigilancia");
+
+      if (clienteIdParam) {
+        query = query.eq("cliente_id", clienteIdParam);
+      }
+
+      const { data, error } = await query.order("created_at", { ascending: false });
 
       if (error) throw error;
 
@@ -12818,8 +13563,17 @@ async function handleApiVigilantes(request: Request, env: unknown): Promise<Resp
   if (request.method === "POST" && url.pathname === "/api/vigilantes/postos") {
     try {
       const body = (await request.json()) as any;
-      const { id, nome, endereco, latitude, longitude, raio_metros, perimetro_poligono, ativo } =
-        body || {};
+      const {
+        id,
+        cliente_id,
+        nome,
+        endereco,
+        latitude,
+        longitude,
+        raio_metros,
+        perimetro_poligono,
+        ativo,
+      } = body || {};
 
       if (!nome || typeof latitude !== "number" || typeof longitude !== "number") {
         return new Response(
@@ -12840,6 +13594,7 @@ async function handleApiVigilantes(request: Request, env: unknown): Promise<Resp
         const { data, error } = await adminClient
           .from("areas_seguras")
           .update({
+            cliente_id: cliente_id || null,
             nome,
             tipo: "posto_vigilancia",
             latitude,
@@ -12859,6 +13614,7 @@ async function handleApiVigilantes(request: Request, env: unknown): Promise<Resp
         const { data, error } = await adminClient
           .from("areas_seguras")
           .insert({
+            cliente_id: cliente_id || null,
             nome,
             tipo: "posto_vigilancia",
             latitude,
@@ -12961,10 +13717,68 @@ async function handleApiGeocodificar(request: Request, _env: unknown): Promise<R
   }
 
   try {
+    const latParam = url.searchParams.get("lat");
+    const lonParam = url.searchParams.get("lon");
+
+    // Geocodificação reversa por coordenadas (Lat e Lon)
+    if (latParam && lonParam) {
+      const lat = parseFloat(latParam);
+      const lon = parseFloat(lonParam);
+
+      if (!isNaN(lat) && !isNaN(lon) && (lat !== 0 || lon !== 0)) {
+        try {
+          const paramsNom = new URLSearchParams();
+          paramsNom.set("format", "json");
+          paramsNom.set("lat", String(lat));
+          paramsNom.set("lon", String(lon));
+          paramsNom.set("zoom", "18");
+          paramsNom.set("addressdetails", "1");
+          const urlNom = `https://nominatim.openstreetmap.org/reverse?${paramsNom.toString()}`;
+
+          const resNom = await fetch(urlNom, {
+            headers: { "User-Agent": "GD-Seguranca-Geocoding/1.0 (contato@gd.oficial.tec.br)" },
+          });
+
+          if (resNom.ok) {
+            const dataNom = (await resNom.json()) as any;
+            if (dataNom?.display_name) {
+              const road = dataNom.address?.road || dataNom.address?.pedestrian || "";
+              const sub = dataNom.address?.suburb || dataNom.address?.neighbourhood || "";
+              const city =
+                dataNom.address?.city ||
+                dataNom.address?.town ||
+                dataNom.address?.municipality ||
+                "";
+              const rotuloFormatado =
+                [road, sub, city].filter(Boolean).join(", ") || dataNom.display_name;
+
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  endereco: rotuloFormatado,
+                  display_name: dataNom.display_name,
+                }),
+                {
+                  status: 200,
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Cache-Control": "public, max-age=86400, s-maxage=86400",
+                    ...SECURITY_HEADERS,
+                  },
+                },
+              );
+            }
+          }
+        } catch {
+          /* Fallback */
+        }
+      }
+    }
+
     const q = (url.searchParams.get("q") || "").trim();
     if (!q || q.length < 3) {
       return new Response(
-        JSON.stringify({ success: false, message: "Endereço para busca muito curto." }),
+        JSON.stringify({ success: false, message: "Parâmetros insuficientes para geocodificação." }),
         { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }

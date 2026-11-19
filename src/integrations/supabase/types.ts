@@ -5,6 +5,7 @@ export type HunterRole =
   | "adm"
   | "operador"
   | "cliente"
+  | "locatario"
   | "instalador"
   | "motorista"
   | "funcionario"

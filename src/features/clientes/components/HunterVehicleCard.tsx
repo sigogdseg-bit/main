@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Clock,
   Gauge,
@@ -21,6 +21,7 @@ import {
   isPropriedadeMonitorada,
   converterVelocidadeParaRitmoHumano,
 } from "@/features/monitor-gps/utils/propriedadeMonitoradaUtils";
+import { obterEnderecoPorCoordenadas } from "@/features/monitor-gps/services/compartilhamentoService";
 
 interface HunterVehicleCardProps {
   veiculo: VeiculoGps;
@@ -56,6 +57,47 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
   const statusCom = avaliarStatusComunicacao(veiculo.ultima_atualizacao);
   const isOnline = statusCom.ativo;
   const isPropriedade = isPropriedadeMonitorada(veiculo);
+
+  // Estado e resolução assíncrona do endereço legível (nunca expor coordenadas brutas)
+  const [enderecoLocal, setEnderecoLocal] = useState<string>(
+    enderecoTexto || (veiculo as any).endereco || ""
+  );
+
+  useEffect(() => {
+    if (enderecoTexto && enderecoTexto.trim().length > 0) {
+      setEnderecoLocal(enderecoTexto);
+      return;
+    }
+
+    if ((veiculo as any).endereco && (veiculo as any).endereco.trim().length > 0) {
+      setEnderecoLocal((veiculo as any).endereco);
+      return;
+    }
+
+    let ativo = true;
+    const lat = veiculo.latitude;
+    const lon = veiculo.longitude;
+
+    if (lat && lon && (lat !== 0 || lon !== 0)) {
+      obterEnderecoPorCoordenadas(lat, lon)
+        .then((end) => {
+          if (ativo && end) {
+            setEnderecoLocal(end);
+          }
+        })
+        .catch(() => {
+          if (ativo) {
+            setEnderecoLocal("Localização em monitoramento");
+          }
+        });
+    } else {
+      setEnderecoLocal("Localização em monitoramento");
+    }
+
+    return () => {
+      ativo = false;
+    };
+  }, [enderecoTexto, veiculo.latitude, veiculo.longitude, (veiculo as any).endereco]);
 
   // Formatação de telemetria de velocidade (humana ou veicular)
   const telemetriaHumana = isPropriedade
@@ -249,16 +291,22 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
             </div>
           </div>
 
-          {/* Linha Integral: Localização em Texto */}
+          {/* Linha Integral: Localização em Texto (Endereço legível - nunca coordenadas brutas) */}
           <div className="col-span-2 flex items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-800">
             <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <div className="min-w-0 flex-1">
               <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">
                 Localização
               </span>
-              <p className="font-medium text-slate-700 dark:text-slate-300 truncate text-[11px]">
-                {enderecoTexto ||
-                  `Lat ${veiculo.latitude.toFixed(4)}, Lon ${veiculo.longitude.toFixed(4)}`}
+              <p
+                className={`font-medium truncate text-[11px] ${
+                  enderecoLocal
+                    ? "text-slate-700 dark:text-slate-300"
+                    : "text-slate-400 dark:text-slate-500 animate-pulse"
+                }`}
+                title={enderecoLocal || "Identificando endereço..."}
+              >
+                {enderecoLocal || "Identificando endereço..."}
               </p>
             </div>
           </div>

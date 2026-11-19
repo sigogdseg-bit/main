@@ -471,10 +471,39 @@ export async function obterEnderecoPorCoordenadas(
     return cacheGeocodificacao.get(chaveCache)!;
   }
 
+  // 1. Tenta rota interna de mesma origem (/api/geocodificar) - imune a bloqueios de CORS e com cache Edge
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(
-      lat,
-    )}&lon=${encodeURIComponent(lng)}&addressdetails=1`;
+    const params = new URLSearchParams();
+    params.set("lat", String(lat));
+    params.set("lon", String(lng));
+    const urlApi = `/api/geocodificar?${params.toString()}`;
+
+    const resApi = await fetch(urlApi, {
+      headers: {
+        "Accept": "application/json",
+      },
+    });
+
+    if (resApi.ok) {
+      const dataApi = await resApi.json();
+      if (dataApi && dataApi.success && dataApi.endereco && dataApi.endereco.trim().length > 3) {
+        const endFinal = dataApi.endereco.trim();
+        cacheGeocodificacao.set(chaveCache, endFinal);
+        return endFinal;
+      }
+    }
+  } catch {
+    /* Fallback para provedor direto caso a API interna não responda */
+  }
+
+  // 2. Fallback direto via Nominatim com tratamento de erros
+  try {
+    const paramsNom = new URLSearchParams();
+    paramsNom.set("format", "json");
+    paramsNom.set("lat", String(lat));
+    paramsNom.set("lon", String(lng));
+    paramsNom.set("addressdetails", "1");
+    const url = `https://nominatim.openstreetmap.org/reverse?${paramsNom.toString()}`;
 
     const res = await fetch(url, {
       headers: {
@@ -508,12 +537,12 @@ export async function obterEnderecoPorCoordenadas(
       }
     }
   } catch {
-    // Continua para o fallback de coordenadas
+    // Continua para o fallback seguro
   }
 
-  const fallback = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
-  cacheGeocodificacao.set(chaveCache, fallback);
-  return fallback;
+  const fallbackAmigavel = "Localização em monitoramento";
+  cacheGeocodificacao.set(chaveCache, fallbackAmigavel);
+  return fallbackAmigavel;
 }
 
 /**

@@ -191,6 +191,7 @@ export function GpsMonitorView({
 
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<string>("todos");
+  const [clienteFiltroSelecionado, setClienteFiltroSelecionado] = useState<string>("todos");
   const [filtroVeiculosIds, setFiltroVeiculosIds] = useState<string[]>(() => {
     try {
       const stored = localStorage.getItem("@hunter_filtro_veiculos_ids");
@@ -270,6 +271,34 @@ export function GpsMonitorView({
       .catch(() => {});
   }, [session]);
 
+  const listaClientesUnicos = useMemo(() => {
+    const mapa = new Map<
+      string,
+      { id: string; nome: string; totalVeiculos: number; totalPostos: number }
+    >();
+
+    veiculos.forEach((v) => {
+      const cId = v.cliente_id;
+      if (!cId) return;
+      const cNome = v.cliente_nome || "Cliente sem nome";
+      if (!mapa.has(cId)) {
+        mapa.set(cId, { id: cId, nome: cNome, totalVeiculos: 0, totalPostos: 0 });
+      }
+      mapa.get(cId)!.totalVeiculos += 1;
+    });
+
+    postosVigilancia.forEach((p) => {
+      const cId = (p as any).cliente_id;
+      if (!cId) return;
+      if (!mapa.has(cId)) {
+        mapa.set(cId, { id: cId, nome: "Cliente da Base", totalVeiculos: 0, totalPostos: 0 });
+      }
+      mapa.get(cId)!.totalPostos += 1;
+    });
+
+    return Array.from(mapa.values()).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [veiculos, postosVigilancia]);
+
   // Filtragem de veículos com isolamento estrito de cliente e respeito aos filtros de frota
   const veiculosFiltrados = useMemo(() => {
     return veiculos.filter((v) => {
@@ -278,6 +307,11 @@ export function GpsMonitorView({
         if (v.cliente_id !== session.clienteId) {
           return false;
         }
+      }
+
+      // Filtro de cliente selecionado na lista suspensa (ADM e Operador - padrão 'todos')
+      if (clienteFiltroSelecionado !== "todos" && v.cliente_id !== clienteFiltroSelecionado) {
+        return false;
       }
 
       // REGRA IMPERIOSA: Perfil S.adm Auditor possui disponibilizado ÚNICA E EXCLUSIVAMENTE o veículo do usuário (AXH0E44)
@@ -332,6 +366,7 @@ export function GpsMonitorView({
     veiculos,
     busca,
     filtroStatus,
+    clienteFiltroSelecionado,
     filtroVeiculosIds,
     session,
     statusFinanceiro?.bloqueioLocalizacao,
@@ -339,8 +374,12 @@ export function GpsMonitorView({
 
   // Síntese de postos de vigilância como ativos para telemetria integrada de propriedades monitoradas
   const postosComoAtivos = useMemo(() => {
-    return postosVigilancia.map((p) => converterPostoEmVeiculoGps(p, turnosVigilancia, veiculos));
-  }, [postosVigilancia, turnosVigilancia, veiculos]);
+    let postos = postosVigilancia;
+    if (clienteFiltroSelecionado !== "todos") {
+      postos = postos.filter((p) => (p as any).cliente_id === clienteFiltroSelecionado);
+    }
+    return postos.map((p) => converterPostoEmVeiculoGps(p, turnosVigilancia, veiculos));
+  }, [postosVigilancia, turnosVigilancia, veiculos, clienteFiltroSelecionado]);
 
   // Lista consolidada de todos os ativos sob monitoramento (veículos e postos)
   const todosAtivosMonitorados = useMemo(() => {
@@ -2035,6 +2074,64 @@ export function GpsMonitorView({
           <aside className="absolute md:relative z-10 w-72 sm:w-80 h-full bg-[#eaf0f8]/95 dark:bg-slate-900/95 md:bg-[#eaf0f8] md:dark:bg-slate-900 border-r border-slate-300/60 dark:border-slate-800 flex flex-col backdrop-blur-md md:backdrop-blur-none transition-all shadow-[4px_4px_10px_#c3cfe2] dark:shadow-none">
             {/* Campo de Busca e Filtros Rápidos */}
             <div className="p-3 border-b border-slate-300/60 dark:border-slate-800 space-y-2">
+              {/* Lista suspensa de clientes para Administrador e Operador (Padrão: Todos) */}
+              {isOperadorOuAdmin && listaClientesUnicos.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300 px-0.5">
+                    <span className="flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-orange-500" />
+                      Cliente:
+                    </span>
+                    {clienteFiltroSelecionado !== "todos" && (
+                      <button
+                        type="button"
+                        onClick={() => setClienteFiltroSelecionado("todos")}
+                        className="text-[10px] text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                        title="Limpar filtro de cliente"
+                      >
+                        Ver Todos
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={clienteFiltroSelecionado}
+                      onChange={(e) => {
+                        const novoCliente = e.target.value;
+                        setClienteFiltroSelecionado(novoCliente);
+                        setTimeout(() => {
+                          const alvos =
+                            novoCliente === "todos"
+                              ? veiculos
+                              : veiculos.filter((v) => v.cliente_id === novoCliente);
+                          const postosAlvo =
+                            novoCliente === "todos"
+                              ? postosVigilancia
+                              : postosVigilancia.filter(
+                                  (p) => (p as any).cliente_id === novoCliente,
+                                );
+                          if (modoVisualizacao === "3D") {
+                            maplibreRef.current?.fitBoundsGeral?.(alvos, postosAlvo);
+                          } else {
+                            leafletRef.current?.fitBoundsGeral(alvos, postosAlvo);
+                          }
+                        }, 100);
+                      }}
+                      className="w-full py-1.5 pl-2.5 pr-8 bg-white dark:bg-slate-950 border border-slate-300/80 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 shadow-xs cursor-pointer appearance-none"
+                    >
+                      <option value="todos">Todos os Clientes ({listaClientesUnicos.length})</option>
+                      {listaClientesUnicos.map((cli) => (
+                        <option key={cli.id} value={cli.id}>
+                          {cli.nome} ({cli.totalVeiculos + cli.totalPostos}{" "}
+                          {cli.totalVeiculos + cli.totalPostos === 1 ? "ativo" : "ativos"})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-1.5">
                 <div className="relative flex-1">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />

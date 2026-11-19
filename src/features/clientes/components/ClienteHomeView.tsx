@@ -15,13 +15,20 @@ import {
   ShieldCheck,
   CreditCard,
   Layers,
+  Users,
+  Building2,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { carregarVeiculosGps, avaliarStatusComunicacao } from "@/features/monitor-gps/services/gpsService";
 import type { VeiculoGps } from "@/features/monitor-gps/types";
 import { HunterVehicleCard } from "./HunterVehicleCard";
+import { obterEnderecoPorCoordenadas } from "@/features/monitor-gps/services/compartilhamentoService";
 import { ModalPixRapido } from "@/features/mensalidades/components/ModalPixRapido";
+import { ModalGerenciarLocatarios } from "@/features/locatarios/components/ModalGerenciarLocatarios";
+import { carregarPostosVigilancia } from "@/features/vigilantes/services/vigilanteService";
+import type { PostoVigilancia } from "@/features/vigilantes/types";
 import {
   listarMensalidades,
   verificarStatusFinanceiroCliente,
@@ -53,6 +60,16 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
   const [carregandoVeiculos, setCarregandoVeiculos] = useState(true);
   const [busca, setBusca] = useState("");
   const [modoVisualizacao, setModoVisualizacao] = useState<"grid" | "lista">("grid");
+  const [filtroStatus, setFiltroStatus] = useState<"todos" | "online" | "offline" | "alertas">("todos");
+
+  const isLocatario = Boolean(session?.isLocatario || session?.role === "locatario");
+
+  // Gestão de Locatários Subordinados
+  const [modalLocatariosAberto, setModalLocatariosAberto] = useState(false);
+
+  // Propriedades Monitoradas (Postos Fixos do Cliente)
+  const [postosFixos, setPostosFixos] = useState<PostoVigilancia[]>([]);
+  const [carregandoPostos, setCarregandoPostos] = useState(false);
 
   // Dados Financeiros e Modal PIX
   const [mensalidadePendente, setMensalidadePendente] = useState<MensalidadeItem | null>(null);
@@ -61,6 +78,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
   const [pixPayload, setPixPayload] = useState("");
   const [pixQrCodeUrl, setPixQrCodeUrl] = useState("");
   const [gerandoPix, setGerandoPix] = useState(false);
+  const [enderecosMap, setEnderecosMap] = useState<Record<string, string>>({});
 
   // Carrega os veículos do cliente autenticado
   useEffect(() => {
@@ -86,11 +104,62 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     };
   }, []);
 
-  // Carrega o status financeiro e a primeira mensalidade pendente para pagamento
+  // Carrega postos fixos vinculados ao cliente
+  useEffect(() => {
+    let ativo = true;
+    async function carregarPostos() {
+      setCarregandoPostos(true);
+      try {
+        const lista = await carregarPostosVigilancia(session?.clienteId || undefined);
+        if (ativo) {
+          const filtrados = session?.clienteId
+            ? lista.filter((p) => p.cliente_id === session.clienteId)
+            : lista;
+          setPostosFixos(filtrados);
+        }
+      } catch (err) {
+        console.warn("Erro ao carregar postos fixos na visão do cliente:", err);
+      } finally {
+        if (ativo) {
+          setCarregandoPostos(false);
+        }
+      }
+    }
+    carregarPostos();
+    return () => {
+      ativo = false;
+    };
+  }, [session?.clienteId]);
+
+  // Pré-carrega endereços legíveis dos veículos para exibição imediata nos cards
+  useEffect(() => {
+    let ativo = true;
+    if (veiculos.length === 0) return;
+
+    veiculos.forEach((v) => {
+      if (v.latitude && v.longitude && (v.latitude !== 0 || v.longitude !== 0)) {
+        obterEnderecoPorCoordenadas(v.latitude, v.longitude)
+          .then((end) => {
+            if (ativo && end) {
+              setEnderecosMap((prev) => (prev[v.id] === end ? prev : { ...prev, [v.id]: end }));
+            }
+          })
+          .catch(() => {
+            /* Silencioso para fallback */
+          });
+      }
+    });
+
+    return () => {
+      ativo = false;
+    };
+  }, [veiculos]);
+
+  // Carrega o status financeiro e a primeira mensalidade pendente para pagamento (apenas cliente titular)
   useEffect(() => {
     let ativo = true;
     async function carregarFinanceiro() {
-      if (!session?.userId) return;
+      if (!session?.userId || isLocatario) return;
       try {
         const status = await verificarStatusFinanceiroCliente(
           session.userId,
@@ -114,19 +183,29 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     return () => {
       ativo = false;
     };
-  }, [session?.userId, session?.clienteId, session?.isMotorista]);
+  }, [session?.userId, session?.clienteId, session?.isMotorista, isLocatario]);
 
-  // Filtro de busca de veículos
+  // Filtro de busca e status de infográficos
   const veiculosFiltrados = useMemo(() => {
-    if (!busca.trim()) return veiculos;
+    let lista = veiculos;
+
+    if (filtroStatus === "online") {
+      lista = lista.filter((v) => avaliarStatusComunicacao(v.ultima_atualizacao).ativo);
+    } else if (filtroStatus === "offline") {
+      lista = lista.filter((v) => !avaliarStatusComunicacao(v.ultima_atualizacao).ativo);
+    } else if (filtroStatus === "alertas") {
+      lista = lista.filter((v) => Boolean(v.alerta_acidente || v.bloqueado));
+    }
+
+    if (!busca.trim()) return lista;
     const termo = busca.toLowerCase().trim();
-    return veiculos.filter(
+    return lista.filter(
       (v) =>
         (v.placa && v.placa.toLowerCase().includes(termo)) ||
         (v.marca_modelo && v.marca_modelo.toLowerCase().includes(termo)) ||
         (v.cliente_nome && v.cliente_nome.toLowerCase().includes(termo)),
     );
-  }, [veiculos, busca]);
+  }, [veiculos, busca, filtroStatus]);
 
   // Contadores rápidos de telemetria baseados na comunicação factual do rastreador
   const totalVeiculos = veiculos.length;
@@ -234,54 +313,119 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
           </Link>
         </div>
 
-        {/* Faixa Horizontal de Contadores Rápidos em Pílulas */}
-        <div className="relative z-10 grid grid-cols-4 gap-2 mt-5 pt-4 border-t border-white/20">
-          {/* Veículos */}
-          <div className="flex flex-col items-center justify-center py-1 px-2 rounded-2xl bg-black/15 backdrop-blur-xs border border-white/10">
+        {/* Faixa Horizontal de Contadores Rápidos em Pílulas Interativas (Filtros de 1 Toque) */}
+        <div
+          className={`relative z-10 grid gap-2 mt-5 pt-4 border-t border-white/20 ${
+            postosFixos.length > 0 ? "grid-cols-4 sm:grid-cols-5" : "grid-cols-4"
+          }`}
+        >
+          {/* Veículos - Todos */}
+          <button
+            type="button"
+            onClick={() => setFiltroStatus("todos")}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+              filtroStatus === "todos"
+                ? "bg-white/30 ring-2 ring-white shadow-md"
+                : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+            }`}
+            title="Mostrar todos os veículos"
+          >
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
               <Car className="w-3.5 h-3.5" />
               <span className="font-mono font-tabular">{totalVeiculos}</span>
             </div>
-            <span className="text-[10px] sm:text-xs text-white/80 font-medium">veículos</span>
-          </div>
+            <span className="text-[10px] sm:text-xs text-white/90 font-medium">veículos</span>
+          </button>
 
           {/* Online */}
-          <div
-            className="flex flex-col items-center justify-center py-1 px-2 rounded-2xl bg-black/15 backdrop-blur-xs border border-white/10"
-            title={`${onlineVeiculos} veículo(s) com rastreador comunicando em tempo real (${estacionadosVeiculos} estacionado(s), ${emRotaVeiculos} em movimento)`}
+          <button
+            type="button"
+            onClick={() => setFiltroStatus(filtroStatus === "online" ? "todos" : "online")}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+              filtroStatus === "online"
+                ? "bg-emerald-950/50 ring-2 ring-emerald-300 shadow-md"
+                : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+            }`}
+            title={
+              filtroStatus === "online"
+                ? "Filtro online ativo. Clique para remover filtro."
+                : `Filtrar apenas ${onlineVeiculos} veículo(s) online`
+            }
           >
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
               <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
               <span className="font-mono font-tabular">{onlineVeiculos}</span>
             </div>
-            <span className="text-[10px] sm:text-xs text-white/80 font-medium">online</span>
-          </div>
+            <span className="text-[10px] sm:text-xs text-white/90 font-medium">online</span>
+          </button>
 
           {/* Offline */}
-          <div
-            className="flex flex-col items-center justify-center py-1 px-2 rounded-2xl bg-black/15 backdrop-blur-xs border border-white/10"
-            title={`${offlineVeiculos} veículo(s) sem comunicação recente com o servidor`}
+          <button
+            type="button"
+            onClick={() => setFiltroStatus(filtroStatus === "offline" ? "todos" : "offline")}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+              filtroStatus === "offline"
+                ? "bg-black/55 ring-2 ring-slate-200 shadow-md"
+                : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+            }`}
+            title={
+              filtroStatus === "offline"
+                ? "Filtro offline ativo. Clique para remover filtro."
+                : `Filtrar apenas ${offlineVeiculos} veículo(s) offline`
+            }
           >
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-white/90">
               <span className="w-2 h-2 rounded-full bg-slate-300" />
               <span className="font-mono font-tabular">{offlineVeiculos}</span>
             </div>
-            <span className="text-[10px] sm:text-xs text-white/80 font-medium">offline</span>
-          </div>
+            <span className="text-[10px] sm:text-xs text-white/90 font-medium">offline</span>
+          </button>
 
           {/* Alertas */}
-          <div className="flex flex-col items-center justify-center py-1 px-2 rounded-2xl bg-black/15 backdrop-blur-xs border border-white/10">
+          <button
+            type="button"
+            onClick={() => setFiltroStatus(filtroStatus === "alertas" ? "todos" : "alertas")}
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+              filtroStatus === "alertas"
+                ? "bg-amber-950/50 ring-2 ring-amber-300 shadow-md"
+                : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+            }`}
+            title={
+              filtroStatus === "alertas"
+                ? "Filtro alertas ativo. Clique para remover filtro."
+                : `Filtrar ${totalAlertas} veículo(s) com alertas ou bloqueados`
+            }
+          >
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
               <Bell className="w-3.5 h-3.5 text-amber-300" />
               <span className="font-mono font-tabular">{totalAlertas}</span>
             </div>
-            <span className="text-[10px] sm:text-xs text-white/80 font-medium">alertas</span>
-          </div>
+            <span className="text-[10px] sm:text-xs text-white/90 font-medium">alertas</span>
+          </button>
+
+          {/* Postos Fixos (Propriedades Monitoradas) */}
+          {postosFixos.length > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                const el = document.getElementById("secao-postos-fixos");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100 transition-all cursor-pointer active:scale-95"
+              title="Visualizar propriedades monitoradas (postos fixos)"
+            >
+              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
+                <Building2 className="w-3.5 h-3.5 text-emerald-300" />
+                <span className="font-mono font-tabular">{postosFixos.length}</span>
+              </div>
+              <span className="text-[10px] sm:text-xs text-white/90 font-medium">postos</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 2. Seção de Alerta Financeiro com Botão PIX de 1 Toque (Caso Haja Mensalidade) */}
-      {mensalidadePendente && (
+      {/* 2. Seção de Alerta Financeiro com Botão PIX de 1 Toque (Caso Haja Mensalidade e NÃO seja Locatário) */}
+      {mensalidadePendente && !isLocatario && (
         <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 sm:p-5 shadow-[0_4px_20px_rgba(0,0,0,0.05)] dark:shadow-none flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-3 rounded-2xl bg-orange-500/10 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 shrink-0">
@@ -331,16 +475,41 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
 
       {/* 3. Barra de Título e Ferramentas: Meus Veículos, Busca e Alternador de Visão */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
             Meus veículos
           </h2>
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+          <span className="text-xs font-bold text-orange-600 dark:text-orange-400 px-2.5 py-0.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 font-mono font-tabular">
             {veiculosFiltrados.length}
+            {filtroStatus !== "todos" && ` de ${totalVeiculos}`}
           </span>
+          {filtroStatus !== "todos" && (
+            <button
+              type="button"
+              onClick={() => setFiltroStatus("todos")}
+              className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
+              title="Limpar filtro de status"
+            >
+              (Limpar filtro: {filtroStatus})
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Gestão de Locatários para Clientes Locadores / ADM / Operador */}
+          {!isLocatario && (
+            <button
+              type="button"
+              onClick={() => setModalLocatariosAberto(true)}
+              className="flex items-center gap-1.5 py-2 px-3 rounded-2xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 shadow-xs"
+              title="Cadastrar e gerenciar locatários subordinados aos seus veículos"
+            >
+              <Users className="w-4 h-4" />
+              <span className="hidden sm:inline">Gerenciar Locatários</span>
+              <span className="sm:hidden">Locatários</span>
+            </button>
+          )}
+
           {/* Campo de Busca Rápida */}
           <div className="relative flex-1 sm:w-64">
             <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
@@ -358,7 +527,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
             <button
               type="button"
               onClick={() => setModoVisualizacao("grid")}
-              className={`p-1.5 rounded-xl transition ${
+              className={`p-1.5 rounded-xl transition cursor-pointer ${
                 modoVisualizacao === "grid"
                   ? "bg-white dark:bg-slate-900 text-orange-600 shadow-xs"
                   : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -370,7 +539,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
             <button
               type="button"
               onClick={() => setModoVisualizacao("lista")}
-              className={`p-1.5 rounded-xl transition ${
+              className={`p-1.5 rounded-xl transition cursor-pointer ${
                 modoVisualizacao === "lista"
                   ? "bg-white dark:bg-slate-900 text-orange-600 shadow-xs"
                   : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -404,8 +573,22 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
           <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
             {busca
               ? `Não localizamos nenhum veículo correspondente ao termo "${busca}".`
+              : filtroStatus !== "todos"
+              ? `Nenhum veículo com status "${filtroStatus}" no momento.`
               : "Nenhum veículo ativo está vinculado à sua conta no momento."}
           </p>
+          {(filtroStatus !== "todos" || busca) && (
+            <button
+              type="button"
+              onClick={() => {
+                setFiltroStatus("todos");
+                setBusca("");
+              }}
+              className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold shadow-md transition active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+            >
+              <span>Ver todos os veículos</span>
+            </button>
+          )}
         </div>
       ) : modoVisualizacao === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
@@ -413,6 +596,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
             <HunterVehicleCard
               key={v.id}
               veiculo={v}
+              enderecoTexto={enderecosMap[v.id]}
               onVerNoMapa={handleVerNoMapa}
               onAbrirCockpit={handleAbrirCockpit}
             />
@@ -420,57 +604,156 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         </div>
       ) : (
         <div className="space-y-3">
-          {veiculosFiltrados.map((v) => (
-            <div
-              key={v.id}
-              onClick={() => handleVerNoMapa(v)}
-              className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-orange-500/50 shadow-xs hover:shadow-md transition-all flex items-center justify-between cursor-pointer group"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0">
-                  <Car className="w-5 h-5" />
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-black text-sm text-slate-900 dark:text-slate-100">
-                      {v.placa}
-                    </span>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                      {v.marca_modelo}
-                    </span>
+          {veiculosFiltrados.map((v) => {
+            const statusCom = avaliarStatusComunicacao(v.ultima_atualizacao);
+            return (
+              <div
+                key={v.id}
+                onClick={() => handleVerNoMapa(v)}
+                className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-orange-500/50 shadow-xs hover:shadow-md transition-all flex items-center justify-between cursor-pointer group"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0">
+                    <Car className="w-5 h-5" />
                   </div>
-                  <div className="flex items-center gap-2 mt-0.5 text-xs">
-                    <span
-                      className={`inline-flex items-center gap-1 font-bold ${
-                        v.velocidade > 3 || v.ignicao
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-slate-400"
-                      }`}
-                    >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-black text-sm text-slate-900 dark:text-slate-100">
+                        {v.placa}
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                        {v.marca_modelo}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5 text-xs">
                       <span
-                        className={`w-1.5 h-1.5 rounded-full ${
-                          v.velocidade > 3 || v.ignicao
-                            ? "bg-emerald-500 animate-pulse"
-                            : "bg-slate-400"
+                        className={`inline-flex items-center gap-1 font-bold ${
+                          statusCom.ativo
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-slate-400"
                         }`}
-                      />
-                      {v.velocidade > 3 ? "Em Rota" : v.ignicao ? "Ligado" : "Estacionado"}
-                    </span>
-                    <span className="text-slate-300 dark:text-slate-700">·</span>
-                    <span className="font-mono font-tabular text-slate-700 dark:text-slate-300 font-bold">
-                      {v.velocidade} km/h
-                    </span>
+                      >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            statusCom.ativo
+                              ? "bg-emerald-500 animate-pulse"
+                              : "bg-slate-400"
+                          }`}
+                        />
+                        {v.velocidade > 3 ? "Em Rota" : v.ignicao ? "Ligado" : "Estacionado"}
+                      </span>
+                      <span className="text-slate-300 dark:text-slate-700">·</span>
+                      <span className="font-mono font-tabular text-slate-700 dark:text-slate-300 font-bold">
+                        {v.velocidade} km/h
+                      </span>
+                      {enderecosMap[v.id] && (
+                        <>
+                          <span className="text-slate-300 dark:text-slate-700">·</span>
+                          <span className="text-slate-500 dark:text-slate-400 truncate max-w-[180px] sm:max-w-[280px]">
+                            {enderecosMap[v.id]}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
-            </div>
-          ))}
+                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* 5. Banner "Preciso de Ajuda - Fale com Nossa Central 24h" (WhatsApp) */}
+      {/* 5. Propriedades Monitoradas (Postos Fixos do Cliente) */}
+      {postosFixos.length > 0 && (
+        <div id="secao-postos-fixos" className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                <Building2 className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                  Minhas Propriedades Monitoradas (Postos Fixos)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Perímetros georreferenciados e monitoramento patrimonial contínuo
+                </p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 font-mono font-tabular">
+              {postosFixos.length} {postosFixos.length === 1 ? "propriedade" : "propriedades"}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {postosFixos.map((posto) => (
+              <div
+                key={posto.id}
+                className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs hover:shadow-md transition-all space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0">
+                      <h4 className="font-black text-sm text-slate-900 dark:text-slate-100 truncate">
+                        {posto.nome}
+                      </h4>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Propriedade Fixa Ativa
+                      </span>
+                    </div>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+                    Raio {posto.raio_metros || 100}m
+                  </span>
+                </div>
+
+                <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 min-w-0">
+                  <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  <span className="truncate">
+                    {posto.endereco || `Lat: ${posto.latitude.toFixed(4)}, Lon: ${posto.longitude.toFixed(4)}`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem("@hunter_veiculo_selecionado_id", `posto-${posto.id}`);
+                      } catch {}
+                      navigate({ to: "/monitor-gps" as any });
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer"
+                  >
+                    <span>Ver no Mapa</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        localStorage.setItem("@hunter_veiculo_selecionado_id", `posto-${posto.id}`);
+                        localStorage.setItem("@hunter_abrir_cockpit", "true");
+                      } catch {}
+                      navigate({ to: "/monitor-gps" as any });
+                    }}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition active:scale-95 cursor-pointer"
+                  >
+                    <span>Cockpit 3D</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 6. Banner "Preciso de Ajuda - Fale com Nossa Central 24h" (WhatsApp) */}
       <div className="relative overflow-hidden rounded-3xl bg-slate-950 text-white p-5 sm:p-6 shadow-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         {/* Glow e Detalhe Visual */}
         <div className="absolute right-0 top-0 w-48 h-48 bg-orange-500/10 rounded-full blur-2xl pointer-events-none" />
@@ -519,6 +802,16 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
           qrCodeDataUrl={pixQrCodeUrl}
           pixCopiaECola={pixPayload}
           descricao={`Mensalidade ${formatarCompetenciaMensalidade(mensalidadePendente.mes_referencia, mensalidadePendente.ano_referencia)}`}
+        />
+      )}
+
+      {/* Modal de Gestão de Locatários Subordinados (Cliente Locador / Titular) */}
+      {!isLocatario && (
+        <ModalGerenciarLocatarios
+          aberto={modalLocatariosAberto}
+          onFechar={() => setModalLocatariosAberto(false)}
+          clienteId={session?.clienteId}
+          veiculosCliente={veiculos}
         />
       )}
     </div>

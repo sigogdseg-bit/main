@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AssinarRouteImport } from './routes/assinar'
 import { Route as CadastroClienteRouteImport } from './routes/cadastro-cliente'
 import { Route as CadastroInstaladorRouteImport } from './routes/cadastro-instalador'
+import { Route as CadastroLocatarioRouteImport } from './routes/cadastro-locatario'
 import { Route as CadastroParceiroRouteImport } from './routes/cadastro-parceiro'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as MotoristaRouteImport } from './routes/motorista'
@@ -71,6 +72,11 @@ const CadastroClienteRoute = CadastroClienteRouteImport.update({
 const CadastroInstaladorRoute = CadastroInstaladorRouteImport.update({
   id: '/cadastro-instalador',
   path: '/cadastro-instalador',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CadastroLocatarioRoute = CadastroLocatarioRouteImport.update({
+  id: '/cadastro-locatario',
+  path: '/cadastro-locatario',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CadastroParceiroRoute = CadastroParceiroRouteImport.update({
@@ -264,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/assinar': typeof AssinarRoute
   '/cadastro-cliente': typeof CadastroClienteRoute
   '/cadastro-instalador': typeof CadastroInstaladorRoute
+  '/cadastro-locatario': typeof CadastroLocatarioRoute
   '/cadastro-parceiro': typeof CadastroParceiroRoute
   '/login': typeof LoginRoute
   '/motorista': typeof MotoristaRoute
@@ -304,6 +311,7 @@ export interface FileRoutesByTo {
   '/assinar': typeof AssinarRoute
   '/cadastro-cliente': typeof CadastroClienteRoute
   '/cadastro-instalador': typeof CadastroInstaladorRoute
+  '/cadastro-locatario': typeof CadastroLocatarioRoute
   '/cadastro-parceiro': typeof CadastroParceiroRoute
   '/login': typeof LoginRoute
   '/motorista': typeof MotoristaRoute
@@ -346,6 +354,7 @@ export interface FileRoutesById {
   '/assinar': typeof AssinarRoute
   '/cadastro-cliente': typeof CadastroClienteRoute
   '/cadastro-instalador': typeof CadastroInstaladorRoute
+  '/cadastro-locatario': typeof CadastroLocatarioRoute
   '/cadastro-parceiro': typeof CadastroParceiroRoute
   '/login': typeof LoginRoute
   '/motorista': typeof MotoristaRoute
@@ -388,6 +397,7 @@ export interface FileRouteTypes {
     | '/assinar'
     | '/cadastro-cliente'
     | '/cadastro-instalador'
+    | '/cadastro-locatario'
     | '/cadastro-parceiro'
     | '/login'
     | '/motorista'
@@ -428,6 +438,7 @@ export interface FileRouteTypes {
     | '/assinar'
     | '/cadastro-cliente'
     | '/cadastro-instalador'
+    | '/cadastro-locatario'
     | '/cadastro-parceiro'
     | '/login'
     | '/motorista'
@@ -469,6 +480,7 @@ export interface FileRouteTypes {
     | '/assinar'
     | '/cadastro-cliente'
     | '/cadastro-instalador'
+    | '/cadastro-locatario'
     | '/cadastro-parceiro'
     | '/login'
     | '/motorista'
@@ -511,6 +523,7 @@ export interface RootRouteChildren {
   AssinarRoute: typeof AssinarRoute
   CadastroClienteRoute: typeof CadastroClienteRoute
   CadastroInstaladorRoute: typeof CadastroInstaladorRoute
+  CadastroLocatarioRoute: typeof CadastroLocatarioRoute
   CadastroParceiroRoute: typeof CadastroParceiroRoute
   LoginRoute: typeof LoginRoute
   MotoristaRoute: typeof MotoristaRoute
@@ -553,6 +566,13 @@ declare module '@tanstack/react-router' {
       path: '/cadastro-instalador'
       fullPath: '/cadastro-instalador'
       preLoaderRoute: typeof CadastroInstaladorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cadastro-locatario': {
+      id: '/cadastro-locatario'
+      path: '/cadastro-locatario'
+      fullPath: '/cadastro-locatario'
+      preLoaderRoute: typeof CadastroLocatarioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/cadastro-parceiro': {
@@ -873,6 +893,7 @@ const rootRouteChildren: RootRouteChildren = {
   AssinarRoute: AssinarRoute,
   CadastroClienteRoute: CadastroClienteRoute,
   CadastroInstaladorRoute: CadastroInstaladorRoute,
+  CadastroLocatarioRoute: CadastroLocatarioRoute,
   CadastroParceiroRoute: CadastroParceiroRoute,
   LoginRoute: LoginRoute,
   MotoristaRoute: MotoristaRoute,
