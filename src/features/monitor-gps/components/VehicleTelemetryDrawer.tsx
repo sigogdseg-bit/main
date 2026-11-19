@@ -84,10 +84,15 @@ import { useAuth } from "@/features/auth/context/AuthContext";
 import { podeAcessarLocalizacaoVeiculo } from "../utils/privacidadeLocalizacao";
 import { PainelSaudePrivacidadeRastreador } from "./PainelSaudePrivacidadeRastreador";
 import { supabase } from "@/integrations/supabase/client";
+import type { PostoVigilancia, TurnoVigilancia } from "@/features/vigilantes/types";
+import { isPropriedadeMonitorada } from "../utils/propriedadeMonitoradaUtils";
+import { MostradoresMonitor3D } from "./MostradoresMonitor3D";
 
 interface VehicleTelemetryDrawerProps {
   veiculo: VeiculoGps | null;
   veiculos?: VeiculoGps[];
+  postos?: PostoVigilancia[];
+  turnos?: TurnoVigilancia[];
   onSelectVeiculo?: (veiculo: VeiculoGps) => void;
   onCentralizarVeiculo?: (veiculo: VeiculoGps) => void;
   onBloquearToggle: (veiculoId: string, bloquear: boolean) => void;
@@ -107,6 +112,8 @@ interface VehicleTelemetryDrawerProps {
 export function VehicleTelemetryDrawer({
   veiculo,
   veiculos,
+  postos,
+  turnos,
   onSelectVeiculo,
   onCentralizarVeiculo,
   onBloquearToggle,
@@ -171,6 +178,27 @@ export function VehicleTelemetryDrawer({
     setOdometroMcuLocal(null);
     setOdometroMcuAtualizadoEmLocal(null);
   }, [veiculo?.id]);
+
+  const isPropriedade = useMemo(() => {
+    return isPropriedadeMonitorada(veiculo, turnos, postos);
+  }, [veiculo, turnos, postos]);
+
+  const postoVinculado = useMemo(() => {
+    if (!postos || postos.length === 0 || !veiculo) return null;
+    return postos.find((p) => p.id === veiculo.id || `posto-${p.id}` === veiculo.id) || null;
+  }, [postos, veiculo]);
+
+  const turnoAtivo = useMemo(() => {
+    if (!turnos || turnos.length === 0 || !veiculo) return null;
+    return (
+      turnos.find(
+        (t) =>
+          veiculo.rastreador_imei &&
+          t.rastreador_imei &&
+          t.rastreador_imei.trim() === veiculo.rastreador_imei.trim(),
+      ) || null
+    );
+  }, [turnos, veiculo]);
 
   useEffect(() => {
     let cancelado = false;
@@ -835,14 +863,18 @@ export function VehicleTelemetryDrawer({
               </>
             ) : (
               <>
-                {/* 1. Botão Direto para o Cockpit e Telemetria 3D (Desktop / Tablet) */}
+                {/* 1. Botão Direto para o Cockpit / Monitor 3D (Desktop / Tablet) */}
                 <button
                   onClick={onToggleRecolhido}
                   className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 shadow-md shadow-orange-500/20 hover:from-orange-400 hover:to-amber-400 transition active:scale-95 cursor-pointer shrink-0"
-                  title="Abrir tela exclusiva de Cockpit 3D e Telemetria"
+                  title={
+                    isPropriedade
+                      ? "Abrir tela exclusiva de Monitor 3D e Telemetria de Segurança"
+                      : "Abrir tela exclusiva de Cockpit 3D e Telemetria"
+                  }
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  <span>Cockpit 3D</span>
+                  <span>{isPropriedade ? "Monitor 3D" : "Cockpit 3D"}</span>
                 </button>
 
                 {/* 2. Botão Rápido: Refazer Trajeto */}
@@ -1017,7 +1049,11 @@ export function VehicleTelemetryDrawer({
                   if (v) onSelectVeiculo(v);
                 }}
                 className="px-2.5 py-1.5 rounded-xl bg-[#eaf0f8] dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-[inset_1px_1px_3px_#c8d4e4,inset_-1px_-1px_3px_#ffffff] dark:shadow-none focus:outline-none focus:border-orange-500 transition cursor-pointer"
-                title="Trocar de veículo no Cockpit"
+                title={
+                  isPropriedade
+                    ? "Trocar de monitorado no Monitor 3D"
+                    : "Trocar de veículo no Cockpit"
+                }
               >
                 {veiculos.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -1028,16 +1064,30 @@ export function VehicleTelemetryDrawer({
             </div>
           )}
 
-          {/* Placa Padrão Mercosul Oficial */}
-          <div className="bg-white border-2 border-slate-900 rounded-md shadow-xs overflow-hidden font-mono text-center min-w-[95px] shrink-0">
-            <div className="bg-[#003399] px-2 py-0.5 flex items-center justify-between">
-              <span className="text-[7px] text-white font-bold tracking-widest">BRASIL</span>
-              <div className="w-2 h-1.5 bg-[#FFCC00] rounded-xs" />
+          {/* Placa Padrão Mercosul Oficial ou Crachá de Propriedade Monitorada */}
+          {isPropriedade ? (
+            <div className="bg-emerald-600 dark:bg-emerald-700 border-2 border-emerald-800 rounded-md shadow-xs overflow-hidden font-mono text-center min-w-[95px] shrink-0 text-white">
+              <div className="bg-emerald-950 px-2 py-0.5 flex items-center justify-between">
+                <span className="text-[7px] text-emerald-200 font-bold tracking-widest">
+                  PROPRIEDADE
+                </span>
+                <div className="w-2 h-1.5 bg-emerald-400 rounded-xs" />
+              </div>
+              <div className="px-2 py-0.5 font-black text-xs sm:text-sm tracking-wider">
+                {formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}
+              </div>
             </div>
-            <div className="px-2 py-0.5 text-slate-950 font-black text-xs sm:text-sm tracking-wider">
-              {formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}
+          ) : (
+            <div className="bg-white border-2 border-slate-900 rounded-md shadow-xs overflow-hidden font-mono text-center min-w-[95px] shrink-0">
+              <div className="bg-[#003399] px-2 py-0.5 flex items-center justify-between">
+                <span className="text-[7px] text-white font-bold tracking-widest">BRASIL</span>
+                <div className="w-2 h-1.5 bg-[#FFCC00] rounded-xs" />
+              </div>
+              <div className="px-2 py-0.5 text-slate-950 font-black text-xs sm:text-sm tracking-wider">
+                {formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -1401,27 +1451,43 @@ export function VehicleTelemetryDrawer({
             onAbrirTimeline={() => setModalTimelineAberto(true)}
           />
 
-          {/* 3. Mostradores Cockpit 3D Holográfico */}
+          {/* 3. Mostradores 3D Holográficos: Cockpit 3D (Veicular) ou Monitor 3D (Propriedade Monitorada e Pessoal) */}
           <div className="w-full flex-1">
-            <MostradoresCockpit3D
-              veiculo={veiculo}
-              podeVerSensores={podeVerSensores}
-              podeVerEletrica={podeVerEletrica}
-              podeVerSatelites={podeVerSatelites}
-              podeVerTipoBloqueador={podeVerTipoBloqueador}
-              isEquipeTecnica={isEquipeTecnica}
-              isSuperAdmin={isSuperAdmin}
-              onSolicitarUpgrade={onSolicitarUpgrade}
-              getRumoCardeal={getRumoCardeal}
-              statusComunicacao={statusComunicacao}
-              onConsultarOdometroMcu={handleConsultarOdometroMcu}
-              onCalibrarOdometroMcu={handleCalibrarOdometroMcu}
-              consultandoOdometroMcu={consultandoOdometroMcu}
-              calibrandoOdometroMcu={calibrandoOdometroMcu}
-              odometroMcuLocal={odometroMcuLocal}
-              setOdometroMcuLocal={setOdometroMcuLocal}
-              odometroMcuAtualizadoEmLocal={odometroMcuAtualizadoEmLocal}
-            />
+            {isPropriedade ? (
+              <MostradoresMonitor3D
+                veiculo={veiculo}
+                podeVerSensores={podeVerSensores}
+                podeVerEletrica={podeVerEletrica}
+                podeVerSatelites={podeVerSatelites}
+                isEquipeTecnica={isEquipeTecnica}
+                isSuperAdmin={isSuperAdmin}
+                onSolicitarUpgrade={onSolicitarUpgrade}
+                getRumoCardeal={getRumoCardeal}
+                statusComunicacao={statusComunicacao}
+                postoVinculado={postoVinculado}
+                turnoAtivo={turnoAtivo}
+              />
+            ) : (
+              <MostradoresCockpit3D
+                veiculo={veiculo}
+                podeVerSensores={podeVerSensores}
+                podeVerEletrica={podeVerEletrica}
+                podeVerSatelites={podeVerSatelites}
+                podeVerTipoBloqueador={podeVerTipoBloqueador}
+                isEquipeTecnica={isEquipeTecnica}
+                isSuperAdmin={isSuperAdmin}
+                onSolicitarUpgrade={onSolicitarUpgrade}
+                getRumoCardeal={getRumoCardeal}
+                statusComunicacao={statusComunicacao}
+                onConsultarOdometroMcu={handleConsultarOdometroMcu}
+                onCalibrarOdometroMcu={handleCalibrarOdometroMcu}
+                consultandoOdometroMcu={consultandoOdometroMcu}
+                calibrandoOdometroMcu={calibrandoOdometroMcu}
+                odometroMcuLocal={odometroMcuLocal}
+                setOdometroMcuLocal={setOdometroMcuLocal}
+                odometroMcuAtualizadoEmLocal={odometroMcuAtualizadoEmLocal}
+              />
+            )}
           </div>
         </>
       )}

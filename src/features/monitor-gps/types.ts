@@ -13,7 +13,14 @@ export type TipoVeiculo =
   | "triciclo"
   | "maquina"
   | "trator"
-  | "equipamento";
+  | "equipamento"
+  | "propriedade"
+  | "posto"
+  | "pessoa"
+  | "vigilante"
+  | "portatil"
+  | "ronda"
+  | "outro";
 
 export interface VeiculoGps {
   id: string;

@@ -54,8 +54,15 @@ import {
 import { OverlayPrivacidadeVeiculo } from "./OverlayPrivacidadeVeiculo";
 import { LeafletEngine, type LeafletEngineHandle } from "./LeafletEngine";
 import { MapLibre3DEngine, type MapLibre3DEngineHandle } from "./MapLibre3DEngine";
-import { carregarPostosVigilancia } from "@/features/vigilantes/services/vigilanteService";
-import type { PostoVigilancia } from "@/features/vigilantes/types";
+import {
+  carregarPostosVigilancia,
+  carregarTurnos,
+} from "@/features/vigilantes/services/vigilanteService";
+import type { PostoVigilancia, TurnoVigilancia } from "@/features/vigilantes/types";
+import {
+  isPropriedadeMonitorada,
+  converterPostoEmVeiculoGps,
+} from "../utils/propriedadeMonitoradaUtils";
 
 // ErrorBoundary tático para conter falhas de renderização WebGL 3D e fazer fallback suave para 2D
 class MapErrorBoundary extends Component<
@@ -194,6 +201,7 @@ export function GpsMonitorView({
   });
 
   const [postosVigilancia, setPostosVigilancia] = useState<PostoVigilancia[]>([]);
+  const [turnosVigilancia, setTurnosVigilancia] = useState<TurnoVigilancia[]>([]);
   const [postosExpandidos, setPostosExpandidos] = useState(false);
 
   useEffect(() => {
@@ -203,10 +211,19 @@ export function GpsMonitorView({
         setPostosVigilancia(res.filter((p) => p.ativo));
       }
     });
+    carregarTurnos().then((res) => {
+      if (ativo && Array.isArray(res)) {
+        setTurnosVigilancia(res);
+      }
+    });
     return () => {
       ativo = false;
     };
   }, []);
+
+  const isVeiculoSelecionadoPropriedade = useMemo(() => {
+    return isPropriedadeMonitorada(veiculoSelecionado, turnosVigilancia, postosVigilancia);
+  }, [veiculoSelecionado, turnosVigilancia, postosVigilancia]);
 
   useEffect(() => {
     // Purga filtros legados no mount para evitar que clientes ativos fiquem ocultos silenciosamente
@@ -1721,7 +1738,7 @@ export function GpsMonitorView({
                 }`}
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span>Cockpit 3D</span>
+                <span>{isVeiculoSelecionadoPropriedade ? "Monitor 3D" : "Cockpit 3D"}</span>
                 {veiculoSelecionado && (
                   <span className="font-mono text-[9px] px-1 py-0.2 rounded bg-black/15 dark:bg-black/30 uppercase font-bold">
                     {veiculoSelecionado.placa}
@@ -2234,6 +2251,12 @@ export function GpsMonitorView({
                               posto.longitude,
                               18,
                             );
+                            const ativoPropriedade = converterPostoEmVeiculoGps(
+                              posto,
+                              turnosVigilancia,
+                              veiculos,
+                            );
+                            selecionarETestarVeiculo(ativoPropriedade);
                           }}
                           className="flex items-center justify-between p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-200 dark:border-slate-700/60 cursor-pointer transition shadow-xs group"
                         >
@@ -2250,21 +2273,41 @@ export function GpsMonitorView({
                               </p>
                             )}
                           </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              leafletRef.current?.centralizarCoordenadas(
-                                posto.latitude,
-                                posto.longitude,
-                                18,
-                              );
-                            }}
-                            className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white transition shrink-0 cursor-pointer"
-                            title="Focar no Mapa"
-                          >
-                            <Crosshair className="h-3.5 w-3.5" />
-                          </button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const ativoPropriedade = converterPostoEmVeiculoGps(
+                                  posto,
+                                  turnosVigilancia,
+                                  veiculos,
+                                );
+                                selecionarETestarVeiculo(ativoPropriedade);
+                                alternarVisaoAtiva("cockpit");
+                              }}
+                              className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500 hover:text-white transition shrink-0 cursor-pointer text-[10px] font-bold flex items-center gap-1"
+                              title="Abrir Monitor 3D desta propriedade"
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              <span>Monitor 3D</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                leafletRef.current?.centralizarCoordenadas(
+                                  posto.latitude,
+                                  posto.longitude,
+                                  18,
+                                );
+                              }}
+                              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white transition shrink-0 cursor-pointer"
+                              title="Focar no Mapa"
+                            >
+                              <Crosshair className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -2608,6 +2651,8 @@ export function GpsMonitorView({
               <VehicleTelemetryDrawer
                 veiculo={veiculoSelecionado}
                 veiculos={veiculos}
+                postos={postosVigilancia}
+                turnos={turnosVigilancia}
                 onSelectVeiculo={selecionarETestarVeiculo}
                 onCentralizarVeiculo={centralizarNoVeiculo}
                 onBloquearToggle={executarBloqueio}
@@ -2716,6 +2761,8 @@ export function GpsMonitorView({
           <VehicleTelemetryDrawer
             veiculo={veiculoSelecionado || veiculosFiltrados[0] || null}
             veiculos={veiculosFiltrados}
+            postos={postosVigilancia}
+            turnos={turnosVigilancia}
             onSelectVeiculo={selecionarETestarVeiculo}
             onCentralizarVeiculo={centralizarNoVeiculo}
             onBloquearToggle={executarBloqueio}
@@ -2773,7 +2820,7 @@ export function GpsMonitorView({
           }`}
         >
           <Sparkles className="h-4 w-4" />
-          <span>Cockpit</span>
+          <span>{isVeiculoSelecionadoPropriedade ? "Monitor 3D" : "Cockpit 3D"}</span>
         </button>
 
         {/* Aba 3: Rotas Monitoradas */}
