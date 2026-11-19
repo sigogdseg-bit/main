@@ -327,20 +327,40 @@ export function converterPostoEmVeiculoGps(
     tipo_veiculo: "propriedade",
     ignicao: turnoAtivo ? turnoAtivo.status === "em_andamento" : false,
     bloqueado: false,
-    velocidade: veiculoRef ? veiculoRef.velocidade : 0,
-    odometro: veiculoRef ? veiculoRef.odometro : 0,
+    bloqueador_instalado: false,
+    velocidade: veiculoRef ? Number(veiculoRef.velocidade) || 0 : 0,
+    odometro: veiculoRef ? Number(veiculoRef.odometro) || 0 : 0,
     latitude: veiculoRef?.latitude ?? posto.latitude,
     longitude: veiculoRef?.longitude ?? posto.longitude,
-    voltagem: veiculoRef?.voltagem,
-    bateria_rastreador_pct: veiculoRef?.bateria_rastreador_pct ?? 92,
+    voltagem:
+      veiculoRef?.voltagem !== undefined && veiculoRef?.voltagem !== null
+        ? Number(veiculoRef.voltagem)
+        : undefined,
+    bateria_rastreador_pct:
+      veiculoRef?.bateria_rastreador_pct !== undefined &&
+      veiculoRef?.bateria_rastreador_pct !== null
+        ? Number(veiculoRef.bateria_rastreador_pct)
+        : undefined,
     bateria_rastreador_status: veiculoRef?.bateria_rastreador_status ?? "bateria_interna",
     alimentacao_externa: false,
-    satelites: veiculoRef?.satelites ?? 12,
-    rumo: veiculoRef?.rumo ?? 0,
-    inclinacao_graus: veiculoRef?.inclinacao_graus ?? 5,
-    vibracao_g: veiculoRef?.vibracao_g ?? 1.0,
-    ultima_atualizacao: veiculoRef?.ultima_atualizacao ?? new Date().toISOString(),
-    status_operacional: veiculoRef?.status_operacional ?? "parado_ligado",
+    satelites:
+      veiculoRef?.satelites !== undefined && veiculoRef?.satelites !== null
+        ? Number(veiculoRef.satelites)
+        : undefined,
+    rumo:
+      veiculoRef?.rumo !== undefined && veiculoRef?.rumo !== null
+        ? Number(veiculoRef.rumo)
+        : undefined,
+    inclinacao_graus:
+      veiculoRef?.inclinacao_graus !== undefined && veiculoRef?.inclinacao_graus !== null
+        ? Number(veiculoRef.inclinacao_graus)
+        : undefined,
+    vibracao_g:
+      veiculoRef?.vibracao_g !== undefined && veiculoRef?.vibracao_g !== null
+        ? Number(veiculoRef.vibracao_g)
+        : undefined,
+    ultima_atualizacao: veiculoRef?.ultima_atualizacao ?? undefined,
+    status_operacional: veiculoRef?.status_operacional ?? "estacionado",
     rastreador_imei: turnoAtivo?.rastreador_imei || veiculoRef?.rastreador_imei || null,
   };
 }

@@ -8,7 +8,7 @@ import { nitro } from "nitro/vite";
 // ─────────────────────────────────────────────────────────────────────────────
 // GD Segurança — Versão do Sistema (A.B.C.D)
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "1.0.1.5";
+const APP_VERSION = "1.0.1.6";
 
 export default defineConfig(({ command, mode }) => {
   const loadedEnv = loadEnv(mode, process.cwd(), "VITE_");

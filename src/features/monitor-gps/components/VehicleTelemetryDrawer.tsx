@@ -1118,31 +1118,58 @@ export function VehicleTelemetryDrawer({
                   Sem Sinal
                 </span>
               )}
-              {podeVerCondicaoOperacional && (
+              {isPropriedade ? (
                 <>
-                  {isBloqueado && (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
-                      Bloqueado
-                    </span>
-                  )}
-                  {isEmRota ? (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 shrink-0">
-                      Em Rota
-                    </span>
-                  ) : isParadoLigado ? (
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
-                      Ligado
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0">
+                    Propriedade Fixa
+                  </span>
+                  {turnoAtivo ? (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-700 dark:text-sky-300 border border-sky-500/30 shrink-0">
+                      Escala Ativa
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
-                      Estacionado
+                      Sem Vigilante Escalado
+                    </span>
+                  )}
+                  {veiculo.rastreador_imei ? (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
+                      Rastreador Conectado
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                      Sem Dispositivo Portátil
                     </span>
                   )}
                 </>
+              ) : (
+                podeVerCondicaoOperacional && (
+                  <>
+                    {isBloqueado && (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
+                        Bloqueado
+                      </span>
+                    )}
+                    {isEmRota ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 shrink-0">
+                        Em Rota
+                      </span>
+                    ) : isParadoLigado ? (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                        Ligado
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+                        Estacionado
+                      </span>
+                    )}
+                  </>
+                )
               )}
 
-              {/* Indicador de Tipo de Bloqueador no Cockpit - Restrito a Administradores e Operadores */}
-              {podeVerTipoBloqueador &&
+              {/* Indicador de Tipo de Bloqueador no Cockpit - Omitido em Propriedades Monitoradas */}
+              {!isPropriedade &&
+                podeVerTipoBloqueador &&
                 (!temBloqueador ? (
                   <span
                     className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700 shrink-0"
@@ -1212,11 +1239,19 @@ export function VehicleTelemetryDrawer({
               </div>
             ) : (
               <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5 flex-wrap">
-                <span className="text-orange-600 dark:text-orange-400 font-bold">
-                  {veiculo.velocidade || 0} km/h
-                </span>
-                <span>·</span>
-                <span>{veiculo.ignicao ? "Ignição Ligada" : "Ignição Desligada"}</span>
+                {isPropriedade ? (
+                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                    Posto Georreferenciado
+                  </span>
+                ) : (
+                  <>
+                    <span className="text-orange-600 dark:text-orange-400 font-bold">
+                      {veiculo.velocidade || 0} km/h
+                    </span>
+                    <span>·</span>
+                    <span>{veiculo.ignicao ? "Ignição Ligada" : "Ignição Desligada"}</span>
+                  </>
+                )}
                 {veiculo.latitude && veiculo.longitude && (
                   <>
                     <span>·</span>

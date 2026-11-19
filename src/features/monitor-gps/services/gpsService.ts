@@ -1107,12 +1107,12 @@ export async function testarComunicacaoRastreador(
     return {
       ativo: true,
       statusTexto: "ativo",
-      rotulo: "Propriedade Monitorada Ativa",
+      rotulo: "Propriedade Georreferenciada Ativa",
       minutosDesdeUltimaTransmissao: 0,
       latenciaMs,
-      mensagem: `Propriedade Monitorada: Perímetro de segurança e telemetria operacional (Ping: ${latenciaMs}ms)`,
+      mensagem: `Propriedade Monitorada: Perímetro de segurança e coordenadas auditadas no cadastro (Latência: ${latenciaMs}ms)`,
       ultimaAtualizacao: new Date().toISOString(),
-      rastreador_modelo: "Módulo Vigilante e Rondas",
+      rastreador_modelo: "Posto Fixo Georreferenciado",
     };
   }
 
