@@ -363,7 +363,11 @@ export function GpsMonitorView({
           setVeiculoSelecionado(veiculosFiltrados[0]);
         }
       }
-    } else if (!veiculoSelecionado && veiculosFiltrados.length === 1 && postosVigilancia.length === 0) {
+    } else if (
+      !veiculoSelecionado &&
+      veiculosFiltrados.length === 1 &&
+      postosVigilancia.length === 0
+    ) {
       setVeiculoSelecionado(veiculosFiltrados[0]);
     }
   }, [
@@ -1414,8 +1418,7 @@ export function GpsMonitorView({
     if (window.innerWidth < 768) setSidebarAberta(false);
 
     const isPropriedade =
-      isPropriedadeMonitorada(v, turnosVigilancia, postosVigilancia) ||
-      v.id.startsWith("posto-");
+      isPropriedadeMonitorada(v, turnosVigilancia, postosVigilancia) || v.id.startsWith("posto-");
 
     if (modoVisualizacao === "3D") {
       if (isPropriedade) {
