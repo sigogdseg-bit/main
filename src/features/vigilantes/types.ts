@@ -37,7 +37,7 @@ export interface RondaCheckpoint {
   ordem: number;
   horario_previsto: string; // "HH:MM:SS" ou "HH:MM"
   tolerancia_minutos: number; // Padrão estrito: 3 minutos
-  raio_captura_metros: number; // Padrão: 20 metros
+  raio_captura_metros: number; // Padrão cirúrgico: 5 metros (presença física estrita recomendada para GNSS civil)
   cor_marcador: string; // Padrão: '#2563eb' (Azul tático)
   ativo: boolean;
   created_at?: string;

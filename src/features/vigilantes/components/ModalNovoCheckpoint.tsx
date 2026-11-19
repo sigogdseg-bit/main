@@ -33,7 +33,7 @@ export function ModalNovoCheckpoint({
     checkpointEmEdicao?.tolerancia_minutos ?? 3,
   );
   const [raioCapturaMetros, setRaioCapturaMetros] = useState(
-    checkpointEmEdicao?.raio_captura_metros ?? 20,
+    checkpointEmEdicao?.raio_captura_metros ?? 5,
   );
   const [latitude, setLatitude] = useState(
     checkpointEmEdicao?.latitude || coordenadasIniciais?.latitude || 0,
@@ -203,13 +203,16 @@ export function ModalNovoCheckpoint({
                 </label>
                 <input
                   type="number"
-                  min="5"
+                  min="3"
                   max="100"
-                  step="5"
+                  step="1"
                   value={raioCapturaMetros}
-                  onChange={(e) => setRaioCapturaMetros(parseInt(e.target.value, 10) || 20)}
-                  className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                  onChange={(e) => setRaioCapturaMetros(parseInt(e.target.value, 10) || 5)}
+                  className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono font-bold"
                 />
+                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium block mt-1">
+                  Padrão cirúrgico: 5m (presença física real)
+                </span>
               </div>
             </div>
 

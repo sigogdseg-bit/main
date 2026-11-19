@@ -1562,40 +1562,12 @@ export function GpsMonitorView({
               </button>
             )}
 
-            {/* Alternar Modo Frota Mobile (Múltiplos Veículos) */}
-            {veiculosFiltrados.length > 1 && (
-              <button
-                type="button"
-                onClick={() => {
-                  const proximo = !modoVisaoFrota;
-                  setModoVisaoFrota(proximo);
-                  setTimeout(() => {
-                    if (modoVisualizacao === "3D") {
-                      maplibreRef.current?.fitBounds(veiculosFiltrados);
-                    } else {
-                      leafletRef.current?.fitBounds(veiculosFiltrados);
-                    }
-                  }, 100);
-                }}
-                className={`p-1.5 rounded-xl border transition cursor-pointer ${
-                  modoVisaoFrota
-                    ? "bg-blue-600/20 border-blue-500/50 text-blue-600 dark:text-blue-400"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700"
-                }`}
-                title={
-                  modoVisaoFrota
-                    ? "Visão de Frota Ativa (ver todos) — toque para focar apenas um veículo"
-                    : "Ver toda a frota no mapa"
-                }
-              >
-                <Layers className="h-4 w-4 text-blue-500" />
-              </button>
-            )}
-
-            {/* FitBounds Mobile */}
+            {/* Mobile: Toda a Frota */}
             <button
+              type="button"
               onClick={() => {
-                const alvos = modoVisaoFrota ? veiculosFiltrados : veiculosNoMapa;
+                setModoVisaoFrota(true);
+                const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
                 if (modoVisualizacao === "3D") {
                   maplibreRef.current?.fitBounds(alvos);
                 } else {
@@ -1603,9 +1575,45 @@ export function GpsMonitorView({
                 }
               }}
               className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
-              title="Enquadrar veículos"
+              title="Mostrar toda a frota"
             >
-              <Crosshair className="h-4 w-4 text-orange-500" />
+              <Car className="h-4 w-4 text-blue-500" />
+            </button>
+
+            {/* Mobile: Todos os Postos */}
+            {postosVigilancia.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (modoVisualizacao === "3D") {
+                    maplibreRef.current?.fitBoundsPostos?.(postosVigilancia);
+                  } else {
+                    leafletRef.current?.fitBoundsPostos(postosVigilancia);
+                  }
+                }}
+                className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                title="Mostrar todos os postos"
+              >
+                <Building2 className="h-4 w-4 text-emerald-500" />
+              </button>
+            )}
+
+            {/* Mobile: Mapa Geral */}
+            <button
+              type="button"
+              onClick={() => {
+                setModoVisaoFrota(true);
+                const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
+                if (modoVisualizacao === "3D") {
+                  maplibreRef.current?.fitBoundsGeral?.(alvos, postosVigilancia);
+                } else {
+                  leafletRef.current?.fitBoundsGeral(alvos, postosVigilancia);
+                }
+              }}
+              className="p-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-emerald-600 text-white shadow-xs"
+              title="Mapa Geral: Frota e Postos"
+            >
+              <Globe className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -1866,52 +1874,69 @@ export function GpsMonitorView({
               </button>
             )}
 
-            {/* Botão Visão de Frota (Múltiplos Veículos Simultâneos) */}
-            {veiculosFiltrados.length > 1 && (
+            {/* Grupo Canônico de Enquadramento Operacional (Toda Frota, Todos Postos, Mapa Geral) */}
+            <div className="flex items-center gap-1 bg-slate-200/60 dark:bg-slate-950/40 p-0.5 rounded-2xl border border-slate-300/60 dark:border-slate-800">
+              {/* 1. Toda a Frota: mostra todos os veículos */}
               <button
                 type="button"
                 onClick={() => {
-                  const proximo = !modoVisaoFrota;
-                  setModoVisaoFrota(proximo);
-                  setTimeout(() => {
-                    if (modoVisualizacao === "3D") {
-                      maplibreRef.current?.fitBounds(veiculosFiltrados);
-                    } else {
-                      leafletRef.current?.fitBounds(veiculosFiltrados);
-                    }
-                  }, 100);
+                  setModoVisaoFrota(true);
+                  const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
+                  if (modoVisualizacao === "3D") {
+                    maplibreRef.current?.fitBounds(alvos);
+                  } else {
+                    leafletRef.current?.fitBounds(alvos);
+                  }
                 }}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border font-semibold transition cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs ${
                   modoVisaoFrota
-                    ? "bg-blue-600/20 border-blue-500/50 text-blue-600 dark:text-blue-400 shadow-xs"
-                    : "bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                    ? "bg-blue-600/20 text-blue-600 dark:text-blue-400"
+                    : "text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400"
                 }`}
-                title={
-                  modoVisaoFrota
-                    ? "Modo Frota Ativo: todos os veículos visíveis simultaneamente no mapa"
-                    : "Ativar visão simultânea de todos os veículos da frota"
-                }
+                title="Ver Frota: mostrar toda a frota e enquadrar todos os veículos no mapa"
               >
-                <Layers className="h-3.5 w-3.5 text-blue-500" />
+                <Car className="h-3.5 w-3.5 text-blue-500" />
                 <span>{modoVisaoFrota ? "Frota Completa" : "Ver Frota"}</span>
               </button>
-            )}
 
-            {/* Botão Ajustar Frota (Fit Bounds) */}
-            <button
-              onClick={() => {
-                const alvos = modoVisaoFrota ? veiculosFiltrados : veiculosNoMapa;
-                if (modoVisualizacao === "3D") {
-                  maplibreRef.current?.fitBounds(alvos);
-                } else {
-                  leafletRef.current?.fitBounds(alvos);
-                }
-              }}
-              className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition"
-              title="Enquadrar toda a frota no mapa"
-            >
-              <Crosshair className="h-4 w-4 text-orange-500" />
-            </button>
+              {/* 2. Todos os Postos: mostra todos os postos */}
+              {postosVigilancia.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (modoVisualizacao === "3D") {
+                      maplibreRef.current?.fitBoundsPostos?.(postosVigilancia);
+                    } else {
+                      leafletRef.current?.fitBoundsPostos(postosVigilancia);
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer shadow-xs"
+                  title="Mostrar todos os postos: enquadra todos os postos de vigilância"
+                >
+                  <Building2 className="h-3.5 w-3.5 text-emerald-500" />
+                  <span>Todos os Postos</span>
+                </button>
+              )}
+
+              {/* 3. Mapa Geral: mostra frota e postos simultaneamente */}
+              <button
+                type="button"
+                onClick={() => {
+                  setModoVisaoFrota(true);
+                  const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
+                  if (modoVisualizacao === "3D") {
+                    maplibreRef.current?.fitBoundsGeral?.(alvos, postosVigilancia);
+                  } else {
+                    leafletRef.current?.fitBoundsGeral(alvos, postosVigilancia);
+                  }
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white transition cursor-pointer shadow-sm"
+                title="Mapa Geral: enquadra simultaneamente todos os veículos da frota e todos os postos"
+              >
+                <Globe className="h-3.5 w-3.5" />
+                <span>Mapa Geral</span>
+              </button>
+            </div>
 
             {/* Botão Tela Cheia */}
             <button
@@ -2029,50 +2054,98 @@ export function GpsMonitorView({
                 )}
               </button>
 
-              {/* Alternância de Visão no Mapa: Foco Individual vs Frota Completa */}
-              {veiculosFiltrados.length > 1 && (
-                <div className="flex items-center justify-between p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/60 text-xs">
-                  <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+              {/* Controles de Visão e Enquadramento no Mapa (Frota, Postos e Mapa Geral) */}
+              <div className="p-2 bg-slate-100 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700/60 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between px-0.5">
+                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                     <Layers className="h-3.5 w-3.5 text-blue-500" />
                     Visão no Mapa:
                   </span>
-                  <div className="flex items-center gap-1">
+                  {veiculosFiltrados.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => setModoVisaoFrota(false)}
-                      className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
-                        !modoVisaoFrota
-                          ? "bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs"
-                          : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                      }`}
-                      title="Exibir apenas o veículo focado"
-                    >
-                      Foco
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModoVisaoFrota(true);
-                        setTimeout(() => {
-                          if (modoVisualizacao === "3D") {
-                            maplibreRef.current?.fitBounds(veiculosFiltrados);
-                          } else {
-                            leafletRef.current?.fitBounds(veiculosFiltrados);
-                          }
-                        }, 100);
-                      }}
-                      className={`px-2 py-0.5 rounded-lg text-[11px] font-bold transition cursor-pointer ${
+                      onClick={() => setModoVisaoFrota(!modoVisaoFrota)}
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
                         modoVisaoFrota
-                          ? "bg-blue-600 text-white shadow-xs"
-                          : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                          ? "bg-blue-600/15 text-blue-600 dark:text-blue-400"
+                          : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-200"
                       }`}
-                      title="Exibir todos os veículos da frota simultaneamente no mapa"
+                      title={
+                        modoVisaoFrota
+                          ? "Alternar para Foco Individual"
+                          : "Alternar para Modo Frota"
+                      }
                     >
-                      Toda Frota ({veiculosFiltrados.length})
+                      {modoVisaoFrota ? "Modo Frota" : "Modo Foco"}
                     </button>
-                  </div>
+                  )}
                 </div>
-              )}
+
+                <div className="grid grid-cols-3 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoVisaoFrota(true);
+                      const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
+                      if (modoVisualizacao === "3D") {
+                        maplibreRef.current?.fitBounds(alvos);
+                      } else {
+                        leafletRef.current?.fitBounds(alvos);
+                      }
+                    }}
+                    className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shadow-xs border border-slate-200 dark:border-slate-600 text-center"
+                    title="Mostrar toda a frota: enquadra todos os veículos no mapa"
+                  >
+                    <Car className="h-3.5 w-3.5 text-blue-500 mb-0.5" />
+                    <span className="text-[10px] font-bold leading-tight">
+                      Toda Frota ({veiculosFiltrados.length})
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (modoVisualizacao === "3D") {
+                        maplibreRef.current?.fitBoundsPostos?.(postosVigilancia);
+                      } else {
+                        leafletRef.current?.fitBoundsPostos(postosVigilancia);
+                      }
+                    }}
+                    disabled={postosVigilancia.length === 0}
+                    className={`flex flex-col items-center justify-center p-1.5 rounded-lg text-center transition shadow-xs border ${
+                      postosVigilancia.length > 0
+                        ? "bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer border-slate-200 dark:border-slate-600"
+                        : "opacity-40 cursor-not-allowed bg-slate-50 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700"
+                    }`}
+                    title={
+                      postosVigilancia.length > 0
+                        ? "Mostrar todos os postos: enquadra todos os postos de vigilância"
+                        : "Nenhum posto de vigilância cadastrado"
+                    }
+                  >
+                    <Building2 className="h-3.5 w-3.5 text-emerald-500 mb-0.5" />
+                    <span className="text-[10px] font-bold leading-tight">Todos Postos</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setModoVisaoFrota(true);
+                      const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
+                      if (modoVisualizacao === "3D") {
+                        maplibreRef.current?.fitBoundsGeral?.(alvos, postosVigilancia);
+                      } else {
+                        leafletRef.current?.fitBoundsGeral(alvos, postosVigilancia);
+                      }
+                    }}
+                    className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white transition cursor-pointer shadow-xs text-center"
+                    title="Mapa Geral: enquadra simultaneamente toda a frota e todos os postos"
+                  >
+                    <Globe className="h-3.5 w-3.5 mb-0.5" />
+                    <span className="text-[10px] font-bold leading-tight">Mapa Geral</span>
+                  </button>
+                </div>
+              </div>
 
               {/* Filtros de Status (exibido para Administradores e Clientes titulares) */}
               {podeVerFiltrosStatus && (

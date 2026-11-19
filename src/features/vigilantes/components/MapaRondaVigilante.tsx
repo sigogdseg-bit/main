@@ -158,7 +158,7 @@ export function MapaRondaVigilante({
             Janela de Tolerância: <strong>±${cp.tolerancia_minutos || 3} minutos</strong>
           </div>
           <div style="color: #64748b; font-size: 10px; margin-top: 2px;">
-            Raio de Captura: ${cp.raio_captura_metros || 20} metros
+            Raio de Captura: ${cp.raio_captura_metros || 5} metros
           </div>
         </div>
       `);

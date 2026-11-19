@@ -508,7 +508,7 @@ export function VigilantesView() {
                               {cp.nome}
                             </span>
                             <span className="text-[10px] text-slate-400 font-mono">
-                              Captura: {cp.raio_captura_metros || 20}m
+                              Captura: {cp.raio_captura_metros || 5}m
                             </span>
                           </div>
                         </div>

@@ -24,7 +24,10 @@ import { clusterizarVeiculos, gerarMarcadorClusterHtml } from "../utils/clusterV
 
 export interface MapLibre3DEngineHandle {
   fitBounds: (veiculosAlvo?: VeiculoGps[]) => void;
+  fitBoundsPostos?: (postosAlvo?: any[]) => void;
+  fitBoundsGeral?: (veiculosAlvo?: VeiculoGps[], postosAlvo?: any[]) => void;
   centralizarVeiculo: (v: VeiculoGps) => void;
+  centralizarCoordenadas?: (lat: number, lng: number, zoom?: number) => void;
 }
 
 interface MapLibre3DEngineProps {
@@ -162,6 +165,111 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
       }
     };
 
+    // Ajusta a visão para abranger todos os postos de vigilância
+    const ajustarVisaoPostos = (postosAlvo?: any[]) => {
+      const map = mapInstanceRef.current;
+      const lista = postosAlvo || [];
+      if (!map || lista.length === 0) return;
+
+      const bounds = new maplibregl.LngLatBounds();
+      let count = 0;
+      lista.forEach((p: any) => {
+        if (!p.ativo) return;
+        if (coordenadaValidaMapa(p.latitude, p.longitude)) {
+          bounds.extend([p.longitude, p.latitude]);
+          count++;
+        }
+        if (p.perimetro_poligono?.coordinates && p.perimetro_poligono.coordinates.length >= 3) {
+          p.perimetro_poligono.coordinates.forEach(([lat, lng]: [number, number]) => {
+            if (coordenadaValidaMapa(lat, lng)) {
+              bounds.extend([lng, lat]);
+              count++;
+            }
+          });
+        }
+      });
+
+      if (count === 1) {
+        programmaticFlyUntilRef.current =
+          (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1300;
+        map.flyTo({
+          center: bounds.getCenter(),
+          zoom: 17,
+          pitch: 0,
+          bearing: 0,
+          essential: true,
+          duration: 1000,
+        });
+      } else if (count > 1) {
+        programmaticFlyUntilRef.current =
+          (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1300;
+        map.fitBounds(bounds, {
+          padding: 80,
+          pitch: 0,
+          bearing: 0,
+          duration: 1000,
+          maxZoom: 17,
+        });
+      }
+    };
+
+    // Ajusta a visão para o Mapa Geral: abrange toda a frota E todos os postos
+    const ajustarVisaoGeral = (veiculosAlvo?: VeiculoGps[], postosAlvo?: any[]) => {
+      const map = mapInstanceRef.current;
+      if (!map) return;
+      const frota = veiculosAlvo && veiculosAlvo.length > 0 ? veiculosAlvo : veiculosRef.current;
+      const lista = postosAlvo || [];
+
+      const bounds = new maplibregl.LngLatBounds();
+      let count = 0;
+
+      frota.forEach((v) => {
+        if (coordenadaValidaMapa(v.latitude, v.longitude)) {
+          bounds.extend([v.longitude, v.latitude]);
+          count++;
+        }
+      });
+
+      lista.forEach((p: any) => {
+        if (!p.ativo) return;
+        if (coordenadaValidaMapa(p.latitude, p.longitude)) {
+          bounds.extend([p.longitude, p.latitude]);
+          count++;
+        }
+        if (p.perimetro_poligono?.coordinates && p.perimetro_poligono.coordinates.length >= 3) {
+          p.perimetro_poligono.coordinates.forEach(([lat, lng]: [number, number]) => {
+            if (coordenadaValidaMapa(lat, lng)) {
+              bounds.extend([lng, lat]);
+              count++;
+            }
+          });
+        }
+      });
+
+      if (count === 1) {
+        programmaticFlyUntilRef.current =
+          (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1300;
+        map.flyTo({
+          center: bounds.getCenter(),
+          zoom: 16,
+          pitch: 0,
+          bearing: 0,
+          essential: true,
+          duration: 1000,
+        });
+      } else if (count > 1) {
+        programmaticFlyUntilRef.current =
+          (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1300;
+        map.fitBounds(bounds, {
+          padding: 80,
+          pitch: 0,
+          bearing: 0,
+          duration: 1000,
+          maxZoom: 16,
+        });
+      }
+    };
+
     const sincronizarQuadrosMapLibre = useCallback((agoraMs: number) => {
       const map = mapInstanceRef.current;
       const controlador = controladorMovimentoRef.current;
@@ -196,6 +304,8 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
 
     useImperativeHandle(ref, () => ({
       fitBounds: ajustarVisaoFrota,
+      fitBoundsPostos: ajustarVisaoPostos,
+      fitBoundsGeral: ajustarVisaoGeral,
       centralizarVeiculo: (v: VeiculoGps) => {
         if (mapInstanceRef.current && coordenadaValidaMapa(v?.latitude, v?.longitude)) {
           seguindoCameraRef.current = true;
@@ -211,6 +321,17 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
             pitch: 60,
             bearing: v.rumo || 0,
             essential: true,
+            duration: 1000,
+          });
+        }
+      },
+      centralizarCoordenadas: (lat: number, lng: number, zoom?: number) => {
+        if (mapInstanceRef.current && coordenadaValidaMapa(lat, lng)) {
+          seguindoCameraRef.current = false;
+          mapInstanceRef.current.flyTo({
+            center: [lng, lat],
+            zoom: zoom || 17,
+            pitch: 50,
             duration: 1000,
           });
         }

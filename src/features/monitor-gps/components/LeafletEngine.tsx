@@ -27,6 +27,8 @@ import type { PostoVigilancia } from "@/features/vigilantes/types";
 
 export interface LeafletEngineHandle {
   fitBounds: (veiculosAlvo?: VeiculoGps[]) => void;
+  fitBoundsPostos: (postosAlvo?: PostoVigilancia[]) => void;
+  fitBoundsGeral: (veiculosAlvo?: VeiculoGps[], postosAlvo?: PostoVigilancia[]) => void;
   centralizarVeiculo: (v: VeiculoGps) => void;
   centralizarCoordenadas: (lat: number, lng: number, zoom?: number) => void;
 }
@@ -104,6 +106,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
     }, []);
     const veiculosRef = useRef(veiculos);
     veiculosRef.current = veiculos;
+    const postosRef = useRef(postos);
+    postosRef.current = postos;
 
     // Ajusta a visão para abranger todos os veículos sem deixar nenhum de fora
     const ajustarVisaoFrota = (veiculosAlvo?: VeiculoGps[]) => {
@@ -120,6 +124,74 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       } else if (pontosValidos.length > 1) {
         const bounds = L.latLngBounds(pontosValidos.map((v) => [v.latitude, v.longitude]));
         // Padding generoso de 80px para garantir que veículos nas bordas ou distantes nunca fiquem fora da visão
+        map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
+      }
+    };
+
+    // Ajusta a visão para abranger todos os postos de vigilância
+    const ajustarVisaoPostos = (postosAlvo?: PostoVigilancia[]) => {
+      const map = mapInstanceRef.current;
+      const lista = postosAlvo && postosAlvo.length > 0 ? postosAlvo : postosRef.current || [];
+      if (!map || lista.length === 0) return;
+
+      const coordenadas: [number, number][] = [];
+      lista.forEach((p) => {
+        if (!p.ativo) return;
+        if (coordenadaValidaMapa(p.latitude, p.longitude)) {
+          coordenadas.push([p.latitude, p.longitude]);
+        }
+        if (p.perimetro_poligono?.coordinates && p.perimetro_poligono.coordinates.length >= 3) {
+          p.perimetro_poligono.coordinates.forEach(([lat, lng]) => {
+            if (coordenadaValidaMapa(lat, lng)) {
+              coordenadas.push([lat, lng]);
+            }
+          });
+        }
+      });
+
+      if (coordenadas.length === 1) {
+        map.setView(coordenadas[0], 17, { animate: true });
+      } else if (coordenadas.length > 1) {
+        const bounds = L.latLngBounds(coordenadas);
+        map.fitBounds(bounds, { padding: [80, 80], maxZoom: 17, animate: true });
+      }
+    };
+
+    // Ajusta a visão para o Mapa Geral: abrange toda a frota E todos os postos
+    const ajustarVisaoGeral = (veiculosAlvo?: VeiculoGps[], postosAlvo?: PostoVigilancia[]) => {
+      const map = mapInstanceRef.current;
+      if (!map) return;
+
+      const frota = veiculosAlvo && veiculosAlvo.length > 0 ? veiculosAlvo : veiculosRef.current;
+      const listaPostos =
+        postosAlvo && postosAlvo.length > 0 ? postosAlvo : postosRef.current || [];
+
+      const coordenadas: [number, number][] = [];
+
+      frota.forEach((v) => {
+        if (coordenadaValidaMapa(v.latitude, v.longitude)) {
+          coordenadas.push([v.latitude, v.longitude]);
+        }
+      });
+
+      listaPostos.forEach((p) => {
+        if (!p.ativo) return;
+        if (coordenadaValidaMapa(p.latitude, p.longitude)) {
+          coordenadas.push([p.latitude, p.longitude]);
+        }
+        if (p.perimetro_poligono?.coordinates && p.perimetro_poligono.coordinates.length >= 3) {
+          p.perimetro_poligono.coordinates.forEach(([lat, lng]) => {
+            if (coordenadaValidaMapa(lat, lng)) {
+              coordenadas.push([lat, lng]);
+            }
+          });
+        }
+      });
+
+      if (coordenadas.length === 1) {
+        map.setView(coordenadas[0], 16, { animate: true });
+      } else if (coordenadas.length > 1) {
+        const bounds = L.latLngBounds(coordenadas);
         map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
       }
     };
@@ -165,6 +237,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
 
     useImperativeHandle(ref, () => ({
       fitBounds: ajustarVisaoFrota,
+      fitBoundsPostos: ajustarVisaoPostos,
+      fitBoundsGeral: ajustarVisaoGeral,
       centralizarVeiculo: (v: VeiculoGps) => {
         if (mapInstanceRef.current && coordenadaValidaMapa(v?.latitude, v?.longitude)) {
           seguindoCameraRef.current = true;

@@ -476,7 +476,7 @@ export async function salvarCheckpoint(
           ordem: checkpoint.ordem ?? 1,
           horario_previsto: checkpoint.horario_previsto,
           tolerancia_minutos: checkpoint.tolerancia_minutos ?? 3,
-          raio_captura_metros: checkpoint.raio_captura_metros ?? 20,
+          raio_captura_metros: checkpoint.raio_captura_metros ?? 5,
           cor_marcador: checkpoint.cor_marcador || "#2563eb",
           ativo: checkpoint.ativo ?? true,
         })
@@ -495,7 +495,7 @@ export async function salvarCheckpoint(
           ordem: checkpoint.ordem ?? 1,
           horario_previsto: checkpoint.horario_previsto!,
           tolerancia_minutos: checkpoint.tolerancia_minutos ?? 3,
-          raio_captura_metros: checkpoint.raio_captura_metros ?? 20,
+          raio_captura_metros: checkpoint.raio_captura_metros ?? 5,
           cor_marcador: checkpoint.cor_marcador || "#2563eb",
           ativo: checkpoint.ativo ?? true,
         })
@@ -530,7 +530,7 @@ export async function salvarCheckpoint(
         ordem: checkpoint.ordem ?? lista.length + 1,
         horario_previsto: checkpoint.horario_previsto!,
         tolerancia_minutos: checkpoint.tolerancia_minutos ?? 3,
-        raio_captura_metros: checkpoint.raio_captura_metros ?? 20,
+        raio_captura_metros: checkpoint.raio_captura_metros ?? 5,
         cor_marcador: checkpoint.cor_marcador || "#2563eb",
         ativo: true,
         created_at: new Date().toISOString(),
@@ -815,7 +815,7 @@ export function avaliarPosicaoVigilante(
       minutosAgora,
       cp.tolerancia_minutos ?? 3,
     );
-    const dentroRaio = dist <= (cp.raio_captura_metros ?? 20);
+    const dentroRaio = dist <= (cp.raio_captura_metros ?? 5);
 
     if (!maisProximo || dist < maisProximo.distanciaMetros) {
       maisProximo = {

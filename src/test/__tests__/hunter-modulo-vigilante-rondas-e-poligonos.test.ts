@@ -134,7 +134,7 @@ describe("Hunter — Módulo Vigilante, Rondas Táticas e Editor de Polígono In
         ordem: 1,
         horario_previsto: "22:00:00",
         tolerancia_minutos: 3,
-        raio_captura_metros: 20,
+        raio_captura_metros: 5,
         cor_marcador: "#2563eb",
         ativo: true,
       },
@@ -147,16 +147,16 @@ describe("Hunter — Módulo Vigilante, Rondas Táticas e Editor de Polígono In
         ordem: 2,
         horario_previsto: "22:30:00",
         tolerancia_minutos: 3,
-        raio_captura_metros: 20,
+        raio_captura_metros: 5,
         cor_marcador: "#2563eb",
         ativo: true,
       },
     ];
 
     it("detecta vigilante dentro do perímetro e próximo ao checkpoint 1", () => {
-      // Posição a ~5 metros do CP-01
-      const latVig = -22.50204;
-      const lonVig = -44.09503;
+      // Posição a ~3 metros do CP-01 (dentro do raio de 5m)
+      const latVig = -22.50202;
+      const lonVig = -44.09502;
       const horaSimulada = new Date("2026-11-18T22:02:00"); // Dentro da janela (22:00 + 2 min)
 
       const res = avaliarPosicaoVigilante(latVig, lonVig, postoMock, checkpointsMock, horaSimulada);
