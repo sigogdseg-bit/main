@@ -27,6 +27,8 @@ import { HunterVehicleCard } from "./HunterVehicleCard";
 import { obterEnderecoPorCoordenadas } from "@/features/monitor-gps/services/compartilhamentoService";
 import { ModalPixRapido } from "@/features/mensalidades/components/ModalPixRapido";
 import { ModalGerenciarLocatarios } from "@/features/locatarios/components/ModalGerenciarLocatarios";
+import { listarLocatarios } from "@/features/locatarios/services/locatarioService";
+import type { LocatarioCliente } from "@/features/locatarios/types";
 import { carregarPostosVigilancia } from "@/features/vigilantes/services/vigilanteService";
 import type { PostoVigilancia } from "@/features/vigilantes/types";
 import {
@@ -66,6 +68,8 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
 
   // Gestão de Locatários Subordinados
   const [modalLocatariosAberto, setModalLocatariosAberto] = useState(false);
+  const [locatarios, setLocatarios] = useState<LocatarioCliente[]>([]);
+  const [locatarioFiltroSelecionado, setLocatarioFiltroSelecionado] = useState<string>("todos");
 
   // Propriedades Monitoradas (Postos Fixos do Cliente)
   const [postosFixos, setPostosFixos] = useState<PostoVigilancia[]>([]);
@@ -103,6 +107,23 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
       ativo = false;
     };
   }, []);
+
+  // Carrega a lista de locatários para o cliente que tem locatário
+  const recarregarLocatarios = async () => {
+    if (isLocatario) return;
+    try {
+      const lista = await listarLocatarios(session?.clienteId || undefined);
+      if (Array.isArray(lista)) {
+        setLocatarios(lista);
+      }
+    } catch (err) {
+      console.warn("Erro ao carregar locatários na visão do cliente:", err);
+    }
+  };
+
+  useEffect(() => {
+    recarregarLocatarios();
+  }, [session?.clienteId, isLocatario]);
 
   // Carrega postos fixos vinculados ao cliente
   useEffect(() => {
@@ -185,9 +206,22 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     };
   }, [session?.userId, session?.clienteId, session?.isMotorista, isLocatario]);
 
-  // Filtro de busca e status de infográficos
+  // Filtro de busca, status de infográficos e filtro de locatário
   const veiculosFiltrados = useMemo(() => {
     let lista = veiculos;
+
+    // Filtro por locatário selecionado
+    if (locatarioFiltroSelecionado !== "todos") {
+      const loc = locatarios.find((l) => l.id === locatarioFiltroSelecionado);
+      if (loc) {
+        const permitidos = Array.isArray(loc.veiculos_permitidos) ? loc.veiculos_permitidos : [];
+        lista = lista.filter(
+          (v) =>
+            permitidos.includes(v.id) ||
+            Boolean(v.placa && permitidos.includes(v.placa)),
+        );
+      }
+    }
 
     if (filtroStatus === "online") {
       lista = lista.filter((v) => avaliarStatusComunicacao(v.ultima_atualizacao).ativo);
@@ -205,7 +239,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         (v.marca_modelo && v.marca_modelo.toLowerCase().includes(termo)) ||
         (v.cliente_nome && v.cliente_nome.toLowerCase().includes(termo)),
     );
-  }, [veiculos, busca, filtroStatus]);
+  }, [veiculos, busca, filtroStatus, locatarioFiltroSelecionado, locatarios]);
 
   // Contadores rápidos de telemetria baseados na comunicação factual do rastreador
   const totalVeiculos = veiculos.length;
@@ -481,7 +515,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
           </h2>
           <span className="text-xs font-bold text-orange-600 dark:text-orange-400 px-2.5 py-0.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 font-mono font-tabular">
             {veiculosFiltrados.length}
-            {filtroStatus !== "todos" && ` de ${totalVeiculos}`}
+            {(filtroStatus !== "todos" || locatarioFiltroSelecionado !== "todos") && ` de ${totalVeiculos}`}
           </span>
           {filtroStatus !== "todos" && (
             <button
@@ -493,9 +527,39 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
               (Limpar filtro: {filtroStatus})
             </button>
           )}
+          {locatarioFiltroSelecionado !== "todos" && (
+            <button
+              type="button"
+              onClick={() => setLocatarioFiltroSelecionado("todos")}
+              className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
+              title="Limpar filtro de locatário"
+            >
+              (Locatário: {locatarios.find((l) => l.id === locatarioFiltroSelecionado)?.nome} - Ver Todos)
+            </button>
+          )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Dropdown de Locatários para o Cliente Locador (Padrão: Todos) */}
+          {locatarios.length > 0 && !isLocatario && (
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-2.5 py-1.5 shadow-xs shrink-0">
+              <Users className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+              <select
+                value={locatarioFiltroSelecionado}
+                onChange={(e) => setLocatarioFiltroSelecionado(e.target.value)}
+                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                title="Filtrar veículos por locatário"
+              >
+                <option value="todos">Todos os Locatários ({locatarios.length})</option>
+                {locatarios.map((loc) => (
+                  <option key={loc.id} value={loc.id}>
+                    {loc.nome} ({loc.veiculos_permitidos?.length || 0} veíc.)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Gestão de Locatários para Clientes Locadores / ADM / Operador */}
           {!isLocatario && (
             <button
@@ -809,7 +873,10 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
       {!isLocatario && (
         <ModalGerenciarLocatarios
           aberto={modalLocatariosAberto}
-          onFechar={() => setModalLocatariosAberto(false)}
+          onFechar={() => {
+            setModalLocatariosAberto(false);
+            recarregarLocatarios();
+          }}
           clienteId={session?.clienteId}
           veiculosCliente={veiculos}
         />

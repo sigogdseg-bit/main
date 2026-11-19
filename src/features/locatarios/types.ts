@@ -42,6 +42,26 @@ export interface ConviteLocatarioResultado {
 export interface ValidacaoConviteLocatario {
   valido: boolean;
   mensagem?: string;
+  convite?: {
+    id: string;
+    nome: string;
+    email: string;
+    telefone?: string | null;
+    cpf_cnpj?: string | null;
+    cliente_id: string;
+    cliente_nome: string;
+    pode_bloquear: boolean;
+    pode_desbloquear: boolean;
+    pode_bloquear_desbloquear?: boolean;
+    veiculos: {
+      id: string;
+      placa: string;
+      marca?: string;
+      modelo?: string;
+      ano_modelo?: string | number;
+      cor?: string;
+    }[];
+  };
   cliente_nome?: string;
   pode_bloquear?: boolean;
   pode_desbloquear?: boolean;

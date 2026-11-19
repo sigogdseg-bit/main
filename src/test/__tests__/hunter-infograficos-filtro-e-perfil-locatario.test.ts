@@ -244,7 +244,43 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
     );
   });
 
-  it("11. Gate 5: Proibição estrita de caractere comercial em arquivos alterados e novos", () => {
+  it("12. Dropdown de locatários deve existir e filtrar veículos para clientes com locatários em ClienteHomeView e GpsMonitorView", () => {
+    const homeConteudo = fs.readFileSync(
+      path.join(rootDir, "src/features/clientes/components/ClienteHomeView.tsx"),
+      "utf-8",
+    );
+    assert.ok(
+      homeConteudo.includes("locatarios.length > 0"),
+      "ClienteHomeView deve exibir dropdown estritamente se houver locatários cadastrados",
+    );
+    assert.ok(
+      homeConteudo.includes("locatarioFiltroSelecionado"),
+      "ClienteHomeView deve manter estado locatarioFiltroSelecionado",
+    );
+    assert.ok(
+      homeConteudo.includes("Todos os Locatários"),
+      "ClienteHomeView deve ter opção padrão 'Todos os Locatários'",
+    );
+
+    const gpsConteudo = fs.readFileSync(
+      path.join(rootDir, "src/features/monitor-gps/components/GpsMonitorView.tsx"),
+      "utf-8",
+    );
+    assert.ok(
+      gpsConteudo.includes("locatariosCliente.length > 0"),
+      "GpsMonitorView deve exibir dropdown se o cliente selecionado/titular tiver locatários",
+    );
+    assert.ok(
+      gpsConteudo.includes("locatarioFiltroSelecionado"),
+      "GpsMonitorView deve manter estado locatarioFiltroSelecionado",
+    );
+    assert.ok(
+      gpsConteudo.includes("Todos os Locatários"),
+      "GpsMonitorView deve ter opção padrão 'Todos os Locatários'",
+    );
+  });
+
+  it("13. Gate 5: Proibição estrita de caractere comercial em arquivos alterados e novos", () => {
     const arquivos = [
       "src/features/clientes/components/ClienteHomeView.tsx",
       "src/shared/lib/hunterHardwareComandos.ts",
