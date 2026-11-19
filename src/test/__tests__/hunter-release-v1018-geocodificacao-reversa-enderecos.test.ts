@@ -44,10 +44,7 @@ describe("Hunter — Release v1.0.1.8: Geocodificação Reversa e Endereço Leg�
   });
 
   it("3. ClienteHomeView deve repassar enderecoTexto e pré-carregar endereços dos veículos", () => {
-    const caminhoHome = path.join(
-      rootDir,
-      "src/features/clientes/components/ClienteHomeView.tsx",
-    );
+    const caminhoHome = path.join(rootDir, "src/features/clientes/components/ClienteHomeView.tsx");
     const conteudoHome = fs.readFileSync(caminhoHome, "utf-8");
 
     assert.ok(

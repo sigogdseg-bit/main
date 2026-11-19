@@ -389,9 +389,7 @@ export function VehicleTelemetryDrawer({
         >
           <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800 mb-1 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
             <span>
-              {isPropriedade
-                ? "Módulos e Funções da Propriedade"
-                : "Módulos e Funções do Veículo"}
+              {isPropriedade ? "Módulos e Funções da Propriedade" : "Módulos e Funções do Veículo"}
             </span>
             <button
               onClick={() => setMenuAcoesAberto(false)}
@@ -503,175 +501,175 @@ export function VehicleTelemetryDrawer({
             /* MENU PARA VEÍCULOS AUTOMOTORES REGULARES */
             <>
               {/* Seção 1: Navegação e Trajetos */}
-          <div className="space-y-0.5 py-1">
-            <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
-              Navegação e Trajetos
-            </div>
-            {onAbrirTrajetoInteligente && (
-              <button
-                onClick={() => {
-                  setMenuAcoesAberto(false);
-                  onAbrirTrajetoInteligente(veiculo);
-                }}
-                className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
-              >
-                <Navigation className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                    <span>Trajeto Inteligente (A → B)</span>
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-orange-500/20 text-orange-500 font-mono">
-                      IA
-                    </span>
-                  </div>
-                  <div className="text-[10px] text-slate-400">
-                    Calcular caminho pelas ruas e vigiar desvios
-                  </div>
+              <div className="space-y-0.5 py-1">
+                <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
+                  Navegação e Trajetos
                 </div>
-              </button>
-            )}
-            {onAbrirRotasMonitoradas && (
-              <button
-                onClick={() => {
-                  setMenuAcoesAberto(false);
-                  onAbrirRotasMonitoradas(veiculo);
-                }}
-                className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
-              >
-                <Route className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-bold text-slate-900 dark:text-slate-100">
-                    Rotas Monitoradas
-                  </div>
-                  <div className="text-[10px] text-slate-400">
-                    Auditar status de desvio das rotas ativas
-                  </div>
-                </div>
-              </button>
-            )}
-          </div>
-
-          {/* Seção 2: Segurança e Proteção */}
-          <div className="space-y-0.5 py-1 border-t border-slate-100 dark:border-slate-800/80">
-            <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
-              Segurança e Proteção
-            </div>
-            <button
-              onClick={() => {
-                setMenuAcoesAberto(false);
-                setModalAreasAberto(true);
-              }}
-              className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
-            >
-              <Shield className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-bold text-slate-900 dark:text-slate-100">
-                  Áreas Seguras (Cercas Virtuais)
-                </div>
-                <div className="text-[10px] text-slate-400">
-                  Perímetro / raio em torno de Casa ou Trabalho
-                </div>
+                {onAbrirTrajetoInteligente && (
+                  <button
+                    onClick={() => {
+                      setMenuAcoesAberto(false);
+                      onAbrirTrajetoInteligente(veiculo);
+                    }}
+                    className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
+                  >
+                    <Navigation className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                        <span>Trajeto Inteligente (A → B)</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-orange-500/20 text-orange-500 font-mono">
+                          IA
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        Calcular caminho pelas ruas e vigiar desvios
+                      </div>
+                    </div>
+                  </button>
+                )}
+                {onAbrirRotasMonitoradas && (
+                  <button
+                    onClick={() => {
+                      setMenuAcoesAberto(false);
+                      onAbrirRotasMonitoradas(veiculo);
+                    }}
+                    className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
+                  >
+                    <Route className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-slate-100">
+                        Rotas Monitoradas
+                      </div>
+                      <div className="text-[10px] text-slate-400">
+                        Auditar status de desvio das rotas ativas
+                      </div>
+                    </div>
+                  </button>
+                )}
               </div>
-            </button>
-            <button
-              onClick={() => {
-                setMenuAcoesAberto(false);
-                setModalModoViagemAberto(true);
-              }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
-            >
-              <Navigation className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-              <span>Modo Viagem HUD</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuAcoesAberto(false);
-                setModalProtecaoAberto(true);
-              }}
-              className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-rose-500/10 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition text-left cursor-pointer"
-            >
-              <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
-              <div>
-                <div className="font-bold text-slate-900 dark:text-slate-100">
-                  Proteção e Limites
+
+              {/* Seção 2: Segurança e Proteção */}
+              <div className="space-y-0.5 py-1 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+                  Segurança e Proteção
                 </div>
-                <div className="text-[10px] text-slate-400">
-                  Velocidade máxima, cerca virtual e horário
-                </div>
+                <button
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalAreasAberto(true);
+                  }}
+                  className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
+                >
+                  <Shield className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-slate-100">
+                      Áreas Seguras (Cercas Virtuais)
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Perímetro / raio em torno de Casa ou Trabalho
+                    </div>
+                  </div>
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalModoViagemAberto(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
+                >
+                  <Navigation className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                  <span>Modo Viagem HUD</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalProtecaoAberto(true);
+                  }}
+                  className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-rose-500/10 text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 transition text-left cursor-pointer"
+                >
+                  <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-slate-100">
+                      Proteção e Limites
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Velocidade máxima, cerca virtual e horário
+                    </div>
+                  </div>
+                </button>
               </div>
-            </button>
-          </div>
 
-          {/* Seção 3: Diagnóstico e Custódia */}
-          <div className="space-y-0.5 py-1 border-t border-slate-100 dark:border-slate-800/80">
-            <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
-              Diagnóstico e Custódia
-            </div>
-            <button
-              onClick={() => {
-                setMenuAcoesAberto(false);
-                setModalTimelineAberto(true);
-              }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-orange-500 transition text-left"
-            >
-              <History className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-              <span>Timeline do Veículo</span>
-            </button>
-            <button
-              onClick={() => {
-                setMenuAcoesAberto(false);
-                setModalSaudeAberto(true);
-              }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
-            >
-              <HeartPulse className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-              <span>Saúde do Rastreador</span>
-            </button>
-            <button
-              onClick={() => {
-                setMenuAcoesAberto(false);
-                handleTestarComunicacao();
-              }}
-              disabled={testandoCom}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-orange-500 transition text-left"
-            >
-              <Radio className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-              <span>Testar Sinal e Latência</span>
-            </button>
-          </div>
+              {/* Seção 3: Diagnóstico e Custódia */}
+              <div className="space-y-0.5 py-1 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                  Diagnóstico e Custódia
+                </div>
+                <button
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalTimelineAberto(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-orange-500 transition text-left"
+                >
+                  <History className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                  <span>Timeline do Veículo</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalSaudeAberto(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left"
+                >
+                  <HeartPulse className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                  <span>Saúde do Rastreador</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    handleTestarComunicacao();
+                  }}
+                  disabled={testandoCom}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-orange-500 transition text-left"
+                >
+                  <Radio className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                  <span>Testar Sinal e Latência</span>
+                </button>
+              </div>
 
-          {/* Seção 4: Operação */}
-          <div className="space-y-0.5 py-1 border-t border-slate-100 dark:border-slate-800/80">
-            <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
-              Operação
-            </div>
-            <button
-              onClick={() => {
-                setMenuAcoesAberto(false);
-                setModalCompartilharAberto(true);
-              }}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-sky-500/10 text-slate-700 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-400 transition text-left"
-            >
-              <Share2 className="h-3.5 w-3.5 text-sky-500 shrink-0" />
-              <span>Compartilhar Localização</span>
-            </button>
-            <Link
-              to="/manutencao"
-              onClick={() => setMenuAcoesAberto(false)}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-amber-500/10 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 transition text-left"
-            >
-              <Wrench className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-              <span>Manutenção Preventiva</span>
-            </Link>
-            <Link
-              to="/frota"
-              onClick={() => setMenuAcoesAberto(false)}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition text-left"
-            >
-              <Activity className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-              <span>Desempenho da Frota</span>
-            </Link>
-          </div>
+              {/* Seção 4: Operação */}
+              <div className="space-y-0.5 py-1 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                  Operação
+                </div>
+                <button
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalCompartilharAberto(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-sky-500/10 text-slate-700 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-400 transition text-left"
+                >
+                  <Share2 className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                  <span>Compartilhar Localização</span>
+                </button>
+                <Link
+                  to="/manutencao"
+                  onClick={() => setMenuAcoesAberto(false)}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-amber-500/10 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 transition text-left"
+                >
+                  <Wrench className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span>Manutenção Preventiva</span>
+                </Link>
+                <Link
+                  to="/frota"
+                  onClick={() => setMenuAcoesAberto(false)}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-blue-500/10 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition text-left"
+                >
+                  <Activity className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                  <span>Desempenho da Frota</span>
+                </Link>
+              </div>
             </>
           )}
         </div>

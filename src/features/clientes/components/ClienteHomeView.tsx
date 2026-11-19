@@ -21,7 +21,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/context/AuthContext";
-import { carregarVeiculosGps, avaliarStatusComunicacao } from "@/features/monitor-gps/services/gpsService";
+import {
+  carregarVeiculosGps,
+  avaliarStatusComunicacao,
+} from "@/features/monitor-gps/services/gpsService";
 import type { VeiculoGps } from "@/features/monitor-gps/types";
 import { HunterVehicleCard } from "./HunterVehicleCard";
 import { obterEnderecoPorCoordenadas } from "@/features/monitor-gps/services/compartilhamentoService";
@@ -62,7 +65,9 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
   const [carregandoVeiculos, setCarregandoVeiculos] = useState(true);
   const [busca, setBusca] = useState("");
   const [modoVisualizacao, setModoVisualizacao] = useState<"grid" | "lista">("grid");
-  const [filtroStatus, setFiltroStatus] = useState<"todos" | "online" | "offline" | "alertas">("todos");
+  const [filtroStatus, setFiltroStatus] = useState<"todos" | "online" | "offline" | "alertas">(
+    "todos",
+  );
 
   const isLocatario = Boolean(session?.isLocatario || session?.role === "locatario");
 
@@ -216,9 +221,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
       if (loc) {
         const permitidos = Array.isArray(loc.veiculos_permitidos) ? loc.veiculos_permitidos : [];
         lista = lista.filter(
-          (v) =>
-            permitidos.includes(v.id) ||
-            Boolean(v.placa && permitidos.includes(v.placa)),
+          (v) => permitidos.includes(v.id) || Boolean(v.placa && permitidos.includes(v.placa)),
         );
       }
     }
@@ -247,12 +250,8 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     (v) => avaliarStatusComunicacao(v.ultima_atualizacao).ativo,
   ).length;
   const offlineVeiculos = totalVeiculos - onlineVeiculos;
-  const estacionadosVeiculos = veiculos.filter(
-    (v) => !v.ignicao && v.velocidade <= 3,
-  ).length;
-  const emRotaVeiculos = veiculos.filter(
-    (v) => v.ignicao || v.velocidade > 3,
-  ).length;
+  const estacionadosVeiculos = veiculos.filter((v) => !v.ignicao && v.velocidade <= 3).length;
+  const emRotaVeiculos = veiculos.filter((v) => v.ignicao || v.velocidade > 3).length;
   const totalAlertas = veiculos.filter((v) => v.alerta_acidente || v.bloqueado).length;
 
   // Abertura rápida do PIX
@@ -515,7 +514,8 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
           </h2>
           <span className="text-xs font-bold text-orange-600 dark:text-orange-400 px-2.5 py-0.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 font-mono font-tabular">
             {veiculosFiltrados.length}
-            {(filtroStatus !== "todos" || locatarioFiltroSelecionado !== "todos") && ` de ${totalVeiculos}`}
+            {(filtroStatus !== "todos" || locatarioFiltroSelecionado !== "todos") &&
+              ` de ${totalVeiculos}`}
           </span>
           {filtroStatus !== "todos" && (
             <button
@@ -534,7 +534,8 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
               className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
               title="Limpar filtro de locatário"
             >
-              (Locatário: {locatarios.find((l) => l.id === locatarioFiltroSelecionado)?.nome} - Ver Todos)
+              (Locatário: {locatarios.find((l) => l.id === locatarioFiltroSelecionado)?.nome} - Ver
+              Todos)
             </button>
           )}
         </div>
@@ -638,8 +639,8 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
             {busca
               ? `Não localizamos nenhum veículo correspondente ao termo "${busca}".`
               : filtroStatus !== "todos"
-              ? `Nenhum veículo com status "${filtroStatus}" no momento.`
-              : "Nenhum veículo ativo está vinculado à sua conta no momento."}
+                ? `Nenhum veículo com status "${filtroStatus}" no momento.`
+                : "Nenhum veículo ativo está vinculado à sua conta no momento."}
           </p>
           {(filtroStatus !== "todos" || busca) && (
             <button
@@ -699,9 +700,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            statusCom.ativo
-                              ? "bg-emerald-500 animate-pulse"
-                              : "bg-slate-400"
+                            statusCom.ativo ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
                           }`}
                         />
                         {v.velocidade > 3 ? "Em Rota" : v.ignicao ? "Ligado" : "Estacionado"}
@@ -780,7 +779,8 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
                 <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1.5 min-w-0">
                   <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                   <span className="truncate">
-                    {posto.endereco || `Lat: ${posto.latitude.toFixed(4)}, Lon: ${posto.longitude.toFixed(4)}`}
+                    {posto.endereco ||
+                      `Lat: ${posto.latitude.toFixed(4)}, Lon: ${posto.longitude.toFixed(4)}`}
                   </span>
                 </div>
 

@@ -480,7 +480,7 @@ export async function obterEnderecoPorCoordenadas(
 
     const resApi = await fetch(urlApi, {
       headers: {
-        "Accept": "application/json",
+        Accept: "application/json",
       },
     });
 

@@ -351,7 +351,9 @@ export function GpsMonitorView({
       if (locatarioFiltroSelecionado !== "todos") {
         const locObj = locatariosCliente.find((l) => l.id === locatarioFiltroSelecionado);
         if (locObj) {
-          const permitidos = Array.isArray(locObj.veiculos_permitidos) ? locObj.veiculos_permitidos : [];
+          const permitidos = Array.isArray(locObj.veiculos_permitidos)
+            ? locObj.veiculos_permitidos
+            : [];
           const matchId = permitidos.includes(v.id);
           const matchPlaca = Boolean(v.placa && permitidos.includes(v.placa));
           if (!matchId && !matchPlaca) {
@@ -2167,7 +2169,9 @@ export function GpsMonitorView({
                       }}
                       className="w-full py-1.5 pl-2.5 pr-8 bg-white dark:bg-slate-950 border border-slate-300/80 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 shadow-xs cursor-pointer appearance-none"
                     >
-                      <option value="todos">Todos os Clientes ({listaClientesUnicos.length})</option>
+                      <option value="todos">
+                        Todos os Clientes ({listaClientesUnicos.length})
+                      </option>
                       {listaClientesUnicos.map((cli) => (
                         <option key={cli.id} value={cli.id}>
                           {cli.nome} ({cli.totalVeiculos + cli.totalPostos}{" "}
@@ -2226,7 +2230,9 @@ export function GpsMonitorView({
                       }}
                       className="w-full py-1.5 pl-2.5 pr-8 bg-white dark:bg-slate-950 border border-slate-300/80 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 shadow-xs cursor-pointer appearance-none"
                     >
-                      <option value="todos">Todos os Locatários ({locatariosCliente.length})</option>
+                      <option value="todos">
+                        Todos os Locatários ({locatariosCliente.length})
+                      </option>
                       {locatariosCliente.map((loc) => (
                         <option key={loc.id} value={loc.id}>
                           {loc.nome} ({loc.veiculos_permitidos?.length || 0} veíc.)

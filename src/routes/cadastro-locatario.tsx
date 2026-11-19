@@ -170,7 +170,9 @@ function CadastroLocatarioPage() {
         {validando && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 mx-auto rounded-full border-4 border-orange-500 border-t-transparent animate-spin" />
-            <h2 className="text-base font-bold text-white">Validando seu convite de locatário...</h2>
+            <h2 className="text-base font-bold text-white">
+              Validando seu convite de locatário...
+            </h2>
             <p className="text-xs text-slate-400">
               Conectando aos servidores seguros da GD Segurança. Aguarde um instante.
             </p>

@@ -341,7 +341,8 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                     Nenhum locatário cadastrado
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                    Gere um link de convite para permitir que o locatário se cadastre e acompanhe os veículos selecionados.
+                    Gere um link de convite para permitir que o locatário se cadastre e acompanhe os
+                    veículos selecionados.
                   </p>
                   <button
                     type="button"
@@ -453,9 +454,17 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                                 ? "text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/40"
                                 : "text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/40"
                             }`}
-                            title={loc.ativo ? "Bloquear acesso do locatário" : "Desbloquear acesso do locatário"}
+                            title={
+                              loc.ativo
+                                ? "Bloquear acesso do locatário"
+                                : "Desbloquear acesso do locatário"
+                            }
                           >
-                            {loc.ativo ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+                            {loc.ativo ? (
+                              <Lock className="w-3.5 h-3.5" />
+                            ) : (
+                              <Unlock className="w-3.5 h-3.5" />
+                            )}
                           </button>
 
                           {/* Botão de Resetar Senha */}
@@ -488,7 +497,8 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                     <span>Link de Cadastro do Locatário Gerado!</span>
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-300">
-                    Copie ou envie o link abaixo para o locatário concluir o cadastro pelo celular ou computador:
+                    Copie ou envie o link abaixo para o locatário concluir o cadastro pelo celular
+                    ou computador:
                   </p>
 
                   <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-emerald-500/30">
@@ -503,7 +513,11 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                       onClick={() => handleCopiarLink(linkGerado)}
                       className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
                     >
-                      {copiado ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      {copiado ? (
+                        <Check className="w-3.5 h-3.5" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
                       <span>{copiado ? "Copiado!" : "Copiar"}</span>
                     </button>
                   </div>
@@ -639,7 +653,8 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                             Permitir Bloquear Veículo(s)
                           </span>
                           <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                            Locatário poderá acionar corte de combustível e bloqueio nos veículos autorizados
+                            Locatário poderá acionar corte de combustível e bloqueio nos veículos
+                            autorizados
                           </span>
                         </div>
                       </div>

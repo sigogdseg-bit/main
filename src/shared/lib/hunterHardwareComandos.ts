@@ -198,7 +198,10 @@ export function ehComandoConsultaSomenteLeitura(cmd: string): boolean {
  * Utilizado para controle granular independente de permissões do perfil Locatário.
  */
 export function ehComandoBloqueio(cmd: string): boolean {
-  const upper = (cmd || "").trim().toUpperCase().replace(/[\r\n]/g, "");
+  const upper = (cmd || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\r\n]/g, "");
   if (!upper) return false;
 
   // Comandos Concox / GT06 / J16 para armar relé ou cortar combustível
@@ -219,7 +222,10 @@ export function ehComandoBloqueio(cmd: string): boolean {
  * Utilizado para controle granular independente de permissões do perfil Locatário.
  */
 export function ehComandoDesbloqueio(cmd: string): boolean {
-  const upper = (cmd || "").trim().toUpperCase().replace(/[\r\n]/g, "");
+  const upper = (cmd || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\r\n]/g, "");
   if (!upper) return false;
 
   // Comandos Concox / GT06 / J16 para desarme de relé ou restaurar combustível
@@ -242,4 +248,3 @@ export function ehComandoDesbloqueio(cmd: string): boolean {
 export function ehComandoBloqueioOuDesbloqueio(cmd: string): boolean {
   return ehComandoBloqueio(cmd) || ehComandoDesbloqueio(cmd);
 }
-

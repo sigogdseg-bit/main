@@ -394,7 +394,9 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
       let locCliId = profile?.cliente_id;
       const { data: locData } = await supabase
         .from("locatarios_cliente" as any)
-        .select("cliente_id, veiculos_permitidos, pode_bloquear, pode_desbloquear, pode_bloquear_desbloquear, ativo")
+        .select(
+          "cliente_id, veiculos_permitidos, pode_bloquear, pode_desbloquear, pode_bloquear_desbloquear, ativo",
+        )
         .eq("user_id", user.id)
         .maybeSingle();
 
@@ -404,7 +406,9 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
         veiculosPermitidos = (locData as any).veiculos_permitidos || [];
         podeBloquear = Boolean((locData as any).pode_bloquear);
         podeDesbloquear = Boolean((locData as any).pode_desbloquear);
-        podeBloquearDesbloquear = Boolean((locData as any).pode_bloquear_desbloquear || (podeBloquear && podeDesbloquear));
+        podeBloquearDesbloquear = Boolean(
+          (locData as any).pode_bloquear_desbloquear || (podeBloquear && podeDesbloquear),
+        );
       }
 
       clienteId = locCliId || undefined;

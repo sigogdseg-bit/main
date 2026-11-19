@@ -60,7 +60,7 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
 
   // Estado e resolução assíncrona do endereço legível (nunca expor coordenadas brutas)
   const [enderecoLocal, setEnderecoLocal] = useState<string>(
-    enderecoTexto || (veiculo as any).endereco || ""
+    enderecoTexto || (veiculo as any).endereco || "",
   );
 
   useEffect(() => {

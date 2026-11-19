@@ -175,9 +175,7 @@ export async function carregarPostosVigilancia(clienteId?: string): Promise<Post
 
   // 2. Tenta buscar na tabela dedicada postos_vigilancia
   try {
-    let query = supabase
-      .from("postos_vigilancia")
-      .select("*");
+    let query = supabase.from("postos_vigilancia").select("*");
     if (clienteId) {
       query = query.eq("cliente_id", clienteId);
     }
@@ -191,10 +189,7 @@ export async function carregarPostosVigilancia(clienteId?: string): Promise<Post
 
   // 3. Busca na tabela nativa areas_seguras onde tipo = 'posto_vigilancia'
   try {
-    let query = supabase
-      .from("areas_seguras")
-      .select("*")
-      .eq("tipo", "posto_vigilancia");
+    let query = supabase.from("areas_seguras").select("*").eq("tipo", "posto_vigilancia");
     if (clienteId) {
       query = query.eq("cliente_id", clienteId);
     }

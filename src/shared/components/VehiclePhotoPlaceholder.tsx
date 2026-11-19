@@ -125,7 +125,12 @@ export const VehiclePhotoPlaceholder: React.FC<VehiclePhotoPlaceholderProps> = (
     if (str.includes("onibus") || str.includes("ônibus") || str.includes("marcopolo")) {
       return "onibus";
     }
-    if (str.includes("jetski") || str.includes("jet ski") || str.includes("lancha") || str.includes("barco")) {
+    if (
+      str.includes("jetski") ||
+      str.includes("jet ski") ||
+      str.includes("lancha") ||
+      str.includes("barco")
+    ) {
       return "jetski";
     }
     if (str.includes("posto") || str.includes("propriedade") || str.includes("vigilante")) {

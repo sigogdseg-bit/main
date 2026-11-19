@@ -10,10 +10,7 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
     const caminho = path.join(rootDir, "src/features/clientes/components/ClienteHomeView.tsx");
     const conteudo = fs.readFileSync(caminho, "utf-8");
 
-    assert.ok(
-      conteudo.includes("filtroStatus"),
-      "Deve declarar estado filtroStatus",
-    );
+    assert.ok(conteudo.includes("filtroStatus"), "Deve declarar estado filtroStatus");
     assert.ok(
       conteudo.includes('setFiltroStatus("todos")'),
       "Deve permitir filtrar por todos os veículos",
@@ -40,10 +37,7 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
     const caminho = path.join(rootDir, "src/features/clientes/components/ClienteHomeView.tsx");
     const conteudo = fs.readFileSync(caminho, "utf-8");
 
-    assert.ok(
-      conteudo.includes("isLocatario"),
-      "Deve verificar se o usuário é locatário",
-    );
+    assert.ok(conteudo.includes("isLocatario"), "Deve verificar se o usuário é locatário");
     assert.ok(
       conteudo.includes("mensalidadePendente && !isLocatario"),
       "Deve ocultar alerta de mensalidade para perfil locatário",
@@ -121,9 +115,8 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
   });
 
   it("6. Funções utilitárias de hardware devem discriminar bloqueio e desbloqueio com independência estrita", async () => {
-    const { ehComandoBloqueio, ehComandoDesbloqueio } = await import(
-      "../../shared/lib/hunterHardwareComandos"
-    );
+    const { ehComandoBloqueio, ehComandoDesbloqueio } =
+      await import("../../shared/lib/hunterHardwareComandos");
 
     // Bloqueios
     assert.equal(ehComandoBloqueio("RELAY,1"), true);
@@ -151,10 +144,7 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
   });
 
   it("7. GpsMonitorView.tsx deve conter lista suspensa de clientes para ADM e Operador (padrão todos)", () => {
-    const caminho = path.join(
-      rootDir,
-      "src/features/monitor-gps/components/GpsMonitorView.tsx",
-    );
+    const caminho = path.join(rootDir, "src/features/monitor-gps/components/GpsMonitorView.tsx");
     const conteudo = fs.readFileSync(caminho, "utf-8");
 
     assert.ok(
@@ -205,18 +195,12 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
       conteudo.includes('createFileRoute("/cadastro-locatario")'),
       "Deve criar rota TanStack /cadastro-locatario",
     );
-    assert.ok(
-      conteudo.includes("validarConviteLocatario"),
-      "Deve invocar validarConviteLocatario",
-    );
+    assert.ok(conteudo.includes("validarConviteLocatario"), "Deve invocar validarConviteLocatario");
     assert.ok(
       conteudo.includes("concluirAutoCadastroLocatario"),
       "Deve invocar concluirAutoCadastroLocatario",
     );
-    assert.ok(
-      conteudo.includes("pode_bloquear"),
-      "Deve exibir permissão independente de bloqueio",
-    );
+    assert.ok(conteudo.includes("pode_bloquear"), "Deve exibir permissão independente de bloqueio");
     assert.ok(
       conteudo.includes("pode_desbloquear"),
       "Deve exibir permissão independente de desbloqueio",
@@ -224,10 +208,7 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
   });
 
   it("10. ModalNovoPosto.tsx deve vincular compulsoriamente cada posto fixo a um cliente", () => {
-    const caminho = path.join(
-      rootDir,
-      "src/features/vigilantes/components/ModalNovoPosto.tsx",
-    );
+    const caminho = path.join(rootDir, "src/features/vigilantes/components/ModalNovoPosto.tsx");
     const conteudo = fs.readFileSync(caminho, "utf-8");
 
     assert.ok(

@@ -11,10 +11,7 @@ describe("Hunter — Release v1.0.1.7: Módulos da Propriedade, Contadores Factu
   const rootDir = process.cwd();
 
   it("1. Versão deve ser no mínimo 1.0.1.7", () => {
-    assert.ok(
-      APP_VERSION_NUMERO >= "1.0.1.7",
-      "Versão deve ser igual ou superior a 1.0.1.7",
-    );
+    assert.ok(APP_VERSION_NUMERO >= "1.0.1.7", "Versão deve ser igual ou superior a 1.0.1.7");
   });
 
   it("2. VehicleTelemetryDrawer deve renderizar menu exclusivo para Propriedades Monitoradas", () => {
@@ -39,10 +36,7 @@ describe("Hunter — Release v1.0.1.7: Módulos da Propriedade, Contadores Factu
   });
 
   it("3. ClienteHomeView deve calcular veículos online por comunicação ativa do rastreador", () => {
-    const caminhoHome = path.join(
-      rootDir,
-      "src/features/clientes/components/ClienteHomeView.tsx",
-    );
+    const caminhoHome = path.join(rootDir, "src/features/clientes/components/ClienteHomeView.tsx");
     const conteudoHome = fs.readFileSync(caminhoHome, "utf-8");
 
     assert.ok(

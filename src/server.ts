@@ -2620,7 +2620,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
     if (!locRow.ativo) {
       return new Response(
-        JSON.stringify({ valido: false, mensagem: "Este convite foi desativado pelo cliente titular." }),
+        JSON.stringify({
+          valido: false,
+          mensagem: "Este convite foi desativado pelo cliente titular.",
+        }),
         { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }
@@ -2634,7 +2637,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
     if (locRow.convite_expira_em && new Date(locRow.convite_expira_em).getTime() < Date.now()) {
       return new Response(
-        JSON.stringify({ valido: false, mensagem: "O prazo deste convite expirou. Solicite um novo link ao titular." }),
+        JSON.stringify({
+          valido: false,
+          mensagem: "O prazo deste convite expirou. Solicite um novo link ao titular.",
+        }),
         { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }
@@ -2686,7 +2692,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (!token || !nome || !email || !senha) {
         return new Response(
-          JSON.stringify({ success: false, message: "Campos obrigatórios ausentes (nome, email e senha)." }),
+          JSON.stringify({
+            success: false,
+            message: "Campos obrigatórios ausentes (nome, email e senha).",
+          }),
           { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -2713,7 +2722,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (locRow.user_id) {
         return new Response(
-          JSON.stringify({ success: false, message: "Este cadastro já foi concluído anteriormente." }),
+          JSON.stringify({
+            success: false,
+            message: "Este cadastro já foi concluído anteriormente.",
+          }),
           { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -2755,7 +2767,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
           }
         } else {
           return new Response(
-            JSON.stringify({ success: false, message: `Falha ao criar acesso: ${authErr.message}` }),
+            JSON.stringify({
+              success: false,
+              message: `Falha ao criar acesso: ${authErr.message}`,
+            }),
             { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
           );
         }
@@ -2800,7 +2815,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
       );
     } catch (err: any) {
       return new Response(
-        JSON.stringify({ success: false, message: err?.message || "Erro interno ao concluir cadastro." }),
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro interno ao concluir cadastro.",
+        }),
         { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }
@@ -2816,7 +2834,9 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
     );
   }
 
-  const userClient = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+  const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false },
+  });
   const { data: userData, error: userError } = await userClient.auth.getUser(token);
   if (userError || !userData?.user) {
     return new Response(
@@ -2861,18 +2881,18 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
           query = query.eq("cliente_id", paramClienteId);
         }
       } else {
-        return new Response(
-          JSON.stringify({ success: false, message: "Acesso não autorizado." }),
-          { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
-        );
+        return new Response(JSON.stringify({ success: false, message: "Acesso não autorizado." }), {
+          status: 403,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
       }
 
       const { data: locs, error: errLocs } = await query;
       if (errLocs) {
-        return new Response(
-          JSON.stringify({ success: false, message: errLocs.message }),
-          { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
-        );
+        return new Response(JSON.stringify({ success: false, message: errLocs.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
       }
 
       const formatados = (locs || []).map((l: any) => ({
@@ -2880,13 +2900,16 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
         cliente_nome: l.cliente?.nome_razao_social || undefined,
       }));
 
-      return new Response(
-        JSON.stringify({ success: true, locatarios: formatados }),
-        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
-      );
+      return new Response(JSON.stringify({ success: true, locatarios: formatados }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
     } catch (err: any) {
       return new Response(
-        JSON.stringify({ success: false, message: err?.message || "Erro ao consultar locatários." }),
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao consultar locatários.",
+        }),
         { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }
@@ -2896,19 +2919,28 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
   if (url.pathname === "/api/locatarios/gerar-link-convite" && request.method === "POST") {
     try {
       const body = await request.json();
-      const targetClienteId = isAdmOuOperador && body?.cliente_id ? body.cliente_id : clienteIdVinculado;
+      const targetClienteId =
+        isAdmOuOperador && body?.cliente_id ? body.cliente_id : clienteIdVinculado;
 
       if (!targetClienteId) {
         return new Response(
-          JSON.stringify({ success: false, message: "Identificador do cliente locador não localizado." }),
+          JSON.stringify({
+            success: false,
+            message: "Identificador do cliente locador não localizado.",
+          }),
           { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
 
-      const veiculosPermitidos = Array.isArray(body?.veiculos_permitidos) ? body.veiculos_permitidos : [];
+      const veiculosPermitidos = Array.isArray(body?.veiculos_permitidos)
+        ? body.veiculos_permitidos
+        : [];
       if (veiculosPermitidos.length === 0) {
         return new Response(
-          JSON.stringify({ success: false, message: "Selecione ao menos um veículo para o locatário." }),
+          JSON.stringify({
+            success: false,
+            message: "Selecione ao menos um veículo para o locatário.",
+          }),
           { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -2923,7 +2955,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
       const idsValidos = (veiculosValidos || []).map((v) => v.id);
       if (idsValidos.length === 0) {
         return new Response(
-          JSON.stringify({ success: false, message: "Nenhum veículo selecionado pertence à sua base de ativos." }),
+          JSON.stringify({
+            success: false,
+            message: "Nenhum veículo selecionado pertence à sua base de ativos.",
+          }),
           { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -2961,7 +2996,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (errInsert || !novoLoc) {
         return new Response(
-          JSON.stringify({ success: false, message: `Erro ao gerar convite: ${errInsert?.message}` }),
+          JSON.stringify({
+            success: false,
+            message: `Erro ao gerar convite: ${errInsert?.message}`,
+          }),
           { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -3015,7 +3053,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (!isAdmOuOperador && locRow.cliente_id !== clienteIdVinculado) {
         return new Response(
-          JSON.stringify({ success: false, message: "Você não tem permissão para alterar este locatário." }),
+          JSON.stringify({
+            success: false,
+            message: "Você não tem permissão para alterar este locatário.",
+          }),
           { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -3043,7 +3084,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
       );
     } catch (err: any) {
       return new Response(
-        JSON.stringify({ success: false, message: err?.message || "Erro ao alterar status de acesso." }),
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao alterar status de acesso.",
+        }),
         { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }
@@ -3087,12 +3131,16 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (!locRow.user_id) {
         return new Response(
-          JSON.stringify({ success: false, message: "O locatário ainda não concluiu seu primeiro cadastro." }),
+          JSON.stringify({
+            success: false,
+            message: "O locatário ainda não concluiu seu primeiro cadastro.",
+          }),
           { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
 
-      const novaSenha = body?.nova_senha?.trim() || `Gd@${Math.floor(100000 + Math.random() * 900000)}`;
+      const novaSenha =
+        body?.nova_senha?.trim() || `Gd@${Math.floor(100000 + Math.random() * 900000)}`;
 
       const { error: resetErr } = await adminClient.auth.admin.updateUserById(locRow.user_id, {
         password: novaSenha,
@@ -3100,7 +3148,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (resetErr) {
         return new Response(
-          JSON.stringify({ success: false, message: `Erro ao redefinir senha: ${resetErr.message}` }),
+          JSON.stringify({
+            success: false,
+            message: `Erro ao redefinir senha: ${resetErr.message}`,
+          }),
           { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -3149,7 +3200,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (!isAdmOuOperador && locRow.cliente_id !== clienteIdVinculado) {
         return new Response(
-          JSON.stringify({ success: false, message: "Você não tem permissão para editar este locatário." }),
+          JSON.stringify({
+            success: false,
+            message: "Você não tem permissão para editar este locatário.",
+          }),
           { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -3166,8 +3220,10 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
       }
       if (typeof body?.pode_bloquear_desbloquear === "boolean") {
         updates.pode_bloquear_desbloquear = body.pode_bloquear_desbloquear;
-        if (typeof body?.pode_bloquear !== "boolean") updates.pode_bloquear = body.pode_bloquear_desbloquear;
-        if (typeof body?.pode_desbloquear !== "boolean") updates.pode_desbloquear = body.pode_bloquear_desbloquear;
+        if (typeof body?.pode_bloquear !== "boolean")
+          updates.pode_bloquear = body.pode_bloquear_desbloquear;
+        if (typeof body?.pode_desbloquear !== "boolean")
+          updates.pode_desbloquear = body.pode_bloquear_desbloquear;
       }
 
       if (Array.isArray(body?.veiculos_permitidos)) {
@@ -3510,7 +3566,9 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
           });
         }
 
-        const permitidos = Array.isArray(locRow.veiculos_permitidos) ? locRow.veiculos_permitidos : [];
+        const permitidos = Array.isArray(locRow.veiculos_permitidos)
+          ? locRow.veiculos_permitidos
+          : [];
         if (permitidos.length === 0) {
           return new Response(JSON.stringify({ success: true, veiculos: [] }), {
             status: 200,
@@ -10597,7 +10655,9 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
         });
         const { data: locRow } = await adminClient
           .from("locatarios_cliente")
-          .select("ativo, veiculos_permitidos, pode_bloquear, pode_desbloquear, pode_bloquear_desbloquear")
+          .select(
+            "ativo, veiculos_permitidos, pode_bloquear, pode_desbloquear, pode_bloquear_desbloquear",
+          )
           .eq("user_id", authUserId)
           .maybeSingle();
 
@@ -10646,7 +10706,9 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
         }
 
         if (body?.veiculo_id) {
-          const permitidos = Array.isArray(locRow.veiculos_permitidos) ? locRow.veiculos_permitidos : [];
+          const permitidos = Array.isArray(locRow.veiculos_permitidos)
+            ? locRow.veiculos_permitidos
+            : [];
           if (!permitidos.includes(body.veiculo_id)) {
             return new Response(
               JSON.stringify({
@@ -13514,11 +13576,9 @@ async function handleApiVigilantes(request: Request, env: unknown): Promise<Resp
   // GET /api/vigilantes/postos
   if (request.method === "GET" && url.pathname === "/api/vigilantes/postos") {
     try {
-      const clienteIdParam = url.searchParams.get("clienteId") || url.searchParams.get("cliente_id");
-      let query = adminClient
-        .from("areas_seguras")
-        .select("*")
-        .eq("tipo", "posto_vigilancia");
+      const clienteIdParam =
+        url.searchParams.get("clienteId") || url.searchParams.get("cliente_id");
+      let query = adminClient.from("areas_seguras").select("*").eq("tipo", "posto_vigilancia");
 
       if (clienteIdParam) {
         query = query.eq("cliente_id", clienteIdParam);
@@ -13778,7 +13838,10 @@ async function handleApiGeocodificar(request: Request, _env: unknown): Promise<R
     const q = (url.searchParams.get("q") || "").trim();
     if (!q || q.length < 3) {
       return new Response(
-        JSON.stringify({ success: false, message: "Parâmetros insuficientes para geocodificação." }),
+        JSON.stringify({
+          success: false,
+          message: "Parâmetros insuficientes para geocodificação.",
+        }),
         { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }

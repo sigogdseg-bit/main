@@ -59,9 +59,7 @@ async function geocodificarEndereco(
     const paramsPhoton = new URLSearchParams();
     paramsPhoton.set("q", qClean);
     paramsPhoton.set("limit", "1");
-    const resPhoton = await fetch(
-      `https://photon.komoot.io/api/?${paramsPhoton.toString()}`,
-    );
+    const resPhoton = await fetch(`https://photon.komoot.io/api/?${paramsPhoton.toString()}`);
     if (resPhoton.ok) {
       const dPhoton = await resPhoton.json();
       if (dPhoton?.features?.[0]?.geometry?.coordinates) {
