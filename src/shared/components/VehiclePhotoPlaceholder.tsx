@@ -24,6 +24,7 @@ export const VehiclePhotoPlaceholder: React.FC<VehiclePhotoPlaceholderProps> = (
   alt,
 }) => {
   const [erroCarregamento, setErroCarregamento] = useState(false);
+  const [erroArteEstudio, setErroArteEstudio] = useState(false);
 
   // Se houver URL válida e sem erro de carregamento, renderiza a foto real
   if (fotoUrl && !erroCarregamento) {
@@ -42,24 +43,128 @@ export const VehiclePhotoPlaceholder: React.FC<VehiclePhotoPlaceholderProps> = (
     );
   }
 
-  const normalizarTipo = (t?: string): string => {
-    if (!t) return "carro";
-    const str = t.toLowerCase();
-    if (str.includes("moto")) return "moto";
-    if (str.includes("camionete") || str.includes("picape") || str.includes("pickup"))
+  // Normalização refinada combinando tipo formal e nome do modelo
+  const normalizarTipo = (t?: string, nome?: string): string => {
+    const str = `${t || ""} ${nome || ""}`.toLowerCase();
+    if (
+      str.includes("moto") ||
+      str.includes("cg 160") ||
+      str.includes("titan") ||
+      str.includes("fan") ||
+      str.includes("start") ||
+      str.includes("biz") ||
+      str.includes("bros") ||
+      str.includes("xre") ||
+      str.includes("fazer") ||
+      str.includes("factor") ||
+      str.includes("yamaha") ||
+      str.includes("honda cg")
+    ) {
+      return "moto";
+    }
+    if (
+      str.includes("camionete") ||
+      str.includes("picape") ||
+      str.includes("pickup") ||
+      str.includes("l200") ||
+      str.includes("triton") ||
+      str.includes("hilux") ||
+      str.includes("ranger") ||
+      str.includes("s10") ||
+      str.includes("amarok") ||
+      str.includes("frontier") ||
+      str.includes("strada") ||
+      str.includes("saveiro") ||
+      str.includes("montana") ||
+      str.includes("toro") ||
+      str.includes("oroch")
+    ) {
       return "camionete";
-    if (str.includes("suv")) return "suv";
-    if (str.includes("van") || str.includes("furgao") || str.includes("furgão")) return "van";
-    if (str.includes("caminhao") || str.includes("caminhão") || str.includes("carreta"))
+    }
+    if (
+      str.includes("suv") ||
+      str.includes("compass") ||
+      str.includes("renegade") ||
+      str.includes("creta") ||
+      str.includes("kicks") ||
+      str.includes("t-cross") ||
+      str.includes("tracker") ||
+      str.includes("duster") ||
+      str.includes("hr-v") ||
+      str.includes("corolla cross") ||
+      str.includes("commander") ||
+      str.includes("sw4")
+    ) {
+      return "suv";
+    }
+    if (
+      str.includes("van") ||
+      str.includes("furgao") ||
+      str.includes("furgão") ||
+      str.includes("sprinter") ||
+      str.includes("master") ||
+      str.includes("ducato") ||
+      str.includes("transit") ||
+      str.includes("kombi")
+    ) {
+      return "van";
+    }
+    if (
+      str.includes("caminhao") ||
+      str.includes("caminhão") ||
+      str.includes("carreta") ||
+      str.includes("reboque") ||
+      str.includes("guincho") ||
+      str.includes("delivery") ||
+      str.includes("accelo") ||
+      str.includes("constellation") ||
+      str.includes("atego")
+    ) {
       return "caminhao";
-    if (str.includes("onibus") || str.includes("ônibus")) return "onibus";
-    if (str.includes("jetski")) return "jetski";
-    if (str.includes("posto") || str.includes("propriedade") || str.includes("vigilante"))
+    }
+    if (str.includes("onibus") || str.includes("ônibus") || str.includes("marcopolo")) {
+      return "onibus";
+    }
+    if (str.includes("jetski") || str.includes("jet ski") || str.includes("lancha") || str.includes("barco")) {
+      return "jetski";
+    }
+    if (str.includes("posto") || str.includes("propriedade") || str.includes("vigilante")) {
       return "propriedade";
+    }
     return "carro";
   };
 
-  const categoria = normalizarTipo(tipo);
+  const categoria = normalizarTipo(tipo, marcaModelo);
+
+  // Mapa de artes fotográficas de estúdio do Módulo IMAGEM (dev-modulos)
+  const ARTES_ESTUDIO: Record<string, string> = {
+    camionete: "/veiculos/camionete.png",
+    carro: "/veiculos/carro.png",
+    suv: "/veiculos/suv.png",
+    moto: "/veiculos/moto.png",
+    caminhao: "/veiculos/caminhao.png",
+    van: "/veiculos/van.png",
+    onibus: "/veiculos/onibus.png",
+  };
+
+  const arteEstudioUrl = ARTES_ESTUDIO[categoria];
+
+  // Se houver arte fotográfica de estúdio disponível para a categoria e sem erro de carregamento
+  if (arteEstudioUrl && !erroArteEstudio) {
+    return (
+      <div className={`relative w-full h-full overflow-hidden bg-slate-950 ${className}`}>
+        <img
+          src={arteEstudioUrl}
+          alt={alt || marcaModelo}
+          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+          onError={() => setErroArteEstudio(true)}
+          loading="lazy"
+        />
+        {/* Vinheta tática de borda para contraste superior dos badges e da placa */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-slate-950/40 pointer-events-none" />
+      </div>
+    );
+  }
 
   // Paletas de estúdio refinadas por categoria de veículo
   const configuracoesEstudio: Record<

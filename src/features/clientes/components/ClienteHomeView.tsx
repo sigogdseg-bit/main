@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/features/auth/context/AuthContext";
-import { carregarVeiculosGps } from "@/features/monitor-gps/services/gpsService";
+import { carregarVeiculosGps, avaliarStatusComunicacao } from "@/features/monitor-gps/services/gpsService";
 import type { VeiculoGps } from "@/features/monitor-gps/types";
 import { HunterVehicleCard } from "./HunterVehicleCard";
 import { ModalPixRapido } from "@/features/mensalidades/components/ModalPixRapido";
@@ -128,12 +128,18 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     );
   }, [veiculos, busca]);
 
-  // Contadores rápidos de telemetria
+  // Contadores rápidos de telemetria baseados na comunicação factual do rastreador
   const totalVeiculos = veiculos.length;
   const onlineVeiculos = veiculos.filter(
-    (v) => v.velocidade > 3 || v.ignicao || v.status_operacional === "em_rota",
+    (v) => avaliarStatusComunicacao(v.ultima_atualizacao).ativo,
   ).length;
   const offlineVeiculos = totalVeiculos - onlineVeiculos;
+  const estacionadosVeiculos = veiculos.filter(
+    (v) => !v.ignicao && v.velocidade <= 3,
+  ).length;
+  const emRotaVeiculos = veiculos.filter(
+    (v) => v.ignicao || v.velocidade > 3,
+  ).length;
   const totalAlertas = veiculos.filter((v) => v.alerta_acidente || v.bloqueado).length;
 
   // Abertura rápida do PIX
@@ -240,7 +246,10 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
           </div>
 
           {/* Online */}
-          <div className="flex flex-col items-center justify-center py-1 px-2 rounded-2xl bg-black/15 backdrop-blur-xs border border-white/10">
+          <div
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-2xl bg-black/15 backdrop-blur-xs border border-white/10"
+            title={`${onlineVeiculos} veículo(s) com rastreador comunicando em tempo real (${estacionadosVeiculos} estacionado(s), ${emRotaVeiculos} em movimento)`}
+          >
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
               <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
               <span className="font-mono font-tabular">{onlineVeiculos}</span>
@@ -249,7 +258,10 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
           </div>
 
           {/* Offline */}
-          <div className="flex flex-col items-center justify-center py-1 px-2 rounded-2xl bg-black/15 backdrop-blur-xs border border-white/10">
+          <div
+            className="flex flex-col items-center justify-center py-1 px-2 rounded-2xl bg-black/15 backdrop-blur-xs border border-white/10"
+            title={`${offlineVeiculos} veículo(s) sem comunicação recente com o servidor`}
+          >
             <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-white/90">
               <span className="w-2 h-2 rounded-full bg-slate-300" />
               <span className="font-mono font-tabular">{offlineVeiculos}</span>

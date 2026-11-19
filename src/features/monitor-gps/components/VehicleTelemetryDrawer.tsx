@@ -42,6 +42,7 @@ import {
   Signal,
   Wifi,
   Calculator,
+  Headphones,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { VeiculoGps } from "../types";
@@ -387,7 +388,11 @@ export function VehicleTelemetryDrawer({
           } w-72 max-w-[calc(100vw-1rem)] max-h-[82vh] overflow-y-auto rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl z-[9999] p-2 text-slate-800 dark:text-slate-200 animate-in fade-in zoom-in-95 duration-150`}
         >
           <div className="px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-800 mb-1 flex items-center justify-between sticky top-0 bg-white dark:bg-slate-900 z-10">
-            <span>Módulos e Funções do Veículo</span>
+            <span>
+              {isPropriedade
+                ? "Módulos e Funções da Propriedade"
+                : "Módulos e Funções do Veículo"}
+            </span>
             <button
               onClick={() => setMenuAcoesAberto(false)}
               className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded-md cursor-pointer"
@@ -396,7 +401,108 @@ export function VehicleTelemetryDrawer({
             </button>
           </div>
 
-          {/* Seção 1: Navegação e Trajetos */}
+          {isPropriedade ? (
+            /* MENU EXCLUSIVO PARA PROPRIEDADE MONITORADA / POSTO DE VIGILÂNCIA */
+            <>
+              {/* Seção 1: Segurança e Perímetro */}
+              <div className="space-y-0.5 py-1">
+                <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  Segurança e Perímetro
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalAreasAberto(true);
+                  }}
+                  className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-emerald-500/10 text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition text-left cursor-pointer"
+                >
+                  <Shield className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-slate-100">
+                      Perímetro de Segurança (Cercas Virtuais)
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Raio de proteção e cerca virtual em torno do imóvel
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalProtecaoAberto(true);
+                  }}
+                  className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-emerald-500/10 text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 transition text-left cursor-pointer"
+                >
+                  <ShieldAlert className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-slate-100">
+                      Proteção e Horários de Vigilância
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Vigilância de horário e perímetro patrimonial
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Seção 2: Diagnóstico e Conexão */}
+              <div className="space-y-0.5 py-1 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                  Diagnóstico e Conexão
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    handleTestarComunicacao();
+                  }}
+                  disabled={testandoCom}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-amber-500/10 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 transition text-left cursor-pointer disabled:opacity-50"
+                >
+                  <Radio className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <span>Testar Sinal e Latência</span>
+                </button>
+              </div>
+
+              {/* Seção 3: Operação e Atendimento */}
+              <div className="space-y-0.5 py-1 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                  Operação e Suporte
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenuAcoesAberto(false);
+                    setModalCompartilharAberto(true);
+                  }}
+                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-sky-500/10 text-slate-700 dark:text-slate-300 hover:text-sky-600 dark:hover:text-sky-400 transition text-left cursor-pointer"
+                >
+                  <Share2 className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                  <span>Compartilhar Localização</span>
+                </button>
+                <Link
+                  to="/chat"
+                  onClick={() => setMenuAcoesAberto(false)}
+                  className="w-full flex items-start gap-2.5 px-2.5 py-2 rounded-xl text-xs font-semibold hover:bg-orange-500/10 text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 transition text-left cursor-pointer"
+                >
+                  <Headphones className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold text-slate-900 dark:text-slate-100">
+                      Central de Operações 24h
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Canal de suporte e registro de ocorrências
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            </>
+          ) : (
+            /* MENU PARA VEÍCULOS AUTOMOTORES REGULARES */
+            <>
+              {/* Seção 1: Navegação e Trajetos */}
           <div className="space-y-0.5 py-1">
             <div className="px-2 text-[9px] font-bold uppercase tracking-wider text-orange-600 dark:text-orange-400">
               Navegação e Trajetos
@@ -566,6 +672,8 @@ export function VehicleTelemetryDrawer({
               <span>Desempenho da Frota</span>
             </Link>
           </div>
+            </>
+          )}
         </div>
       </>,
       document.body,
