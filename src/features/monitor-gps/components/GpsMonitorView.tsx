@@ -146,6 +146,18 @@ export function GpsMonitorView({
   const { session } = useAuth();
   const { theme, setTheme } = useMapTheme();
 
+  const isOperadorOuAdmin = Boolean(
+    session?.isAdmin ||
+    session?.isOperador ||
+    session?.isSuperAdmin ||
+    session?.role === "adm" ||
+    session?.role === "superadmin" ||
+    session?.role === "operador",
+  );
+  const isContaCliente = Boolean(
+    session?.isCliente || session?.role === "cliente" || (!isOperadorOuAdmin && session?.clienteId),
+  );
+
   const {
     veiculos,
     carregando,
@@ -182,7 +194,7 @@ export function GpsMonitorView({
   });
 
   const [postosVigilancia, setPostosVigilancia] = useState<PostoVigilancia[]>([]);
-  const [postosExpandidos, setPostosExpandidos] = useState(true);
+  const [postosExpandidos, setPostosExpandidos] = useState(false);
 
   useEffect(() => {
     let ativo = true;
@@ -1058,6 +1070,51 @@ export function GpsMonitorView({
   // Controle de visão de múltiplos veículos (Modo Frota simultâneo no Mapa)
   const [modoVisaoFrota, setModoVisaoFrota] = useState(false);
 
+  // Auto-enquadramento canônico ao entrar no Mapa ao Vivo:
+  // - Contas Operador e Administrador: seleciona e enquadra Mapa Geral (frota e postos simultaneamente)
+  // - Contas de Cliente: entra com Frota Total (todos os veículos do cliente no mapa)
+  const primeiroEnquadramentoRef = useRef(false);
+  useEffect(() => {
+    if (primeiroEnquadramentoRef.current) return;
+    if (carregando) return;
+
+    const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
+    if (alvos.length === 0 && postosVigilancia.length === 0) return;
+
+    const timer = setTimeout(() => {
+      if (primeiroEnquadramentoRef.current) return;
+      primeiroEnquadramentoRef.current = true;
+
+      setModoVisaoFrota(true);
+
+      if (isOperadorOuAdmin) {
+        // Operador e Administrador: por padrão enquadra Mapa Geral
+        if (modoVisualizacao === "3D") {
+          maplibreRef.current?.fitBoundsGeral?.(alvos, postosVigilancia);
+        } else {
+          leafletRef.current?.fitBoundsGeral(alvos, postosVigilancia);
+        }
+      } else {
+        // Cliente (ou demais perfis): entra com Frota Total por padrão
+        if (modoVisualizacao === "3D") {
+          maplibreRef.current?.fitBounds(alvos);
+        } else {
+          leafletRef.current?.fitBounds(alvos);
+        }
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [
+    carregando,
+    veiculosFiltrados,
+    veiculos,
+    postosVigilancia,
+    isOperadorOuAdmin,
+    isContaCliente,
+    modoVisualizacao,
+  ]);
+
   const alternarVisaoAtiva = (modo: "mapa" | "cockpit") => {
     setVisaoAtiva(modo);
     if (modo === "mapa") {
@@ -1235,7 +1292,7 @@ export function GpsMonitorView({
     return agruparVeiculosPorCliente(veiculosFiltrados, session);
   }, [isAgrupadoPorCliente, veiculosFiltrados, session]);
 
-  // Estado de clientes expandidos (acordeom)
+  // Estado de clientes expandidos (acordeom - minimizados por padrão)
   const [clientesExpandidos, setClientesExpandidos] = useState<Record<string, boolean>>({});
 
   // Garante que o cliente do veículo selecionado esteja expandido para visibilidade imediata
@@ -1243,12 +1300,7 @@ export function GpsMonitorView({
     if (veiculoSelecionado && isAgrupadoPorCliente) {
       const chave =
         veiculoSelecionado.cliente_id || veiculoSelecionado.cliente_nome || "sem_cliente";
-      setClientesExpandidos((prev) => {
-        if (prev[chave] === false) {
-          return { ...prev, [chave]: true };
-        }
-        return prev;
-      });
+      setClientesExpandidos((prev) => ({ ...prev, [chave]: true }));
     }
   }, [veiculoSelecionado, isAgrupadoPorCliente]);
 
@@ -1266,15 +1318,15 @@ export function GpsMonitorView({
   const toggleCliente = (clienteId: string) => {
     setClientesExpandidos((prev) => ({
       ...prev,
-      [clienteId]: prev[clienteId] === false ? true : false,
+      [clienteId]: !prev[clienteId],
     }));
   };
 
   const alternarTodosClientes = () => {
-    const temAlgumFechado = clientesAgrupados.some((c) => clientesExpandidos[c.id] === false);
+    const temAlgumAberto = clientesAgrupados.some((c) => Boolean(clientesExpandidos[c.id]));
     const novoEstado: Record<string, boolean> = {};
     clientesAgrupados.forEach((c) => {
-      novoEstado[c.id] = temAlgumFechado;
+      novoEstado[c.id] = !temAlgumAberto;
     });
     setClientesExpandidos(novoEstado);
   };
@@ -1562,7 +1614,7 @@ export function GpsMonitorView({
               </button>
             )}
 
-            {/* Mobile: Toda a Frota */}
+            {/* Mobile: Toda a Frota (Ver Frota / Frota Completa) */}
             <button
               type="button"
               onClick={() => {
@@ -1575,7 +1627,7 @@ export function GpsMonitorView({
                 }
               }}
               className="p-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
-              title="Mostrar toda a frota"
+              title="Ver Frota: mostrar e enquadrar Frota Completa no mapa"
             >
               <Car className="h-4 w-4 text-blue-500" />
             </button>
@@ -1721,36 +1773,6 @@ export function GpsMonitorView({
               )}
             </button>
 
-            <span className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700/80 font-mono font-bold text-xs font-tabular">
-              Total: <span className="text-orange-600 dark:text-orange-400">{totais.total}</span>
-            </span>
-
-            {/* Exibe situação operacional apenas para veículos sem restrição de privacidade */}
-            {totais.possuiStatusVisivel && (
-              <>
-                <span className="inline-flex px-2.5 py-1 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-600 dark:text-orange-400 font-mono font-bold text-xs font-tabular">
-                  Em Rota: {totais.emRota}
-                </span>
-
-                <span className="inline-flex px-2.5 py-1 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-600 dark:text-amber-400 font-mono font-bold text-xs font-tabular">
-                  Parados: {totais.parados}
-                </span>
-
-                <span
-                  className="inline-flex px-2.5 py-1 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-600 dark:text-sky-400 font-mono font-bold text-xs font-tabular"
-                  title="Veículos estacionados com ignição desligada"
-                >
-                  Estacionados: {totais.estacionados}
-                </span>
-
-                {totais.bloqueados > 0 && (
-                  <span className="px-2.5 py-1 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-600 dark:text-rose-400 font-mono font-bold text-xs font-tabular">
-                    Bloqueados: {totais.bloqueados}
-                  </span>
-                )}
-              </>
-            )}
-
             {rotaMonitoradaAtiva && (
               <div className="flex items-center gap-2 px-3 py-1 rounded-xl bg-orange-500/15 border border-orange-500/30 text-orange-600 dark:text-orange-300 font-bold text-xs animate-pulse">
                 <Route className="h-3.5 w-3.5 text-orange-500 shrink-0" />
@@ -1873,70 +1895,6 @@ export function GpsMonitorView({
                 <span>Tráfego</span>
               </button>
             )}
-
-            {/* Grupo Canônico de Enquadramento Operacional (Toda Frota, Todos Postos, Mapa Geral) */}
-            <div className="flex items-center gap-1 bg-slate-200/60 dark:bg-slate-950/40 p-0.5 rounded-2xl border border-slate-300/60 dark:border-slate-800">
-              {/* 1. Toda a Frota: mostra todos os veículos */}
-              <button
-                type="button"
-                onClick={() => {
-                  setModoVisaoFrota(true);
-                  const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
-                  if (modoVisualizacao === "3D") {
-                    maplibreRef.current?.fitBounds(alvos);
-                  } else {
-                    leafletRef.current?.fitBounds(alvos);
-                  }
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer shadow-xs ${
-                  modoVisaoFrota
-                    ? "bg-blue-600/20 text-blue-600 dark:text-blue-400"
-                    : "text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400"
-                }`}
-                title="Ver Frota: mostrar toda a frota e enquadrar todos os veículos no mapa"
-              >
-                <Car className="h-3.5 w-3.5 text-blue-500" />
-                <span>{modoVisaoFrota ? "Frota Completa" : "Ver Frota"}</span>
-              </button>
-
-              {/* 2. Todos os Postos: mostra todos os postos */}
-              {postosVigilancia.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (modoVisualizacao === "3D") {
-                      maplibreRef.current?.fitBoundsPostos?.(postosVigilancia);
-                    } else {
-                      leafletRef.current?.fitBoundsPostos(postosVigilancia);
-                    }
-                  }}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800 hover:text-emerald-600 dark:hover:text-emerald-400 transition cursor-pointer shadow-xs"
-                  title="Mostrar todos os postos: enquadra todos os postos de vigilância"
-                >
-                  <Building2 className="h-3.5 w-3.5 text-emerald-500" />
-                  <span>Todos os Postos</span>
-                </button>
-              )}
-
-              {/* 3. Mapa Geral: mostra frota e postos simultaneamente */}
-              <button
-                type="button"
-                onClick={() => {
-                  setModoVisaoFrota(true);
-                  const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
-                  if (modoVisualizacao === "3D") {
-                    maplibreRef.current?.fitBoundsGeral?.(alvos, postosVigilancia);
-                  } else {
-                    leafletRef.current?.fitBoundsGeral(alvos, postosVigilancia);
-                  }
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-emerald-600 hover:from-blue-500 hover:to-emerald-500 text-white transition cursor-pointer shadow-sm"
-                title="Mapa Geral: enquadra simultaneamente todos os veículos da frota e todos os postos"
-              >
-                <Globe className="h-3.5 w-3.5" />
-                <span>Mapa Geral</span>
-              </button>
-            </div>
 
             {/* Botão Tela Cheia */}
             <button
@@ -2094,7 +2052,7 @@ export function GpsMonitorView({
                       }
                     }}
                     className="flex flex-col items-center justify-center p-1.5 rounded-lg bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-blue-50 dark:hover:bg-blue-950/40 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shadow-xs border border-slate-200 dark:border-slate-600 text-center"
-                    title="Mostrar toda a frota: enquadra todos os veículos no mapa"
+                    title="Ver Frota: mostrar e enquadrar Frota Completa no mapa"
                   >
                     <Car className="h-3.5 w-3.5 text-blue-500 mb-0.5" />
                     <span className="text-[10px] font-bold leading-tight">
@@ -2210,9 +2168,9 @@ export function GpsMonitorView({
                     onClick={alternarTodosClientes}
                     className="text-[10px] text-orange-600 dark:text-orange-400 hover:underline font-semibold"
                   >
-                    {clientesAgrupados.some((c) => clientesExpandidos[c.id] === false)
-                      ? "Expandir todos"
-                      : "Recolher todos"}
+                    {clientesAgrupados.some((c) => Boolean(clientesExpandidos[c.id]))
+                      ? "Recolher todos"
+                      : "Expandir todos"}
                   </button>
                 </div>
               )}
@@ -2319,7 +2277,7 @@ export function GpsMonitorView({
                 </div>
               ) : isAgrupadoPorCliente ? (
                 clientesAgrupados.map((c) => {
-                  const isExpandido = clientesExpandidos[c.id] !== false;
+                  const isExpandido = Boolean(clientesExpandidos[c.id]);
                   const temVeiculoSelecionado = c.veiculos.some(
                     (v) => v.id === veiculoSelecionado?.id,
                   );
