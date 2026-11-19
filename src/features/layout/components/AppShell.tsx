@@ -4,6 +4,7 @@ import { AppHeader } from "./AppHeader";
 import { DlpWatermark } from "./DlpWatermark";
 import { AlertasAcidenteBanner } from "@/features/monitor-gps/components/AlertasAcidenteBanner";
 import { BannerComandosAguardoGlobal } from "@/features/seguranca/components/BannerComandosAguardoGlobal";
+import { MobileBottomNav } from "./MobileBottomNav";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -25,7 +26,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <BannerComandosAguardoGlobal />
       <main
         className={`flex-1 w-full min-h-0 ${
-          isFullViewport ? "p-0 flex flex-col overflow-hidden" : "p-3 sm:p-6 overflow-x-clip"
+          isFullViewport
+            ? "p-0 flex flex-col overflow-hidden"
+            : "p-3 sm:p-6 pb-20 md:pb-6 overflow-x-clip"
         }`}
         style={
           isFullViewport
@@ -33,12 +36,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 maxHeight: "calc(100dvh - 4rem - env(safe-area-inset-top, 0px) - 1.5rem)",
               }
             : {
-                paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom, 0px))",
+                paddingBottom: "calc(4.5rem + env(safe-area-inset-bottom, 0px))",
               }
         }
       >
         {children}
       </main>
+      {/* Barra de Navegação Inferior Móvel Tática */}
+      {!isFullViewport && <MobileBottomNav />}
     </div>
   );
 }

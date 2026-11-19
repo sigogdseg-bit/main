@@ -293,7 +293,7 @@ export function MostradoresMonitor3D({
                     : "POSTURA ERETA"}
               </div>
               <div className="text-slate-500 dark:text-slate-400 text-[9px] mt-0.5">
-                Limiar Normal (&lt; 30°)
+                Limiar Normal (menor que 30°)
               </div>
             </div>
           </div>

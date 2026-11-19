@@ -34,6 +34,12 @@ export function AppHeader() {
   const [tempoDegustacao, setTempoDegustacao] = useState<string>("");
 
   useEffect(() => {
+    const handleToggle = () => setMenuMobileAberto((prev) => !prev);
+    window.addEventListener("hunter_toggle_menu_mobile", handleToggle);
+    return () => window.removeEventListener("hunter_toggle_menu_mobile", handleToggle);
+  }, []);
+
+  useEffect(() => {
     if (!session) return;
     const isDeg = Boolean(session.isDegustacao || session.role === "superadmin_auditor");
     if (!isDeg) return;

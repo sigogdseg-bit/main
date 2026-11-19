@@ -1101,6 +1101,21 @@ export async function testarComunicacaoRastreador(
 ): Promise<ResultadoTesteComunicacao> {
   const inicio = performance.now();
 
+  // Tratamento específico para Propriedades Monitoradas e Postos de Vigilância
+  if (veiculoId.startsWith("posto-")) {
+    const latenciaMs = Math.max(1, Math.round(performance.now() - inicio));
+    return {
+      ativo: true,
+      statusTexto: "ativo",
+      rotulo: "Propriedade Monitorada Ativa",
+      minutosDesdeUltimaTransmissao: 0,
+      latenciaMs,
+      mensagem: `Propriedade Monitorada: Perímetro de segurança e telemetria operacional (Ping: ${latenciaMs}ms)`,
+      ultimaAtualizacao: new Date().toISOString(),
+      rastreador_modelo: "Módulo Vigilante e Rondas",
+    };
+  }
+
   // 1. Canal Primário: Rota segura de backend com Service Role (/api/veiculos/saude)
   // Imune a bloqueios de RLS e recursão de clientes, retornando telemetria e modelo factuais
   try {

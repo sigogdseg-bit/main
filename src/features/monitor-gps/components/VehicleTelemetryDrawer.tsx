@@ -1055,6 +1055,11 @@ export function VehicleTelemetryDrawer({
                     : "Trocar de veículo no Cockpit"
                 }
               >
+                {!veiculos.some((x) => x.id === veiculo.id) && (
+                  <option key={veiculo.id} value={veiculo.id}>
+                    {veiculo.placa} — {veiculo.marca_modelo}
+                  </option>
+                )}
                 {veiculos.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.placa} — {v.marca_modelo}
@@ -1445,11 +1450,13 @@ export function VehicleTelemetryDrawer({
         <PainelSaudePrivacidadeRastreador veiculo={veiculo} statusComunicacao={statusComunicacao} />
       ) : (
         <>
-          {/* 2. Resumo Diário Consolidado */}
-          <ResumoDiarioCard
-            veiculoId={veiculo.id}
-            onAbrirTimeline={() => setModalTimelineAberto(true)}
-          />
+          {/* 2. Resumo Diário Consolidado (exclusivo para veículos automotores) */}
+          {!isPropriedade && (
+            <ResumoDiarioCard
+              veiculoId={veiculo.id}
+              onAbrirTimeline={() => setModalTimelineAberto(true)}
+            />
+          )}
 
           {/* 3. Mostradores 3D Holográficos: Cockpit 3D (Veicular) ou Monitor 3D (Propriedade Monitorada e Pessoal) */}
           <div className="w-full flex-1">

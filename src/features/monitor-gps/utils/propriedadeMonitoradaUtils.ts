@@ -211,6 +211,11 @@ export function isPropriedadeMonitorada(
 ): boolean {
   if (!veiculo) return false;
 
+  // 0. Identificador sintetizado de Posto de Vigilância
+  if (veiculo.id && veiculo.id.startsWith("posto-")) {
+    return true;
+  }
+
   // 1. Tipo de Veículo / Ativo explícito
   const tipo = (veiculo.tipo_veiculo || "").toLowerCase().trim();
   if (
@@ -276,7 +281,7 @@ export function isPropriedadeMonitorada(
 
   // 5. Vínculo direto por ID com Postos de Vigilância cadastrados
   if (postos && postos.length > 0) {
-    if (postos.some((p) => p.id === veiculo.id)) {
+    if (postos.some((p) => p.id === veiculo.id || `posto-${p.id}` === veiculo.id)) {
       return true;
     }
   }

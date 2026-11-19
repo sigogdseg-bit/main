@@ -337,17 +337,42 @@ export function GpsMonitorView({
     statusFinanceiro?.bloqueioLocalizacao,
   ]);
 
+  // Síntese de postos de vigilância como ativos para telemetria integrada de propriedades monitoradas
+  const postosComoAtivos = useMemo(() => {
+    return postosVigilancia.map((p) => converterPostoEmVeiculoGps(p, turnosVigilancia, veiculos));
+  }, [postosVigilancia, turnosVigilancia, veiculos]);
+
+  // Lista consolidada de todos os ativos sob monitoramento (veículos e postos)
+  const todosAtivosMonitorados = useMemo(() => {
+    return [...veiculosFiltrados, ...postosComoAtivos];
+  }, [veiculosFiltrados, postosComoAtivos]);
+
   // Auto-sincronização do veículo selecionado com os veículos filtrados e autorizados
   useEffect(() => {
-    if (veiculoSelecionado && veiculosFiltrados.length > 0) {
-      const existe = veiculosFiltrados.some((v) => v.id === veiculoSelecionado.id);
-      if (!existe) {
-        setVeiculoSelecionado(veiculosFiltrados[0]);
+    if (veiculoSelecionado) {
+      // Se o ativo selecionado for uma Propriedade Monitorada ou Posto, preserva integralmente a seleção
+      const ehPropriedade =
+        isPropriedadeMonitorada(veiculoSelecionado, turnosVigilancia, postosVigilancia) ||
+        veiculoSelecionado.id.startsWith("posto-");
+      if (ehPropriedade) {
+        return;
       }
-    } else if (!veiculoSelecionado && veiculosFiltrados.length === 1) {
+      if (veiculosFiltrados.length > 0) {
+        const existe = veiculosFiltrados.some((v) => v.id === veiculoSelecionado.id);
+        if (!existe) {
+          setVeiculoSelecionado(veiculosFiltrados[0]);
+        }
+      }
+    } else if (!veiculoSelecionado && veiculosFiltrados.length === 1 && postosVigilancia.length === 0) {
       setVeiculoSelecionado(veiculosFiltrados[0]);
     }
-  }, [veiculosFiltrados, veiculoSelecionado, setVeiculoSelecionado]);
+  }, [
+    veiculosFiltrados,
+    veiculoSelecionado,
+    setVeiculoSelecionado,
+    turnosVigilancia,
+    postosVigilancia,
+  ]);
   const [modalRefazerTrajetoVeiculo, setModalRefazerTrajetoVeiculo] = useState<VeiculoGps | null>(
     null,
   );
@@ -1379,7 +1404,7 @@ export function GpsMonitorView({
 
     // Se o usuário clicar no mesmo veículo já selecionado e houver mais de um cadastrado, permite desmarcar
     if (veiculoSelecionado?.id === v.id) {
-      if (veiculosFiltrados.length > 1) {
+      if (veiculosFiltrados.length > 1 || postosVigilancia.length > 0) {
         setVeiculoSelecionado(null);
       }
       return;
@@ -1388,10 +1413,29 @@ export function GpsMonitorView({
     setVeiculoSelecionado(v);
     if (window.innerWidth < 768) setSidebarAberta(false);
 
+    const isPropriedade =
+      isPropriedadeMonitorada(v, turnosVigilancia, postosVigilancia) ||
+      v.id.startsWith("posto-");
+
     if (modoVisualizacao === "3D") {
-      maplibreRef.current?.centralizarVeiculo(v);
+      if (isPropriedade) {
+        maplibreRef.current?.centralizarCoordenadas?.(v.latitude, v.longitude, 18);
+      } else {
+        maplibreRef.current?.centralizarVeiculo(v);
+      }
     } else {
-      leafletRef.current?.centralizarVeiculo(v);
+      if (isPropriedade) {
+        leafletRef.current?.centralizarCoordenadas(v.latitude, v.longitude, 18);
+      } else {
+        leafletRef.current?.centralizarVeiculo(v);
+      }
+    }
+
+    if (isPropriedade) {
+      toast.success(`Propriedade ${v.marca_modelo} selecionada (Monitor 3D Ativo).`, {
+        duration: 3000,
+      });
+      return;
     }
 
     const toastId = toast.loading(`Testando comunicacao do veiculo ${v.placa}...`);
@@ -2242,74 +2286,99 @@ export function GpsMonitorView({
 
                   {postosExpandidos && (
                     <div className="p-2 space-y-1.5 border-t border-emerald-500/20 bg-white/40 dark:bg-slate-900/40">
-                      {postosVigilancia.map((posto) => (
-                        <div
-                          key={posto.id}
-                          onClick={() => {
-                            leafletRef.current?.centralizarCoordenadas(
-                              posto.latitude,
-                              posto.longitude,
-                              18,
-                            );
-                            const ativoPropriedade = converterPostoEmVeiculoGps(
-                              posto,
-                              turnosVigilancia,
-                              veiculos,
-                            );
-                            selecionarETestarVeiculo(ativoPropriedade);
-                          }}
-                          className="flex items-center justify-between p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-200 dark:border-slate-700/60 cursor-pointer transition shadow-xs group"
-                        >
-                          <div className="min-w-0 pr-2">
-                            <div className="flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
-                                {posto.nome}
-                              </span>
+                      {postosVigilancia.map((posto) => {
+                        const idPosto = `posto-${posto.id}`;
+                        const isPostoSelecionado =
+                          veiculoSelecionado?.id === idPosto || veiculoSelecionado?.id === posto.id;
+                        return (
+                          <div
+                            key={posto.id}
+                            onClick={() => {
+                              leafletRef.current?.centralizarCoordenadas(
+                                posto.latitude,
+                                posto.longitude,
+                                18,
+                              );
+                              maplibreRef.current?.centralizarCoordenadas?.(
+                                posto.latitude,
+                                posto.longitude,
+                                18,
+                              );
+                              const ativoPropriedade = converterPostoEmVeiculoGps(
+                                posto,
+                                turnosVigilancia,
+                                veiculos,
+                              );
+                              selecionarETestarVeiculo(ativoPropriedade);
+                            }}
+                            className={`flex items-center justify-between p-2 rounded-xl transition cursor-pointer shadow-xs group ${
+                              isPostoSelecionado
+                                ? "bg-emerald-500/15 dark:bg-emerald-950/40 border-2 border-emerald-500 ring-2 ring-emerald-500/20"
+                                : "bg-white/80 dark:bg-slate-800/80 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border border-slate-200 dark:border-slate-700/60"
+                            }`}
+                          >
+                            <div className="min-w-0 pr-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate">
+                                  {posto.nome}
+                                </span>
+                              </div>
+                              {posto.endereco && (
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                  {posto.endereco}
+                                </p>
+                              )}
                             </div>
-                            {posto.endereco && (
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                                {posto.endereco}
-                              </p>
-                            )}
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const ativoPropriedade = converterPostoEmVeiculoGps(
+                                    posto,
+                                    turnosVigilancia,
+                                    veiculos,
+                                  );
+                                  selecionarETestarVeiculo(ativoPropriedade);
+                                  alternarVisaoAtiva("cockpit");
+                                }}
+                                className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500 hover:text-white transition shrink-0 cursor-pointer text-[10px] font-bold flex items-center gap-1"
+                                title="Abrir Monitor 3D desta propriedade"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                <span>Monitor 3D</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  leafletRef.current?.centralizarCoordenadas(
+                                    posto.latitude,
+                                    posto.longitude,
+                                    18,
+                                  );
+                                  maplibreRef.current?.centralizarCoordenadas?.(
+                                    posto.latitude,
+                                    posto.longitude,
+                                    18,
+                                  );
+                                  const ativoPropriedade = converterPostoEmVeiculoGps(
+                                    posto,
+                                    turnosVigilancia,
+                                    veiculos,
+                                  );
+                                  selecionarETestarVeiculo(ativoPropriedade);
+                                }}
+                                className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white transition shrink-0 cursor-pointer"
+                                title="Focar no Mapa"
+                              >
+                                <Crosshair className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const ativoPropriedade = converterPostoEmVeiculoGps(
-                                  posto,
-                                  turnosVigilancia,
-                                  veiculos,
-                                );
-                                selecionarETestarVeiculo(ativoPropriedade);
-                                alternarVisaoAtiva("cockpit");
-                              }}
-                              className="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500 hover:text-white transition shrink-0 cursor-pointer text-[10px] font-bold flex items-center gap-1"
-                              title="Abrir Monitor 3D desta propriedade"
-                            >
-                              <Sparkles className="h-3 w-3" />
-                              <span>Monitor 3D</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                leafletRef.current?.centralizarCoordenadas(
-                                  posto.latitude,
-                                  posto.longitude,
-                                  18,
-                                );
-                              }}
-                              className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white transition shrink-0 cursor-pointer"
-                              title="Focar no Mapa"
-                            >
-                              <Crosshair className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2650,7 +2719,7 @@ export function GpsMonitorView({
             <div className="absolute bottom-0 left-0 right-0 z-[25]">
               <VehicleTelemetryDrawer
                 veiculo={veiculoSelecionado}
-                veiculos={veiculos}
+                veiculos={todosAtivosMonitorados}
                 postos={postosVigilancia}
                 turnos={turnosVigilancia}
                 onSelectVeiculo={selecionarETestarVeiculo}
@@ -2698,6 +2767,8 @@ export function GpsMonitorView({
                 postos={postosVigilancia}
                 onSelectPosto={(posto) => {
                   leafletRef.current?.centralizarCoordenadas(posto.latitude, posto.longitude, 18);
+                  const ativo = converterPostoEmVeiculoGps(posto, turnosVigilancia, veiculos);
+                  selecionarETestarVeiculo(ativo);
                 }}
                 rotaMonitorada={rotaMonitoradaAtiva}
               />
@@ -2718,6 +2789,8 @@ export function GpsMonitorView({
                         posto.longitude,
                         18,
                       );
+                      const ativo = converterPostoEmVeiculoGps(posto, turnosVigilancia, veiculos);
+                      selecionarETestarVeiculo(ativo);
                     }}
                     rotaMonitorada={rotaMonitoradaAtiva}
                   />
@@ -2759,8 +2832,8 @@ export function GpsMonitorView({
       {visaoAtiva === "cockpit" && (
         <div className="flex-1 h-full min-h-0 overflow-y-auto bg-slate-50 dark:bg-slate-950">
           <VehicleTelemetryDrawer
-            veiculo={veiculoSelecionado || veiculosFiltrados[0] || null}
-            veiculos={veiculosFiltrados}
+            veiculo={veiculoSelecionado || todosAtivosMonitorados[0] || null}
+            veiculos={todosAtivosMonitorados}
             postos={postosVigilancia}
             turnos={turnosVigilancia}
             onSelectVeiculo={selecionarETestarVeiculo}

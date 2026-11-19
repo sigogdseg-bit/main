@@ -24,6 +24,8 @@ import {
   TrendingUp,
   CheckCircle2,
   DollarSign,
+  Car,
+  LayoutGrid,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { APP_NOME, APP_SLOGAN, APP_VERSION_NUMERO } from "@/shared/lib/version";
@@ -31,6 +33,7 @@ import { HubModuleCard } from "@/shared/components/HubModuleCard";
 import { TiltCard } from "@/shared/components/TiltCard";
 import { podeAcessarRota } from "@/shared/lib/permissoesModulos";
 import { clientePossuiPendenciaInstalacaoOuAtivacao } from "@/features/clientes/services/clienteService";
+import { ClienteHomeView } from "@/features/clientes/components/ClienteHomeView";
 
 interface CardModulo {
   titulo: string;
@@ -50,6 +53,10 @@ interface SecaoModulos {
 export function InicioHubView() {
   const { session } = useAuth();
   const [temPendenciaAtivacao, setTemPendenciaAtivacao] = useState(false);
+  const [visaoClienteAtiva, setVisaoClienteAtiva] = useState<boolean>(() => {
+    // Clientes autenticados entram diretamente na visão personalizada de Meus Veículos
+    return Boolean(session?.isCliente);
+  });
 
   useEffect(() => {
     let cancelado = false;
@@ -323,6 +330,37 @@ export function InicioHubView() {
   const todosCards = secoesModulos.flatMap((s) => s.cards);
   const cardsFiltrados = todosCards.filter((c) => podeAcessarRota(session, c.rota));
 
+  // Se a visão de Meus Veículos (Cliente) estiver ativa, renderiza a experiência de alta fidelidade
+  if (visaoClienteAtiva) {
+    return (
+      <div className="space-y-4 max-w-6xl mx-auto select-none">
+        {/* Barra superior de retorno / alternância para administradores e operadores */}
+        {(session?.isAdmin || session?.isOperador || session?.isSuperAdmin) && (
+          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Visualização:{" "}
+                <strong className="text-orange-600 dark:text-orange-400">
+                  Modo Experiência do Cliente (Meus Veículos)
+                </strong>
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setVisaoClienteAtiva(false)}
+              className="px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-xs transition active:scale-98 cursor-pointer flex items-center gap-1.5"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Ver Hub de Módulos</span>
+            </button>
+          </div>
+        )}
+        <ClienteHomeView onAlternarParaModulos={() => setVisaoClienteAtiva(false)} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto select-none">
       {/* Banner Principal com Adaptação Canônica Neumorphism Suave e Dinâmica Tátil */}
@@ -383,6 +421,22 @@ export function InicioHubView() {
                 )}
               </>
             )}
+          </div>
+
+          {/* Botão de Alternância Direta para Visão de Meus Veículos */}
+          <div className="mt-4 pt-3 border-t border-slate-300/40 dark:border-slate-800/80 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setVisaoClienteAtiva(true)}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold bg-orange-500 hover:bg-orange-600 text-white shadow-xs transition active:scale-98 cursor-pointer"
+            >
+              <Car className="w-3.5 h-3.5" />
+              <span>
+                {session?.isCliente
+                  ? "Ver Meus Veículos"
+                  : "Acessar Visão do Cliente (Meus Veículos)"}
+              </span>
+            </button>
           </div>
         </div>
       </TiltCard>

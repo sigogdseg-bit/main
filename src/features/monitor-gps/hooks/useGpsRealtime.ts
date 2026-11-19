@@ -162,7 +162,9 @@ export function useGpsRealtime() {
       setUltimaAtualizacao(new Date());
 
       // Atualiza o veículo selecionado com os dados frescos
-      if (lista.length === 1) {
+      if (veiculoSelecionadoRef.current?.id?.startsWith("posto-")) {
+        // Preserva o posto de vigilância ou propriedade monitorada selecionada
+      } else if (lista.length === 1) {
         // Regra Hunter: Usuário com apenas um cadastrado já é selecionado por padrão sem opção de desmarcar
         setVeiculoSelecionado(lista[0]);
       } else if (veiculoSelecionadoRef.current) {
@@ -199,7 +201,9 @@ export function useGpsRealtime() {
         seqRef.current += 1;
         ultimaAtividadeSyncRef.current = Date.now();
 
-        if (lista.length === 1) {
+        if (veiculoSelecionadoRef.current?.id?.startsWith("posto-")) {
+          // Preserva seleção do posto de vigilância ou propriedade monitorada
+        } else if (lista.length === 1) {
           setVeiculoSelecionado(lista[0]);
         } else if (veiculoSelecionadoRef.current?.id === patch.veiculoId) {
           const novoSel = lista.find((item) => item.id === patch.veiculoId);
