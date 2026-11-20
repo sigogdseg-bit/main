@@ -16,6 +16,7 @@ export interface PlanoManutencaoItem {
   placa?: string;
   marca_modelo?: string;
   tipo_veiculo?: string;
+  tipo_medicao?: "km" | "horimetro";
   odometro_atual?: number;
   horimetro_atual?: number;
   km_restante?: number;
@@ -61,6 +62,7 @@ export interface VeiculoManutencaoResumo {
   placa: string;
   marca_modelo: string;
   tipo_veiculo?: string;
+  tipo_medicao?: "km" | "horimetro";
   odometro_km: number;
   horimetro?: number;
   ano_fabricacao?: number | null;

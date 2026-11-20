@@ -62,6 +62,7 @@ export interface VeiculoGps {
   odometro_motor_c_estado?: string | null;
   horimetro?: number;
   horimetro_horas?: number;
+  tipo_medicao?: "km" | "horimetro";
   regra_horimetro?: "pos_chave" | "ignicao";
   horimetro_modo?: "pos_chave" | "ignicao_ligada";
   latitude: number;

@@ -10,6 +10,7 @@ interface ItemManutencaoModalProps {
   veiculoId: string;
   placaVeiculo: string;
   tipoVeiculo?: string;
+  tipoMedicao?: "km" | "horimetro";
   odometroAtual: number;
   horimetroAtual?: number;
   onFechar: () => void;
@@ -21,6 +22,7 @@ export function ItemManutencaoModal({
   veiculoId,
   placaVeiculo,
   tipoVeiculo,
+  tipoMedicao,
   odometroAtual,
   horimetroAtual = 0,
   onFechar,
@@ -29,17 +31,18 @@ export function ItemManutencaoModal({
   const isEdicao = !!itemParaEdicao;
   const isMaquina =
     tipoVeiculo === "maquina" || tipoVeiculo === "trator" || tipoVeiculo === "equipamento";
+  const isHorimetro = tipoMedicao === "horimetro" || isMaquina;
 
-  const metricaAtual = isMaquina ? horimetroAtual : odometroAtual;
-  const unidade = isMaquina ? "horas" : "km";
-  const unidadeCurta = isMaquina ? "h" : "km";
+  const metricaAtual = isHorimetro ? horimetroAtual : odometroAtual;
+  const unidade = isHorimetro ? "horas" : "km";
+  const unidadeCurta = isHorimetro ? "h" : "km";
 
   const [itemNome, setItemNome] = useState(itemParaEdicao?.item_manutencao || "");
   const [intervaloKm, setIntervaloKm] = useState(
-    itemParaEdicao?.intervalo_km || (isMaquina ? 250 : 5000),
+    itemParaEdicao?.intervalo_km || (isHorimetro ? 250 : 5000),
   );
   const [avisoAntecipadoKm, setAvisoAntecipadoKm] = useState(
-    itemParaEdicao?.aviso_antecipado_km || (isMaquina ? 25 : 500),
+    itemParaEdicao?.aviso_antecipado_km || (isHorimetro ? 25 : 500),
   );
   const [ultimoKm, setUltimoKm] = useState(
     itemParaEdicao ? itemParaEdicao.ultimo_km_realizado : metricaAtual,

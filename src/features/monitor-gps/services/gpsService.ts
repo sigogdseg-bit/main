@@ -140,6 +140,8 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
           cor,
           ano,
           tipo_veiculo,
+          tipo_medicao,
+          horimetro_horas,
           ignicao_status,
           bloqueado,
           velocidade_atual,
@@ -398,6 +400,11 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
         alerta_acidente: !!v.alerta_acidente,
         alerta_tipo: v.alerta_tipo || undefined,
         ultima_atualizacao: v.ultima_atualizacao || undefined,
+        horimetro: Number(v.horimetro_horas || 0),
+        horimetro_horas: Number(v.horimetro_horas || 0),
+        tipo_medicao:
+          (v.tipo_medicao as any) ||
+          (v.tipo_veiculo === "maquina" || v.tipo_veiculo === "trator" ? "horimetro" : "km"),
         status_operacional,
         rastreador_id: v.rastreador_id || null,
         rastreador_imei: v.rastreador_imei || null,
@@ -1587,5 +1594,77 @@ export async function calibrarOdometroHardwareJ16(
     };
   } catch (err: any) {
     return { success: false, mensagem: err?.message || "Erro ao calibrar odômetro do hardware." };
+  }
+}
+
+/**
+ * Atualiza a métrica principal do veículo: "km" (Odômetro) ou "horimetro" (Horas de Uso).
+ * Permite também calibrar o valor inicial de horas de funcionamento do motor.
+ */
+export async function atualizarMetricaVeiculo(
+  veiculoId: string,
+  tipoMedicao: "km" | "horimetro",
+  horimetroInicial?: number,
+): Promise<{ success: boolean; message: string; horimetro_horas?: number }> {
+  try {
+    // 1. Tenta rota segura do backend Cloudflare Workers
+    const sess = await supabase.auth.getSession();
+    const token = sess.data.session?.access_token;
+    if (token && typeof window !== "undefined") {
+      const res = await fetch("/api/veiculos/metrica", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ veiculoId, tipoMedicao, horimetroInicial }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success) return json;
+      }
+    }
+
+    // 2. Fallback direto via RPC atômica atualizar_metrica_veiculo
+    const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)(
+      "atualizar_metrica_veiculo",
+      {
+        p_veiculo_id: veiculoId,
+        p_tipo_medicao: tipoMedicao,
+        p_horimetro_horas: horimetroInicial ?? null,
+      },
+    );
+    if (!rpcErr && rpcData?.sucesso) {
+      return {
+        success: true,
+        message: "Métrica operacional atualizada com sucesso.",
+        horimetro_horas: rpcData.horimetro_horas,
+      };
+    }
+
+    // 3. Fallback clássico update
+    const updatePayload: Record<string, any> = {
+      tipo_medicao: tipoMedicao,
+      updated_at: new Date().toISOString(),
+    };
+    if (horimetroInicial !== undefined && horimetroInicial >= 0) {
+      updatePayload.horimetro_horas = horimetroInicial;
+    }
+    const { error: errUp } = await supabase
+      .from("veiculos")
+      .update(updatePayload)
+      .eq("id", veiculoId);
+
+    if (errUp) {
+      return { success: false, message: errUp.message };
+    }
+
+    return {
+      success: true,
+      message: "Métrica operacional atualizada com sucesso.",
+      horimetro_horas: horimetroInicial,
+    };
+  } catch (err: any) {
+    return { success: false, message: err?.message || "Falha ao atualizar métrica." };
   }
 }

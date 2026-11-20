@@ -140,6 +140,7 @@ export async function carregarVeiculosDoCliente(
           placa,
           marca_modelo,
           tipo_veiculo,
+          tipo_medicao,
           odometro_km,
           horimetro_horas,
           ano,
@@ -194,12 +195,13 @@ export async function carregarVeiculosDoCliente(
 
     return veiculosData.map((v: any) => {
       const odometro = Math.round(v.odometro_km || 0);
-      const isMaquina =
+      const isHorimetro =
+        v.tipo_medicao === "horimetro" ||
         v.tipo_veiculo === "maquina" ||
         v.tipo_veiculo === "trator" ||
         v.tipo_veiculo === "equipamento";
       const horimetro = Number(v.horimetro_horas || 0);
-      const metricaAtual = isMaquina ? Math.round(horimetro) : odometro;
+      const metricaAtual = isHorimetro ? Math.round(horimetro) : odometro;
       const planos = planosPorVeiculo[v.id] || [];
 
       let itensAlerta = 0;
@@ -207,7 +209,7 @@ export async function carregarVeiculosDoCliente(
 
       planos.forEach((p: any) => {
         const restante = Math.round(p.proximo_km_alvo - metricaAtual);
-        const aviso = p.aviso_antecipado_km || (isMaquina ? 25 : 500);
+        const aviso = p.aviso_antecipado_km || (isHorimetro ? 25 : 500);
         if (restante <= 0) {
           itensVencidos++;
         } else if (restante <= aviso) {
@@ -221,6 +223,7 @@ export async function carregarVeiculosDoCliente(
         placa: v.placa,
         marca_modelo: v.marca_modelo,
         tipo_veiculo: v.tipo_veiculo || "carro",
+        tipo_medicao: v.tipo_medicao || (isHorimetro ? "horimetro" : "km"),
         odometro_km: odometro,
         horimetro: horimetro,
         ano_fabricacao: v.ano || null,
@@ -321,6 +324,7 @@ export async function carregarItensManutencao(veiculoId?: string): Promise<Plano
           placa,
           marca_modelo,
           tipo_veiculo,
+          tipo_medicao,
           odometro_km,
           horimetro_horas,
           clientes (
@@ -340,15 +344,16 @@ export async function carregarItensManutencao(veiculoId?: string): Promise<Plano
     if (error || !data) return [];
 
     return data.map((item: any) => {
-      const isMaquina =
+      const isHorimetro =
+        item.veiculos?.tipo_medicao === "horimetro" ||
         item.veiculos?.tipo_veiculo === "maquina" ||
         item.veiculos?.tipo_veiculo === "trator" ||
         item.veiculos?.tipo_veiculo === "equipamento";
       const odometroAtual = Math.round(item.veiculos?.odometro_km || 0);
       const horimetroAtual = Number(item.veiculos?.horimetro_horas || 0);
-      const metricaAtual = isMaquina ? Math.round(horimetroAtual) : odometroAtual;
+      const metricaAtual = isHorimetro ? Math.round(horimetroAtual) : odometroAtual;
       const metricaRestante = Math.round(item.proximo_km_alvo - metricaAtual);
-      const avisoAntecipado = item.aviso_antecipado_km || (isMaquina ? 25 : 500);
+      const avisoAntecipado = item.aviso_antecipado_km || (isHorimetro ? 25 : 500);
 
       let statusCalculado: PlanoManutencaoItem["status"] = "em_dia";
       if (metricaRestante <= 0) {
@@ -374,6 +379,7 @@ export async function carregarItensManutencao(veiculoId?: string): Promise<Plano
         placa: item.veiculos?.placa,
         marca_modelo: item.veiculos?.marca_modelo,
         tipo_veiculo: item.veiculos?.tipo_veiculo || "carro",
+        tipo_medicao: item.veiculos?.tipo_medicao || (isHorimetro ? "horimetro" : "km"),
         odometro_atual: odometroAtual,
         horimetro_atual: horimetroAtual,
         km_restante: metricaRestante,

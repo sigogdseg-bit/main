@@ -2722,14 +2722,15 @@ function MostradoresCockpit3D({
         />
       )}
 
-      {/* 6 e 7. Odômetro Servidor (WGS-84) e Odômetro Hardware J16 (MCU) separados, ou Horímetro Operacional para Máquinas */}
+      {/* 6 e 7. Odômetro Servidor (WGS-84) e Odômetro Hardware J16 (MCU) separados, ou Horímetro Operacional para Veículos com Medição em Horas */}
       {(() => {
-        const isMaquinaOuTrator =
+        const isHorimetroAtivo =
+          veiculo.tipo_medicao === "horimetro" ||
           veiculo.tipo_veiculo === "maquina" ||
           veiculo.tipo_veiculo === "trator" ||
           veiculo.tipo_veiculo === "equipamento";
 
-        if (isMaquinaOuTrator) {
+        if (isHorimetroAtivo) {
           return (
             <TiltCard
               maxTilt={10}

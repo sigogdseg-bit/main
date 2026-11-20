@@ -59,8 +59,8 @@ import { ModalLancamentoDespesaVeiculo } from "./ModalLancamentoDespesaVeiculo";
 import { BloqueioPlanoMasterCard } from "./BloqueioPlanoMasterCard";
 import { TiltCard } from "@/shared/components/TiltCard";
 
-function formatarMetrica(valor: number, isMaquina: boolean) {
-  if (isMaquina) {
+function formatarMetrica(valor: number, isHorimetro: boolean) {
+  if (isHorimetro) {
     return `${Number(valor || 0).toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 1 })} h`;
   }
   return formatarKm(valor);
@@ -659,21 +659,22 @@ export function ManutencaoView() {
                       </div>
 
                       {(() => {
-                        const isMaquina =
+                        const isHorimetro =
+                          v.tipo_medicao === "horimetro" ||
                           v.tipo_veiculo === "maquina" ||
                           v.tipo_veiculo === "trator" ||
                           v.tipo_veiculo === "equipamento";
                         return (
                           <div className="p-3 rounded-2xl bg-[#eaf0f8] dark:bg-slate-950/60 border border-slate-300/50 dark:border-slate-800/80 shadow-[inset_2px_2px_4px_#c8d4e4,inset_-2px_-2px_4px_#ffffff] dark:shadow-none flex items-center justify-between text-xs">
                             <span className="text-slate-500 dark:text-slate-400">
-                              {isMaquina ? "Horímetro Atual:" : "Odômetro Atual:"}
+                              {isHorimetro ? "Horímetro Atual:" : "Odômetro Atual:"}
                             </span>
                             <span
-                              className={`font-black font-mono ${isMaquina ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100"}`}
+                              className={`font-black font-mono ${isHorimetro ? "text-amber-600 dark:text-amber-400" : "text-slate-900 dark:text-slate-100"}`}
                             >
                               {formatarMetrica(
-                                isMaquina ? v.horimetro || 0 : v.odometro_km,
-                                isMaquina,
+                                isHorimetro ? v.horimetro || 0 : v.odometro_km,
+                                isHorimetro,
                               )}
                             </span>
                           </div>
@@ -974,13 +975,14 @@ export function ManutencaoView() {
                     <button
                       onClick={async () => {
                         setCarregando(true);
-                        const isMaquina =
+                        const isHorimetro =
+                          veiculoSelecionado.tipo_medicao === "horimetro" ||
                           veiculoSelecionado.tipo_veiculo === "maquina" ||
                           veiculoSelecionado.tipo_veiculo === "trator" ||
                           veiculoSelecionado.tipo_veiculo === "equipamento";
                         await inicializarItensPadraoVeiculo(
                           veiculoSelecionado.id,
-                          isMaquina
+                          isHorimetro
                             ? Number(veiculoSelecionado.horimetro || 0)
                             : veiculoSelecionado.odometro_km,
                         );
@@ -1009,11 +1011,12 @@ export function ManutencaoView() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                   {itensFiltrados.map((item) => {
-                    const isMaquina =
+                    const isHorimetro =
+                      veiculoSelecionado.tipo_medicao === "horimetro" ||
                       veiculoSelecionado.tipo_veiculo === "maquina" ||
                       veiculoSelecionado.tipo_veiculo === "trator" ||
                       veiculoSelecionado.tipo_veiculo === "equipamento";
-                    const metricaAtual = isMaquina
+                    const metricaAtual = isHorimetro
                       ? Math.round(veiculoSelecionado.horimetro || item.horimetro_atual || 0)
                       : Math.round(veiculoSelecionado.odometro_km || item.odometro_atual || 0);
                     const metricaRestante = Math.round(item.proximo_km_alvo - metricaAtual);
@@ -1049,8 +1052,8 @@ export function ManutencaoView() {
                               {item.item_manutencao}
                             </h3>
                             <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                              Ciclo a cada {formatarMetrica(item.intervalo_km, isMaquina)} • Aviso
-                              prévio: {formatarMetrica(item.aviso_antecipado_km, isMaquina)}
+                              Ciclo a cada {formatarMetrica(item.intervalo_km, isHorimetro)} • Aviso
+                              prévio: {formatarMetrica(item.aviso_antecipado_km, isHorimetro)}
                             </span>
                           </div>
 
@@ -1079,7 +1082,7 @@ export function ManutencaoView() {
                               }}
                               className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 bg-[#eaf0f8] dark:bg-slate-800 border border-slate-300/50 dark:border-slate-700 shadow-[1px_1px_3px_#c3cfe2] dark:shadow-none hover:shadow-[2px_2px_5px_#b8c6da] transition cursor-pointer"
                               title={
-                                isMaquina
+                                isHorimetro
                                   ? "Configurar Metas de Horímetro"
                                   : "Configurar Metas de Odômetro"
                               }
@@ -1095,13 +1098,13 @@ export function ManutencaoView() {
                             <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                               Última realização:{" "}
                               <strong className="text-slate-900 dark:text-slate-100">
-                                {formatarMetrica(item.ultimo_km_realizado, isMaquina)}
+                                {formatarMetrica(item.ultimo_km_realizado, isHorimetro)}
                               </strong>
                             </span>
                             <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                               Meta Alvo:{" "}
                               <strong className="text-slate-900 dark:text-slate-100">
-                                {formatarMetrica(item.proximo_km_alvo, isMaquina)}
+                                {formatarMetrica(item.proximo_km_alvo, isHorimetro)}
                               </strong>
                             </span>
                           </div>
@@ -1130,8 +1133,8 @@ export function ManutencaoView() {
                               }`}
                             >
                               {metricaRestante <= 0
-                                ? `${isMaquina ? "Horímetro" : "Odômetro"} excedido em ${formatarMetrica(Math.abs(metricaRestante), isMaquina)}`
-                                : `Faltam ${formatarMetrica(metricaRestante, isMaquina)} para a revisão`}
+                                ? `${isHorimetro ? "Horímetro" : "Odômetro"} excedido em ${formatarMetrica(Math.abs(metricaRestante), isHorimetro)}`
+                                : `Faltam ${formatarMetrica(metricaRestante, isHorimetro)} para a revisão`}
                             </span>
                             <span className="text-slate-400 text-[10px] font-mono">
                               {percentual}% do ciclo atingido
@@ -1547,6 +1550,7 @@ export function ManutencaoView() {
           veiculoId={veiculoSelecionado.id}
           placaVeiculo={veiculoSelecionado.placa}
           tipoVeiculo={veiculoSelecionado.tipo_veiculo}
+          tipoMedicao={veiculoSelecionado.tipo_medicao}
           odometroAtual={veiculoSelecionado.odometro_km}
           horimetroAtual={veiculoSelecionado.horimetro}
           onFechar={() => setModalItemAberto(false)}

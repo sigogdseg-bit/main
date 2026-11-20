@@ -12,6 +12,7 @@ import {
   Box,
   User,
   ShieldAlert,
+  Settings2,
 } from "lucide-react";
 import type { VeiculoGps } from "@/features/monitor-gps/types";
 import { PlacaMercosulBadge } from "@/shared/components/PlacaMercosulBadge";
@@ -30,6 +31,7 @@ interface HunterVehicleCardProps {
   onVerNoMapa?: (veiculo: VeiculoGps) => void;
   onAbrirCockpit?: (veiculo: VeiculoGps) => void;
   onToggleBloqueio?: (veiculo: VeiculoGps) => void;
+  onConfigurarMetrica?: (veiculo: VeiculoGps) => void;
   podeBloquear?: boolean;
   className?: string;
 }
@@ -51,12 +53,14 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
   onVerNoMapa,
   onAbrirCockpit,
   onToggleBloqueio,
+  onConfigurarMetrica,
   podeBloquear = false,
   className = "",
 }) => {
   const statusCom = avaliarStatusComunicacao(veiculo.ultima_atualizacao);
   const isOnline = statusCom.ativo;
   const isPropriedade = isPropriedadeMonitorada(veiculo);
+  const isHorimetro = veiculo.tipo_medicao === "horimetro";
 
   // Estado e resolução assíncrona do endereço legível (nunca expor coordenadas brutas)
   const [enderecoLocal, setEnderecoLocal] = useState<string>(
@@ -120,9 +124,13 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
     ? isIgnicaoLigada
       ? "Em Ronda"
       : "Parado"
-    : isIgnicaoLigada
-      ? "Ligada"
-      : "Desligada";
+    : isHorimetro
+      ? isIgnicaoLigada
+        ? "Motor Ligado"
+        : "Motor Desligado"
+      : isIgnicaoLigada
+        ? "Ligada"
+        : "Desligada";
 
   // Nome do condutor ou titular
   const condutorExibido = nomeCondutor || veiculo.cliente_nome || "Titular da Proteção";
@@ -211,6 +219,56 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
             <User className="w-3.5 h-3.5 shrink-0 text-slate-400" />
             <span className="truncate">{condutorExibido}</span>
           </div>
+
+          {/* Métrica Principal: Odômetro ou Horímetro em Tempo Real */}
+          <div className="flex items-center justify-between text-xs mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+            {isHorimetro ? (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-bold">
+                <Clock className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  Horímetro:{" "}
+                  <strong className="font-mono font-tabular">
+                    {Number(veiculo.horimetro_horas ?? veiculo.horimetro ?? 0).toLocaleString(
+                      "pt-BR",
+                      {
+                        minimumFractionDigits: 1,
+                        maximumFractionDigits: 1,
+                      },
+                    )}{" "}
+                    h
+                  </strong>
+                </span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 dark:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/20 font-bold">
+                <Gauge className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  Odômetro:{" "}
+                  <strong className="font-mono font-tabular">
+                    {Number(veiculo.odometro || 0).toLocaleString("pt-BR", {
+                      maximumFractionDigits: 1,
+                    })}{" "}
+                    km
+                  </strong>
+                </span>
+              </div>
+            )}
+
+            {onConfigurarMetrica && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConfigurarMetrica(veiculo);
+                }}
+                className="px-2 py-1 rounded-xl text-[11px] font-bold text-slate-500 dark:text-slate-400 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-500/10 transition flex items-center gap-1 cursor-pointer"
+                title="Configurar medição entre Odômetro (KM) e Horímetro (Horas de Uso)"
+              >
+                <Settings2 className="w-3 h-3" />
+                <span>Métrica</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* 3. Grid de Telemetria 2x2 com micro-ícones de alta legibilidade */}
@@ -277,7 +335,7 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
             </div>
             <div className="min-w-0">
               <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">
-                {isPropriedade ? "Atividade" : "Ignição"}
+                {isPropriedade ? "Atividade" : isHorimetro ? "Motor / Horímetro" : "Ignição"}
               </span>
               <span
                 className={`font-black truncate block ${

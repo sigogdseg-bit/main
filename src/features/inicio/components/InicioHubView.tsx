@@ -53,10 +53,8 @@ interface SecaoModulos {
 export function InicioHubView() {
   const { session } = useAuth();
   const [temPendenciaAtivacao, setTemPendenciaAtivacao] = useState(false);
-  const [visaoClienteAtiva, setVisaoClienteAtiva] = useState<boolean>(() => {
-    // Clientes autenticados entram diretamente na visão personalizada de Meus Veículos
-    return Boolean(session?.isCliente);
-  });
+  // O Novo Painel Geral unifica 100% das operações para todos os perfis (Admin, Operador, Cliente e Parceiros)
+  const [visaoClienteAtiva, setVisaoClienteAtiva] = useState<boolean>(true);
 
   useEffect(() => {
     let cancelado = false;
@@ -330,33 +328,11 @@ export function InicioHubView() {
   const todosCards = secoesModulos.flatMap((s) => s.cards);
   const cardsFiltrados = todosCards.filter((c) => podeAcessarRota(session, c.rota));
 
-  // Se a visão de Meus Veículos (Cliente) estiver ativa, renderiza a experiência de alta fidelidade
+  // Se a visão de Meus Veículos (Painel Geral Unificado) estiver ativa, renderiza a experiência de alta fidelidade
   if (visaoClienteAtiva) {
     return (
       <div className="space-y-4 max-w-6xl mx-auto select-none">
-        {/* Barra superior de retorno / alternância para administradores e operadores */}
-        {(session?.isAdmin || session?.isOperador || session?.isSuperAdmin) && (
-          <div className="flex items-center justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                Visualização:{" "}
-                <strong className="text-orange-600 dark:text-orange-400">
-                  Modo Experiência do Cliente (Meus Veículos)
-                </strong>
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setVisaoClienteAtiva(false)}
-              className="px-3 py-1.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-xs transition active:scale-98 cursor-pointer flex items-center gap-1.5"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Ver Hub de Módulos</span>
-            </button>
-          </div>
-        )}
-        <ClienteHomeView onAlternarParaModulos={() => setVisaoClienteAtiva(false)} />
+        <ClienteHomeView />
       </div>
     );
   }

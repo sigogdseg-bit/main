@@ -14,7 +14,6 @@ import {
   ChevronRight,
   ShieldCheck,
   CreditCard,
-  Layers,
   Users,
   Building2,
   MapPin,
@@ -27,6 +26,7 @@ import {
 } from "@/features/monitor-gps/services/gpsService";
 import type { VeiculoGps } from "@/features/monitor-gps/types";
 import { HunterVehicleCard } from "./HunterVehicleCard";
+import { ModalConfigurarMetricaVeiculo } from "./ModalConfigurarMetricaVeiculo";
 import { obterEnderecoPorCoordenadas } from "@/features/monitor-gps/services/compartilhamentoService";
 import { ModalPixRapido } from "@/features/mensalidades/components/ModalPixRapido";
 import { ModalGerenciarLocatarios } from "@/features/locatarios/components/ModalGerenciarLocatarios";
@@ -88,6 +88,24 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
   const [pixQrCodeUrl, setPixQrCodeUrl] = useState("");
   const [gerandoPix, setGerandoPix] = useState(false);
   const [enderecosMap, setEnderecosMap] = useState<Record<string, string>>({});
+
+  // Métrica Principal: Odômetro (KM) ou Horímetro Real (Horas)
+  const [veiculoParaMetrica, setVeiculoParaMetrica] = useState<VeiculoGps | null>(null);
+
+  const handleSalvarMetrica = (veiculoId: string, tipo: "km" | "horimetro", horas: number) => {
+    setVeiculos((prev) =>
+      prev.map((v) =>
+        v.id === veiculoId
+          ? {
+              ...v,
+              tipo_medicao: tipo,
+              horimetro_horas: horas,
+              horimetro: horas,
+            }
+          : v,
+      ),
+    );
+  };
 
   // Carrega os veículos do cliente autenticado
   useEffect(() => {
@@ -307,7 +325,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
   const inicial = primeiroNome.charAt(0).toUpperCase() || "C";
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto select-none pb-12">
+    <div className="space-y-6 max-w-6xl mx-auto select-none pb-32 sm:pb-20">
       {/* 1. Header do Cliente com Degradê Institucional e Contadores em Pílulas */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-600 via-orange-500 to-amber-600 text-white p-5 sm:p-7 shadow-[0_12px_32px_rgba(234,88,12,0.22)]">
         {/* Círculos de Iluminação Suave no Fundo */}
@@ -664,6 +682,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
               enderecoTexto={enderecosMap[v.id]}
               onVerNoMapa={handleVerNoMapa}
               onAbrirCockpit={handleAbrirCockpit}
+              onConfigurarMetrica={(veic) => setVeiculoParaMetrica(veic)}
             />
           ))}
         </div>
@@ -706,8 +725,21 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
                         {v.velocidade > 3 ? "Em Rota" : v.ignicao ? "Ligado" : "Estacionado"}
                       </span>
                       <span className="text-slate-300 dark:text-slate-700">·</span>
-                      <span className="font-mono font-tabular text-slate-700 dark:text-slate-300 font-bold">
-                        {v.velocidade} km/h
+                      <span
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setVeiculoParaMetrica(v);
+                        }}
+                        className="font-mono font-tabular text-slate-700 dark:text-slate-300 font-bold hover:text-orange-500 cursor-pointer"
+                        title={
+                          v.tipo_medicao === "horimetro"
+                            ? "Horímetro em horas. Clique para alterar métrica."
+                            : "Velocidade em km/h. Clique para alterar métrica."
+                        }
+                      >
+                        {v.tipo_medicao === "horimetro"
+                          ? `${Number(v.horimetro_horas ?? v.horimetro ?? 0).toFixed(1)} h`
+                          : `${v.velocidade} km/h`}
                       </span>
                       {enderecosMap[v.id] && (
                         <>
@@ -843,20 +875,6 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         </Link>
       </div>
 
-      {/* 6. Acesso Alternativo aos Módulos Operacionais Avançados */}
-      {onAlternarParaModulos && (
-        <div className="pt-2 text-center">
-          <button
-            type="button"
-            onClick={onAlternarParaModulos}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-200 dark:border-slate-700 transition cursor-pointer shadow-xs active:scale-98"
-          >
-            <Layers className="w-4 h-4 text-orange-500" />
-            <span>Ver Todos os Módulos Operacionais</span>
-          </button>
-        </div>
-      )}
-
       {/* Modal de Pagamento PIX Instantâneo */}
       {mensalidadePendente && (
         <ModalPixRapido
@@ -879,6 +897,16 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
           }}
           clienteId={session?.clienteId}
           veiculosCliente={veiculos}
+        />
+      )}
+
+      {/* Modal de Configuração de Métrica (KM vs Horímetro) */}
+      {veiculoParaMetrica && (
+        <ModalConfigurarMetricaVeiculo
+          aberto={Boolean(veiculoParaMetrica)}
+          veiculo={veiculoParaMetrica}
+          onFechar={() => setVeiculoParaMetrica(null)}
+          onSalvo={handleSalvarMetrica}
         />
       )}
     </div>

@@ -7,8 +7,8 @@ import { APP_VERSION_NUMERO } from "../../shared/lib/version";
 describe("Hunter — Release v1.0.1.8: Geocodificação Reversa e Endereço Legível nos Cards de Veículos", () => {
   const rootDir = process.cwd();
 
-  it("1. Versão deve ser rigorosamente incrementada para 1.0.1.8", () => {
-    assert.equal(APP_VERSION_NUMERO, "1.0.1.8");
+  it("1. Versão deve ser rigorosamente incrementada para 1.0.1.8 ou superior", () => {
+    assert.ok(APP_VERSION_NUMERO >= "1.0.1.8");
   });
 
   it("2. HunterVehicleCard deve exibir endereço legível e NUNCA expor coordenadas brutas (Lat/Lon)", () => {

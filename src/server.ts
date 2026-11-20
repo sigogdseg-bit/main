@@ -3486,6 +3486,8 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
           cor,
           ano,
           tipo_veiculo,
+          tipo_medicao,
+          horimetro_horas,
           ignicao_status,
           bloqueado,
           velocidade_atual,
@@ -3651,6 +3653,88 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
     } catch (err: any) {
       return new Response(
         JSON.stringify({ success: false, message: err?.message || "Erro ao consultar veículos." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // POST /api/veiculos/metrica - Alternar entre Odômetro (KM) e Horímetro (Horas de Uso)
+  if (request.method === "POST" && url.pathname === "/api/veiculos/metrica") {
+    try {
+      const body = (await request.json()) as any;
+      const { veiculoId, tipoMedicao, horimetroInicial } = body || {};
+
+      if (!veiculoId) {
+        return new Response(
+          JSON.stringify({ success: false, message: "veiculoId é obrigatório." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const medicao = tipoMedicao === "horimetro" ? "horimetro" : "km";
+      const horimetroNum =
+        horimetroInicial !== undefined && Number(horimetroInicial) >= 0
+          ? Number(horimetroInicial)
+          : null;
+
+      // 1. Tenta RPC atualizar_metrica_veiculo
+      const { data: rpcRes, error: rpcErr } = await (adminClient.rpc as any)(
+        "atualizar_metrica_veiculo",
+        {
+          p_veiculo_id: veiculoId,
+          p_tipo_medicao: medicao,
+          p_horimetro_horas: horimetroNum,
+        },
+      );
+
+      if (!rpcErr && rpcRes?.sucesso) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            message: "Métrica operacional atualizada com sucesso.",
+            tipo_medicao: medicao,
+            horimetro_horas: rpcRes.horimetro_horas,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // 2. Fallback direto update
+      const updateData: Record<string, any> = {
+        tipo_medicao: medicao,
+        updated_at: new Date().toISOString(),
+      };
+      if (horimetroNum !== null) {
+        updateData.horimetro_horas = horimetroNum;
+      }
+
+      const { error: upErr } = await adminClient
+        .from("veiculos")
+        .update(updateData)
+        .eq("id", veiculoId);
+
+      if (upErr) {
+        return new Response(JSON.stringify({ success: false, message: upErr.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "Métrica operacional atualizada com sucesso.",
+          tipo_medicao: medicao,
+          horimetro_horas: horimetroNum,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao atualizar métrica do veículo.",
+        }),
         { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }
