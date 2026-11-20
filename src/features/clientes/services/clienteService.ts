@@ -2050,17 +2050,75 @@ export async function clientePossuiVeiculosAtivos(
       return true;
     }
 
+    // 1. Prioridade máxima: Rota segura de backend com Service Role (/api/clientes/meu-status)
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token && typeof window !== "undefined") {
+        const res = await fetch("/api/clientes/meu-status", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) {
+            if (
+              json.temVeiculosAtivos ||
+              json.instaladoDiretamente ||
+              !json.bloquearPorAguardandoInstalacao
+            ) {
+              return true;
+            }
+            if (json.bloquearPorAguardandoInstalacao) {
+              return false;
+            }
+          }
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+
+    // 2. Fallback via /api/veiculos/monitor (Service Role)
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token && typeof window !== "undefined") {
+        const res = await fetch("/api/veiculos/monitor", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.veiculos) && json.veiculos.length > 0) {
+            return true;
+          }
+        }
+      }
+    } catch {
+      /* fallback */
+    }
+
     let targetClienteId = clienteId;
 
-    // 1. Se não recebeu cliente_id diretamente, busca a partir do user_id
+    // 3. Se não recebeu cliente_id diretamente, busca a partir do user_id
     if (!targetClienteId && userId) {
       const { data: cliente } = await supabase
         .from("clientes")
-        .select("id, status")
+        .select("id, status, status_agendamento")
         .eq("user_id", userId)
         .maybeSingle();
 
       if (!cliente) return false;
+
+      // Veículo ou cliente ativado diretamente
+      if (cliente.status === "ativo" && cliente.status_agendamento === "concluido") {
+        return true;
+      }
 
       // Se o status do cliente for explicitamente aguardando_instalacao, nao possui veiculos ativos
       if (cliente.status === "aguardando_instalacao") {
@@ -2072,7 +2130,7 @@ export async function clientePossuiVeiculosAtivos(
 
     if (!targetClienteId) return false;
 
-    // 2. Verificar se ha veiculos ativos com rastreador instalado para este cliente
+    // 4. Verificar se ha veiculos ativos com rastreador instalado para este cliente
     const { data: veiculos, error } = await supabase
       .from("veiculos")
       .select("id, ativo, rastreador_id")
@@ -2101,6 +2159,28 @@ export async function clientePossuiPendenciaInstalacaoOuAtivacao(
     const sessaoAtual = obterSessaoCacheada();
     if (isModoDegustacao(sessaoAtual)) {
       return false;
+    }
+
+    // 1. Prioridade máxima: Rota segura de backend com Service Role
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token && typeof window !== "undefined") {
+        const res = await fetch("/api/clientes/meu-status", {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success) {
+            return Boolean(json.bloquearPorAguardandoInstalacao);
+          }
+        }
+      }
+    } catch {
+      /* fallback */
     }
 
     let targetClienteId = clienteId;

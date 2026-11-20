@@ -328,9 +328,10 @@ function AuthenticatedLayout() {
           <BarraModoDemonstracao />
           <TelaClienteAguardandoInstalacao
             onInstalacaoConcluida={async () => {
+              setTemVeiculosAtivos(true);
               await recarregarSessao();
               const possui = await clientePossuiVeiculosAtivos(session.userId, session.clienteId);
-              setTemVeiculosAtivos(possui);
+              setTemVeiculosAtivos(possui !== false);
             }}
           />
         </AppShell>

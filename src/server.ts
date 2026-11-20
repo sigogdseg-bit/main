@@ -2436,8 +2436,10 @@ async function handleApiAdminUsuarios(request: Request, env: unknown): Promise<R
 
 async function handleApiClientes(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
-  if (url.pathname !== "/api/clientes" && url.pathname !== "/api/clientes/listar") {
-    return null;
+  if (url.pathname !== "/api/clientes/meu-status") {
+    if (url.pathname !== "/api/clientes" && url.pathname !== "/api/clientes/listar") {
+      return null;
+    }
   }
 
   if (request.method === "OPTIONS") {
@@ -2519,6 +2521,114 @@ async function handleApiClientes(request: Request, env: unknown): Promise<Respon
         headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
       },
     );
+  }
+
+  if (url.pathname === "/api/clientes/meu-status") {
+    try {
+      let { data: cliente } = await adminClient
+        .from("clientes")
+        .select("id, user_id, nome_razao_social, status, status_agendamento, plano")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+
+      if (!cliente && profile?.cliente_id) {
+        const { data: cById } = await adminClient
+          .from("clientes")
+          .select("id, user_id, nome_razao_social, status, status_agendamento, plano")
+          .eq("id", profile.cliente_id)
+          .maybeSingle();
+        if (cById) cliente = cById;
+      }
+
+      if (!cliente && userData.user.email) {
+        const { data: cByEmail } = await adminClient
+          .from("clientes")
+          .select("id, user_id, nome_razao_social, status, status_agendamento, plano")
+          .ilike("email", userData.user.email.trim())
+          .maybeSingle();
+        if (cByEmail) cliente = cByEmail;
+      }
+
+      if (!cliente) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            clienteId: null,
+            temVeiculosAtivos: true,
+            bloquearPorAguardandoInstalacao: false,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      if (!profile?.cliente_id || profile.cliente_id !== cliente.id) {
+        await adminClient
+          .from("profiles")
+          .update({ cliente_id: cliente.id })
+          .eq("id", userData.user.id);
+      }
+
+      const { data: veiculos } = await adminClient
+        .from("veiculos")
+        .select("id, placa, ativo, rastreador_id")
+        .eq("cliente_id", cliente.id)
+        .eq("ativo", true);
+
+      const { data: instalacoes } = await adminClient
+        .from("instalacoes")
+        .select("id, status")
+        .eq("cliente_id", cliente.id);
+
+      const totalVeiculosAtivos = (veiculos || []).length;
+      const temVeiculosAtivos =
+        totalVeiculosAtivos > 0 &&
+        (veiculos || []).some((v) => Boolean(v.ativo) && Boolean(v.rastreador_id));
+
+      const totalInstalacoes = (instalacoes || []).length;
+      const instalacoesPendentes = (instalacoes || []).filter(
+        (i) => i.status !== "concluida",
+      ).length;
+      const todasInstalacoesConcluidas = totalInstalacoes > 0 && instalacoesPendentes === 0;
+
+      const instaladoDiretamente =
+        temVeiculosAtivos &&
+        (totalInstalacoes === 0 ||
+          todasInstalacoesConcluidas ||
+          cliente.status_agendamento === "concluido" ||
+          cliente.status === "ativo");
+
+      const bloquearPorAguardandoInstalacao =
+        !temVeiculosAtivos &&
+        !instaladoDiretamente &&
+        (cliente.status === "aguardando_instalacao" || instalacoesPendentes > 0);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          clienteId: cliente.id,
+          clienteNome: cliente.nome_razao_social,
+          plano: cliente.plano || "basico",
+          statusCliente: cliente.status,
+          statusAgendamento: cliente.status_agendamento,
+          temVeiculosAtivos,
+          totalVeiculosAtivos,
+          totalInstalacoes,
+          totalInstalacoesPendentes: instalacoesPendentes,
+          todasInstalacoesConcluidas,
+          instaladoDiretamente,
+          bloquearPorAguardandoInstalacao,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao obter status do cliente.",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
   }
 
   try {
