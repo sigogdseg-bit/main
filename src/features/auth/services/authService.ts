@@ -303,27 +303,27 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
         clienteId = profile.cliente_id;
       }
 
-      // Se ainda não resolveu clienteId (ex: bloqueio de RLS direto no Supabase), busca via backend seguro
-      if (!clienteId) {
-        try {
-          const sess = await supabase.auth.getSession();
-          const token = sess.data.session?.access_token;
-          if (token && typeof window !== "undefined") {
-            const res = await fetch("/api/clientes/meu-status", {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            if (res.ok) {
-              const json = await res.json();
-              if (json.success && json.clienteId) {
-                clienteId = json.clienteId;
-                if (!plano) plano = json.plano || "basico";
-                if (!planoContratado) planoContratado = json.plano || "basico";
+      // Sincronização autoritativa e definitiva do plano e clienteId via rota segura com Service Role
+      try {
+        const sess = await supabase.auth.getSession();
+        const token = sess.data.session?.access_token;
+        if (token && typeof window !== "undefined") {
+          const res = await fetch("/api/clientes/meu-status", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const json = await res.json();
+            if (json.success && json.clienteId) {
+              clienteId = json.clienteId;
+              if (json.plano) {
+                plano = json.plano as UserSession["plano"];
+                planoContratado = json.plano as UserSession["plano"];
               }
             }
           }
-        } catch {
-          // fallback
         }
+      } catch {
+        // fallback
       }
     } else if (role === "motorista") {
       let motQuery = await supabase

@@ -317,7 +317,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
             (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1150;
           mapInstanceRef.current.flyTo({
             center: [lngAlvo, latAlvo],
-            zoom: Math.max(mapInstanceRef.current.getZoom(), 17),
+            zoom: Math.max(mapInstanceRef.current.getZoom(), 18),
             pitch: 60,
             bearing: v.rumo || 0,
             essential: true,
@@ -330,7 +330,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
           seguindoCameraRef.current = false;
           mapInstanceRef.current.flyTo({
             center: [lng, lat],
-            zoom: zoom || 17,
+            zoom: zoom || 18,
             pitch: 50,
             duration: 1000,
           });
@@ -980,7 +980,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
           (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1150;
         map.flyTo({
           center: [lngAlvo, latAlvo],
-          zoom: Math.max(map.getZoom(), 17),
+          zoom: Math.max(map.getZoom(), 18),
           pitch: 60,
           bearing: veiculoSelecionado.rumo || 0,
           duration: 1000,

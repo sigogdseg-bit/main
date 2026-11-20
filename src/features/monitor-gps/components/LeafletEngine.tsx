@@ -247,7 +247,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           const latAlvo = estado ? estado.visualLat : v.latitude;
           const lngAlvo = estado ? estado.visualLng : v.longitude;
           const zoomAtual = mapInstanceRef.current.getZoom();
-          mapInstanceRef.current.setView([latAlvo, lngAlvo], Math.max(zoomAtual, 16), {
+          mapInstanceRef.current.setView([latAlvo, lngAlvo], Math.max(zoomAtual, 18), {
             animate: true,
           });
         }
@@ -255,7 +255,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       centralizarCoordenadas: (lat: number, lng: number, zoom?: number) => {
         if (mapInstanceRef.current && coordenadaValidaMapa(lat, lng)) {
           seguindoCameraRef.current = false;
-          mapInstanceRef.current.setView([lat, lng], zoom || 17, {
+          mapInstanceRef.current.setView([lat, lng], zoom || 18, {
             animate: true,
           });
         }
@@ -683,7 +683,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         const estado = controladorMovimentoRef.current.obterEstado(veiculoSelecionado.id);
         const latAlvo = estado ? estado.visualLat : lat;
         const lonAlvo = estado ? estado.visualLng : lon;
-        map.setView([latAlvo, lonAlvo], Math.max(map.getZoom(), 16), { animate: true });
+        map.setView([latAlvo, lonAlvo], Math.max(map.getZoom(), 18), { animate: true });
       }
     }, [veiculoSelecionado]);
 

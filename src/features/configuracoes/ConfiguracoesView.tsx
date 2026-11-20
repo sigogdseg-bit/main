@@ -20,6 +20,8 @@ import {
   MessageSquare,
   Send,
   Sliders,
+  Building2,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { useGpsRealtime } from "@/features/monitor-gps/hooks/useGpsRealtime";
@@ -49,6 +51,9 @@ import {
   salvarPreferenciaUsuario,
   carregarPreferenciasDoBanco,
 } from "@/shared/lib/userPreferencesService";
+import { carregarClientes } from "@/features/clientes/services/clienteService";
+import { carregarPostosVigilancia } from "@/features/vigilantes/services/vigilanteService";
+import type { PostoVigilancia } from "@/features/vigilantes/types";
 
 export interface ClienteOpcao {
   id: string;
@@ -434,12 +439,14 @@ export function ConfiguracoesView() {
     }
   });
 
-  // Modo de Operação: SuperADM vs Modo Cliente (Emulação Real)
+  // Modo de Operação: SuperADM / Admin vs Modo Cliente (Emulação Real)
   const isSuperAdmReal = Boolean(
     sessaoOriginal?.isSuperAdmin ||
-    sessaoOriginal?.role === "superadmin" ||
+    sessaoOriginal?.isAdmin ||
+    sessaoOriginal?.role === "adm" ||
     session?.isSuperAdmin ||
-    session?.role === "superadmin" ||
+    session?.isAdmin ||
+    session?.role === "adm" ||
     clienteEmulado,
   );
 
@@ -450,19 +457,61 @@ export function ConfiguracoesView() {
     return clienteEmulado ? "cliente" : "superadm";
   });
 
+  // Propriedades Monitoradas (Postos Fixos)
+  const [postosFixos, setPostosFixos] = useState<PostoVigilancia[]>([]);
+  const [carregandoPostos, setCarregandoPostos] = useState(false);
+
+  useEffect(() => {
+    let ativo = true;
+    setCarregandoPostos(true);
+    carregarPostosVigilancia(session?.clienteId || undefined)
+      .then((lista) => {
+        if (ativo && Array.isArray(lista)) {
+          setPostosFixos(lista);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (ativo) setCarregandoPostos(false);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [session?.clienteId]);
+
   useEffect(() => {
     if (isSuperAdmReal) {
       setCarregandoClientes(true);
-      // REGRA ESTRITA: lista exclusivamente da tabela clientes (nunca de profiles/usuarios)
-      supabase
-        .from("clientes")
-        .select("id, nome_razao_social, documento, plano, status, telefone, user_id")
-        .neq("status", "cancelado")
-        .order("nome_razao_social", { ascending: true })
-        .then(({ data, error }) => {
-          if (!error && data) {
-            setListaClientes(data as ClienteOpcao[]);
+      // Carrega catálogo via rota segura /api/clientes (evita bloqueio por RLS)
+      carregarClientes()
+        .then((clientes) => {
+          if (Array.isArray(clientes)) {
+            const ativos = clientes
+              .filter((c) => c.status !== "cancelado")
+              .map((c) => ({
+                id: c.id,
+                nome_razao_social: c.nome_razao_social,
+                documento: c.documento,
+                plano: c.plano,
+                status: c.status,
+                telefone: c.telefone,
+                user_id: c.user_id,
+              }));
+            setListaClientes(ativos);
           }
+        })
+        .catch(() => {
+          // Fallback para Supabase direto
+          supabase
+            .from("clientes")
+            .select("id, nome_razao_social, documento, plano, status, telefone, user_id")
+            .neq("status", "cancelado")
+            .order("nome_razao_social", { ascending: true })
+            .then(({ data, error }) => {
+              if (!error && data) {
+                setListaClientes(data as ClienteOpcao[]);
+              }
+            });
         })
         .finally(() => {
           setCarregandoClientes(false);
@@ -1196,6 +1245,77 @@ export function ConfiguracoesView() {
                   </div>
                 </div>
               )}
+
+              {/* Card Consolidado: Propriedades Monitoradas (Postos Fixos) */}
+              <div className={`${cardMetricClass} flex flex-col gap-4`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                      <h3 className="font-bold text-sm">Propriedades Monitoradas (Postos Fixos)</h3>
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 font-mono">
+                        {postosFixos.length}{" "}
+                        {postosFixos.length === 1 ? "propriedade" : "propriedades"}
+                      </span>
+                    </div>
+                    <p className="text-[11px] opacity-70 mt-0.5">
+                      Perímetros georreferenciados cadastrados para monitoramento patrimonial
+                      contínuo.
+                    </p>
+                  </div>
+                </div>
+
+                {carregandoPostos ? (
+                  <div className="py-6 text-center text-xs opacity-60">
+                    Carregando postos fixos cadastrados...
+                  </div>
+                ) : postosFixos.length === 0 ? (
+                  <div className="py-6 text-center text-xs opacity-60">
+                    Nenhuma propriedade monitorada ou posto fixo cadastrado.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                    {postosFixos.map((posto) => (
+                      <div
+                        key={posto.id}
+                        className={`p-3 rounded-2xl border transition flex flex-col justify-between gap-2 ${
+                          isNeumorph
+                            ? "bg-[#eaf0f8] dark:bg-slate-900/60 border-slate-300/40 dark:border-slate-800 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none"
+                            : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/50 shadow-2xs"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                              <Building2 className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-black truncate block text-slate-900 dark:text-slate-100">
+                                {posto.nome}
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                {posto.ativo ? "Propriedade Ativa" : "Inativa"}
+                              </span>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+                            Raio {posto.raio_metros || 100}m
+                          </span>
+                        </div>
+
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-1.5 min-w-0">
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="truncate">
+                            {posto.endereco ||
+                              `Lat: ${Number(posto.latitude).toFixed(4)}, Lon: ${Number(posto.longitude).toFixed(4)}`}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </section>
         )}

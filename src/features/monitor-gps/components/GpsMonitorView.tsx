@@ -1085,9 +1085,11 @@ export function GpsMonitorView({
     [modoVisualizacao],
   );
 
-  // Foco imediato no item selecionado (Veículo ou Posto Fixo) vindo do Painel Geral ou URL
+  const alvoFocadoRef = useRef(false);
+
+  // Foco imediato e estável no item selecionado (Veículo ou Posto Fixo) vindo do Painel Geral ou URL
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (alvoFocadoRef.current || typeof window === "undefined") return;
     const urlParams = new URLSearchParams(window.location.search);
     const alvoId =
       urlParams.get("veiculo") ||
@@ -1101,29 +1103,54 @@ export function GpsMonitorView({
       const postoIdLimpo = alvoId.replace(/^(posto|propriedade)-/, "");
       const posto = postosVigilancia.find((p) => p.id === postoIdLimpo || p.id === alvoId);
       if (posto) {
-        localStorage.removeItem("@hunter_veiculo_selecionado_id");
+        alvoFocadoRef.current = true;
+        primeiroEnquadramentoRef.current = true;
+        setModoVisaoFrota(false);
+        try {
+          localStorage.removeItem("@hunter_veiculo_selecionado_id");
+        } catch {}
+
         const lat = Number(posto.latitude);
         const lng = Number(posto.longitude);
         if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
-          const timer = setTimeout(() => {
+          const aplicarFoco = () => {
             if (modoVisualizacao === "2D") {
               leafletRef.current?.centralizarCoordenadas(lat, lng, 18);
             } else {
               maplibreRef.current?.centralizarCoordenadas?.(lat, lng, 18);
             }
-          }, 400);
-          return () => clearTimeout(timer);
+          };
+          aplicarFoco();
+          const t1 = setTimeout(aplicarFoco, 250);
+          const t2 = setTimeout(aplicarFoco, 600);
+          return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+          };
         }
       }
     } else {
       const veiculo = veiculos.find((v) => v.id === alvoId || v.placa === alvoId);
       if (veiculo) {
-        localStorage.removeItem("@hunter_veiculo_selecionado_id");
+        alvoFocadoRef.current = true;
+        primeiroEnquadramentoRef.current = true;
+        setModoVisaoFrota(false);
+        try {
+          localStorage.removeItem("@hunter_veiculo_selecionado_id");
+        } catch {}
+
         setVeiculoSelecionado(veiculo);
-        const timer = setTimeout(() => {
+
+        const aplicarFoco = () => {
           centralizarNoVeiculo(veiculo);
-        }, 400);
-        return () => clearTimeout(timer);
+        };
+        aplicarFoco();
+        const t1 = setTimeout(aplicarFoco, 250);
+        const t2 = setTimeout(aplicarFoco, 600);
+        return () => {
+          clearTimeout(t1);
+          clearTimeout(t2);
+        };
       }
     }
   }, [veiculos, postosVigilancia, modoVisualizacao, centralizarNoVeiculo, setVeiculoSelecionado]);
@@ -1291,14 +1318,28 @@ export function GpsMonitorView({
   // - Contas de Cliente: entra com Frota Total (todos os veículos do cliente no mapa)
   const primeiroEnquadramentoRef = useRef(false);
   useEffect(() => {
-    if (primeiroEnquadramentoRef.current) return;
+    if (primeiroEnquadramentoRef.current || alvoFocadoRef.current) return;
     if (carregando) return;
+
+    // Se o usuário solicitou um alvo específico (via URL ou Painel Geral), bloqueia no ato o fitBounds geral da frota!
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const temAlvo =
+        urlParams.get("veiculo") ||
+        urlParams.get("veiculoId") ||
+        urlParams.get("posto") ||
+        localStorage.getItem("@hunter_veiculo_selecionado_id");
+      if (temAlvo) {
+        primeiroEnquadramentoRef.current = true;
+        return;
+      }
+    }
 
     const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
     if (alvos.length === 0 && postosVigilancia.length === 0) return;
 
     const timer = setTimeout(() => {
-      if (primeiroEnquadramentoRef.current) return;
+      if (primeiroEnquadramentoRef.current || alvoFocadoRef.current) return;
       primeiroEnquadramentoRef.current = true;
 
       setModoVisaoFrota(true);
