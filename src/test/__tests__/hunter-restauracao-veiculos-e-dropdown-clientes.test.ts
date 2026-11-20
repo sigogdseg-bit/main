@@ -7,10 +7,7 @@ describe("Hunter — Restauração de Veículos, Postos e Dropdown de Clientes",
   const rootDir = process.cwd();
 
   const caminhoServer = path.join(rootDir, "src/server.ts");
-  const caminhoGpsService = path.join(
-    rootDir,
-    "src/features/monitor-gps/services/gpsService.ts",
-  );
+  const caminhoGpsService = path.join(rootDir, "src/features/monitor-gps/services/gpsService.ts");
   const caminhoGpsMonitor = path.join(
     rootDir,
     "src/features/monitor-gps/components/GpsMonitorView.tsx",
@@ -131,7 +128,12 @@ describe("Hunter — Restauração de Veículos, Postos e Dropdown de Clientes",
       const linhas = conteudo.split("\n");
       linhas.forEach((linha, idx) => {
         // Ignora operadores lógicos (&&), entidades HTML (&amp;) ou comentários com URL
-        if (linha.includes(" && ") || linha.includes("&amp;") || linha.includes("//") || linha.includes("/*")) {
+        if (
+          linha.includes(" && ") ||
+          linha.includes("&amp;") ||
+          linha.includes("//") ||
+          linha.includes("/*")
+        ) {
           return;
         }
         assert.ok(

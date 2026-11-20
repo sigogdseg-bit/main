@@ -239,8 +239,8 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
       "ClienteHomeView deve manter estado locatarioFiltroSelecionado",
     );
     assert.ok(
-      homeConteudo.includes("Todos os Locatários"),
-      "ClienteHomeView deve ter opção padrão 'Todos os Locatários'",
+      homeConteudo.includes("Todos os Usuários") || homeConteudo.includes("Todos os Locatários"),
+      "ClienteHomeView deve ter opção padrão 'Todos os Usuários' ou 'Todos os Locatários'",
     );
 
     const gpsConteudo = fs.readFileSync(
@@ -256,8 +256,8 @@ describe("Hunter — Infográficos como Filtros Interativos e Perfil Locatário"
       "GpsMonitorView deve manter estado locatarioFiltroSelecionado",
     );
     assert.ok(
-      gpsConteudo.includes("Todos os Locatários"),
-      "GpsMonitorView deve ter opção padrão 'Todos os Locatários'",
+      gpsConteudo.includes("Todos os Usuários") || gpsConteudo.includes("Todos os Locatários"),
+      "GpsMonitorView deve ter opção padrão 'Todos os Usuários' ou 'Todos os Locatários'",
     );
   });
 

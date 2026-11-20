@@ -170,9 +170,7 @@ function CadastroLocatarioPage() {
         {validando && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-8 text-center space-y-4 shadow-2xl">
             <div className="w-12 h-12 mx-auto rounded-full border-4 border-orange-500 border-t-transparent animate-spin" />
-            <h2 className="text-base font-bold text-white">
-              Validando seu convite de locatário...
-            </h2>
+            <h2 className="text-base font-bold text-white">Validando seu convite de usuário...</h2>
             <p className="text-xs text-slate-400">
               Conectando aos servidores seguros da GD Segurança. Aguarde um instante.
             </p>
@@ -191,7 +189,7 @@ function CadastroLocatarioPage() {
               </h2>
               <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
                 {mensagemErro ||
-                  "Este link de ativação expirou, já foi utilizado ou foi revogado pelo cliente locador."}
+                  "Este link de ativação expirou, já foi utilizado ou foi revogado pelo cliente titular."}
               </p>
             </div>
             <div className="pt-2">
@@ -216,7 +214,7 @@ function CadastroLocatarioPage() {
                 Acesso Ativado com Sucesso!
               </h2>
               <p className="text-xs text-slate-400 mt-2 max-w-md mx-auto leading-relaxed">
-                Seu perfil de locatário foi criado. Você já pode acessar a plataforma utilizando seu
+                Seu perfil de usuário foi criado. Você já pode acessar a plataforma utilizando seu
                 e-mail e a senha cadastrada para monitorar seus veículos autorizados.
               </p>
             </div>
@@ -227,7 +225,7 @@ function CadastroLocatarioPage() {
                 <span className="font-mono font-bold text-white">{email}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">Locador Titular:</span>
+                <span className="text-slate-400">Cliente Titular:</span>
                 <span className="font-bold text-orange-400">{dadosConvite?.cliente_nome}</span>
               </div>
               <div className="flex items-center justify-between text-xs">
@@ -251,22 +249,22 @@ function CadastroLocatarioPage() {
           </div>
         )}
 
-        {/* Estado 4: Formulário de Auto-Cadastro do Locatário */}
+        {/* Estado 4: Formulário de Auto-Cadastro do Usuário */}
         {!validando && conviteValido && !sucesso && (
           <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-5 sm:p-7 shadow-2xl space-y-6">
             {/* Header do Convite */}
             <div className="border-b border-slate-800 pb-5">
               <div className="flex items-center gap-2 text-xs font-bold text-orange-400 mb-1">
                 <Building2 className="w-4 h-4" />
-                <span>Convite de Locador Parceiro</span>
+                <span>Convite de Cliente Parceiro</span>
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                Ativação de Acesso de Locatário
+                Ativação de Acesso de Usuário
               </h1>
               <p className="text-xs text-slate-400 mt-1 leading-relaxed">
                 Você foi convidado por{" "}
                 <span className="text-orange-400 font-bold">{dadosConvite?.cliente_nome}</span> para
-                gerenciar e acompanhar a telemetria dos veículos locados sob sua responsabilidade.
+                gerenciar e acompanhar a telemetria dos veículos sob sua responsabilidade.
               </p>
             </div>
 

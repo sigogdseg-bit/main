@@ -122,14 +122,76 @@ export const VehiclePhotoPlaceholder: React.FC<VehiclePhotoPlaceholderProps> = (
     ) {
       return "caminhao";
     }
-    if (str.includes("onibus") || str.includes("ônibus") || str.includes("marcopolo")) {
+    if (
+      str.includes("onibus") ||
+      str.includes("ônibus") ||
+      str.includes("marcopolo") ||
+      str.includes("microonibus")
+    ) {
       return "onibus";
+    }
+    if (
+      str.includes("ambulancia") ||
+      str.includes("ambulância") ||
+      str.includes("resgate") ||
+      str.includes("samu") ||
+      str.includes("uti")
+    ) {
+      return "ambulancia";
+    }
+    if (
+      str.includes("maquina") ||
+      str.includes("máquina") ||
+      str.includes("trator") ||
+      str.includes("escavadeira") ||
+      str.includes("retroescavadeira") ||
+      str.includes("carregadeira") ||
+      str.includes("caterpillar") ||
+      str.includes("cat ") ||
+      str.includes("colheitadeira") ||
+      str.includes("empilhadeira")
+    ) {
+      return "maquina";
+    }
+    if (
+      str.includes("quadriciclo") ||
+      str.includes("atv") ||
+      str.includes("utv") ||
+      str.includes("fourtrax") ||
+      str.includes("outlander")
+    ) {
+      return "quadriciclo";
+    }
+    if (
+      str.includes("moto eletrica") ||
+      str.includes("moto elétrica") ||
+      str.includes("moto_eletrica") ||
+      str.includes("scooter eletrica") ||
+      str.includes("scooter elétrica") ||
+      str.includes("voltz") ||
+      str.includes("ce 04") ||
+      str.includes("e-bike") ||
+      str.includes("ebike")
+    ) {
+      return "moto_eletrica";
+    }
+    if (
+      str.includes("barco") ||
+      str.includes("lancha") ||
+      str.includes("nautica") ||
+      str.includes("náutica") ||
+      str.includes("embarcacao") ||
+      str.includes("embarcação") ||
+      str.includes("speedboat")
+    ) {
+      return "nautica";
     }
     if (
       str.includes("jetski") ||
       str.includes("jet ski") ||
-      str.includes("lancha") ||
-      str.includes("barco")
+      str.includes("sea-doo") ||
+      str.includes("seadoo") ||
+      str.includes("waverunner")
     ) {
       return "jetski";
     }
@@ -150,6 +212,13 @@ export const VehiclePhotoPlaceholder: React.FC<VehiclePhotoPlaceholderProps> = (
     caminhao: "/veiculos/caminhao.png",
     van: "/veiculos/van.png",
     onibus: "/veiculos/onibus.png",
+    ambulancia: "/veiculos/ambulancia.png",
+    maquina: "/veiculos/maquina.png",
+    jetski: "/veiculos/jetski.png",
+    barco: "/veiculos/barco.png",
+    nautica: "/veiculos/nautica.png",
+    quadriciclo: "/veiculos/quadriciclo.png",
+    moto_eletrica: "/veiculos/moto_eletrica.png",
   };
 
   const arteEstudioUrl = ARTES_ESTUDIO[categoria];

@@ -73,7 +73,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
       setLocatarios(lista);
     } catch (err) {
       console.error("Erro ao carregar locatários:", err);
-      toast.error("Não foi possível carregar a lista de locatários.");
+      toast.error("Não foi possível carregar a lista de usuários.");
     } finally {
       setCarregando(false);
     }
@@ -105,7 +105,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
     }
   };
 
-  // Iniciar edição de um locatário existente
+  // Iniciar edição de um usuário existente
   const iniciarEdicao = (loc: LocatarioCliente) => {
     setEditandoId(loc.id);
     setNome(loc.nome || "");
@@ -134,14 +134,14 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
     e.preventDefault();
 
     if (veiculosSelecionados.length === 0) {
-      toast.error("Selecione ao menos um veículo para o locatário.");
+      toast.error("Selecione ao menos um veículo para o usuário.");
       return;
     }
 
     setSalvando(true);
     try {
       if (editandoId) {
-        // Atualização de locatário existente
+        // Atualização de usuário existente
         const res = await atualizarLocatario(editandoId, {
           nome: nome.trim() || undefined,
           telefone: telefone.trim() || undefined,
@@ -151,17 +151,17 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
         });
 
         if (res.success) {
-          toast.success("Dados e permissões do locatário atualizados com sucesso!");
+          toast.success("Dados e permissões do usuário atualizados com sucesso!");
           limparFormulario();
           setAbaAtiva("lista");
           carregarDados();
         } else {
-          toast.error(res.message || "Erro ao atualizar locatário.");
+          toast.error(res.message || "Erro ao atualizar usuário.");
         }
       } else {
         // Criação de novo convite
         const payload: DadosCadastroLocatario = {
-          nome: nome.trim() || "Locatário Convidado",
+          nome: nome.trim() || "Usuário Convidado",
           email: email.trim(),
           telefone: telefone.trim() || undefined,
           veiculos_permitidos: veiculosSelecionados,
@@ -214,8 +214,8 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
       if (res.success) {
         toast.success(
           novoStatus
-            ? `Acesso do locatário ${loc.nome} desbloqueado.`
-            : `Acesso do locatário ${loc.nome} bloqueado temporariamente.`,
+            ? `Acesso do usuário ${loc.nome} desbloqueado.`
+            : `Acesso do usuário ${loc.nome} bloqueado temporariamente.`,
         );
         carregarDados();
       } else {
@@ -229,12 +229,12 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
   // Reset de Senha
   const handleResetarSenha = async (loc: LocatarioCliente) => {
     if (!loc.user_id) {
-      toast.error("O locatário ainda não concluiu o primeiro acesso pelo convite.");
+      toast.error("O usuário ainda não concluiu o primeiro acesso pelo convite.");
       return;
     }
 
     const confirma = window.confirm(
-      `Deseja realmente redefinir a senha do locatário ${loc.nome}? Uma nova senha temporária será gerada.`,
+      `Deseja realmente redefinir a senha do usuário ${loc.nome}? Uma nova senha temporária será gerada.`,
     );
     if (!confirma) return;
 
@@ -250,7 +250,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
         toast.error(res.message || "Erro ao resetar senha.");
       }
     } catch {
-      toast.error("Falha ao redefinir senha do locatário.");
+      toast.error("Falha ao redefinir senha do usuário.");
     }
   };
 
@@ -265,10 +265,10 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">
-                Gestão de Locatários
+                Gestão de Usuários
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Cadastre e subordine locatários aos seus veículos com permissões granulares
+                Cadastre e subordine usuários aos seus veículos com permissões granulares
               </p>
             </div>
           </div>
@@ -298,7 +298,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>Locatários Cadastrados ({locatarios.length})</span>
+            <span>Usuários Cadastrados ({locatarios.length})</span>
           </button>
 
           <button
@@ -314,7 +314,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
             }`}
           >
             <UserPlus className="w-4 h-4" />
-            <span>{editandoId ? "Editar Locatário" : "Novo Convite de Locatário"}</span>
+            <span>{editandoId ? "Editar Usuário" : "Novo Convite de Usuário"}</span>
           </button>
         </div>
 
@@ -338,10 +338,10 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                     <Users className="w-6 h-6" />
                   </div>
                   <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    Nenhum locatário cadastrado
+                    Nenhum usuário cadastrado
                   </h4>
                   <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-                    Gere um link de convite para permitir que o locatário se cadastre e acompanhe os
+                    Gere um link de convite para permitir que o usuário se cadastre e acompanhe os
                     veículos selecionados.
                   </p>
                   <button
@@ -456,8 +456,8 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                             }`}
                             title={
                               loc.ativo
-                                ? "Bloquear acesso do locatário"
-                                : "Desbloquear acesso do locatário"
+                                ? "Bloquear acesso do usuário"
+                                : "Desbloquear acesso do usuário"
                             }
                           >
                             {loc.ativo ? (
@@ -473,7 +473,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                               type="button"
                               onClick={() => handleResetarSenha(loc)}
                               className="p-2 rounded-xl text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 transition cursor-pointer"
-                              title="Redefinir senha do locatário"
+                              title="Redefinir senha do usuário"
                             >
                               <KeyRound className="w-3.5 h-3.5" />
                             </button>
@@ -494,11 +494,11 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                 <div className="rounded-2xl p-5 bg-emerald-500/10 border border-emerald-500/25 space-y-3">
                   <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-sm">
                     <ShieldCheck className="w-5 h-5" />
-                    <span>Link de Cadastro do Locatário Gerado!</span>
+                    <span>Link de Cadastro do Usuário Gerado!</span>
                   </div>
                   <p className="text-xs text-slate-600 dark:text-slate-300">
-                    Copie ou envie o link abaixo para o locatário concluir o cadastro pelo celular
-                    ou computador:
+                    Copie ou envie o link abaixo para o usuário concluir o cadastro pelo celular ou
+                    computador:
                   </p>
 
                   <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-2 rounded-xl border border-emerald-500/30">
@@ -547,7 +547,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Nome do Locatário
+                        Nome do Usuário
                       </label>
                       <input
                         type="text"
@@ -575,11 +575,11 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                   {!editandoId && (
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                        Email (Opcional - locatário pode preencher no cadastro)
+                        Email (Opcional - usuário pode preencher no cadastro)
                       </label>
                       <input
                         type="email"
-                        placeholder="locatario@email.com"
+                        placeholder="usuario@email.com"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-300/80 dark:border-slate-800 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-orange-500 transition"
@@ -592,7 +592,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                         <Car className="w-4 h-4 text-orange-500" />
-                        <span>Veículos da sua base autorizados para este locatário *</span>
+                        <span>Veículos da sua base autorizados para este usuário *</span>
                       </label>
 
                       <button
@@ -653,7 +653,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                             Permitir Bloquear Veículo(s)
                           </span>
                           <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                            Locatário poderá acionar corte de combustível e bloqueio nos veículos
+                            Usuário poderá acionar corte de combustível e bloqueio nos veículos
                             autorizados
                           </span>
                         </div>
@@ -681,7 +681,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                             Permitir Desbloquear Veículo(s)
                           </span>
                           <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                            Locatário poderá acionar liberação e restabelecimento do motor
+                            Usuário poderá acionar liberação e restabelecimento do motor
                           </span>
                         </div>
                       </div>
@@ -745,7 +745,7 @@ export const ModalGerenciarLocatarios: React.FC<ModalGerenciarLocatariosProps> =
                 Nova Senha de {senhaResetadaInfo.nome}
               </h4>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Copie a senha abaixo e envie ao locatário:
+                Copie a senha abaixo e envie ao usuário:
               </p>
               <div className="p-3 bg-slate-100 dark:bg-slate-950 rounded-2xl font-mono text-base font-black tracking-widest text-slate-800 dark:text-slate-200 select-all border border-slate-300 dark:border-slate-700">
                 {senhaResetadaInfo.senha}

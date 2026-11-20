@@ -2222,20 +2222,20 @@ export function GpsMonitorView({
                 </div>
               )}
 
-              {/* Lista suspensa de locatários para o cliente que tem locatário (Padrão: Todos) */}
+              {/* Lista suspensa de usuários para o cliente que tem usuário (Padrão: Todos) */}
               {locatariosCliente.length > 0 && (
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-700 dark:text-slate-300 px-0.5">
                     <span className="flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-orange-500" />
-                      Locatário:
+                      Usuário:
                     </span>
                     {locatarioFiltroSelecionado !== "todos" && (
                       <button
                         type="button"
                         onClick={() => setLocatarioFiltroSelecionado("todos")}
                         className="text-[10px] text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
-                        title="Limpar filtro de locatário"
+                        title="Limpar filtro de usuário"
                       >
                         Ver Todos
                       </button>
@@ -2268,9 +2268,7 @@ export function GpsMonitorView({
                       }}
                       className="w-full py-1.5 pl-2.5 pr-8 bg-white dark:bg-slate-950 border border-slate-300/80 dark:border-slate-800 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 shadow-xs cursor-pointer appearance-none"
                     >
-                      <option value="todos">
-                        Todos os Locatários ({locatariosCliente.length})
-                      </option>
+                      <option value="todos">Todos os Usuários ({locatariosCliente.length})</option>
                       {locatariosCliente.map((loc) => (
                         <option key={loc.id} value={loc.id}>
                           {loc.nome} ({loc.veiculos_permitidos?.length || 0} veíc.)

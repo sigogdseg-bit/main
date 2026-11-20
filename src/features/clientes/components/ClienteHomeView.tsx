@@ -595,9 +595,9 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
               type="button"
               onClick={() => setLocatarioFiltroSelecionado("todos")}
               className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
-              title="Limpar filtro de locatário"
+              title="Limpar filtro de usuário"
             >
-              (Locatário: {locatarios.find((l) => l.id === locatarioFiltroSelecionado)?.nome} - Ver
+              (Usuário: {locatarios.find((l) => l.id === locatarioFiltroSelecionado)?.nome} - Ver
               Todos)
             </button>
           )}
@@ -637,7 +637,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
             </div>
           )}
 
-          {/* Dropdown de Locatários para o Cliente Locador (Padrão: Todos) */}
+          {/* Dropdown de Usuários para o Cliente Locador (Padrão: Todos) */}
           {locatarios.length > 0 && !isLocatario && (
             <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-2.5 py-1.5 shadow-xs shrink-0">
               <Users className="w-3.5 h-3.5 text-orange-500 shrink-0" />
@@ -645,9 +645,9 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
                 value={locatarioFiltroSelecionado}
                 onChange={(e) => setLocatarioFiltroSelecionado(e.target.value)}
                 className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
-                title="Filtrar veículos por locatário"
+                title="Filtrar veículos por usuário"
               >
-                <option value="todos">Todos os Locatários ({locatarios.length})</option>
+                <option value="todos">Todos os Usuários ({locatarios.length})</option>
                 {locatarios.map((loc) => (
                   <option key={loc.id} value={loc.id}>
                     {loc.nome} ({loc.veiculos_permitidos?.length || 0} veíc.)
@@ -657,17 +657,17 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
             </div>
           )}
 
-          {/* Gestão de Locatários para Clientes Locadores / ADM / Operador */}
+          {/* Gestão de Usuários para Clientes Locadores / ADM / Operador */}
           {!isLocatario && (
             <button
               type="button"
               onClick={() => setModalLocatariosAberto(true)}
               className="flex items-center gap-1.5 py-2 px-3 rounded-2xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 shadow-xs"
-              title="Cadastrar e gerenciar locatários subordinados aos seus veículos"
+              title="Cadastrar e gerenciar usuários subordinados aos seus veículos"
             >
               <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Gerenciar Locatários</span>
-              <span className="sm:hidden">Locatários</span>
+              <span className="hidden sm:inline">Gerenciar Usuários</span>
+              <span className="sm:hidden">Usuários</span>
             </button>
           )}
 

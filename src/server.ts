@@ -3123,7 +3123,7 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Você não tem permissão para gerenciar a senha deste locatário.",
+            message: "Você não tem permissão para gerenciar a senha deste usuário.",
           }),
           { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
@@ -3133,7 +3133,7 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
         return new Response(
           JSON.stringify({
             success: false,
-            message: "O locatário ainda não concluiu seu primeiro cadastro.",
+            message: "O usuário ainda não concluiu seu primeiro cadastro.",
           }),
           { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
@@ -3160,7 +3160,7 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
         JSON.stringify({
           success: true,
           novaSenha,
-          message: "Senha do locatário redefinida com sucesso!",
+          message: "Senha do usuário redefinida com sucesso!",
         }),
         { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
@@ -3180,7 +3180,7 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (!locatarioId) {
         return new Response(
-          JSON.stringify({ success: false, message: "ID do locatário é obrigatório." }),
+          JSON.stringify({ success: false, message: "ID do usuário é obrigatório." }),
           { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -3193,7 +3193,7 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       if (!locRow) {
         return new Response(
-          JSON.stringify({ success: false, message: "Locatário não encontrado." }),
+          JSON.stringify({ success: false, message: "Usuário não encontrado." }),
           { status: 404, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
       }
@@ -3202,7 +3202,7 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
         return new Response(
           JSON.stringify({
             success: false,
-            message: "Você não tem permissão para editar este locatário.",
+            message: "Você não tem permissão para editar este usuário.",
           }),
           { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
         );
@@ -3245,12 +3245,12 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
       }
 
       return new Response(
-        JSON.stringify({ success: true, message: "Dados do locatário atualizados com sucesso." }),
+        JSON.stringify({ success: true, message: "Dados do usuário atualizados com sucesso." }),
         { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     } catch (err: any) {
       return new Response(
-        JSON.stringify({ success: false, message: err?.message || "Erro ao atualizar locatário." }),
+        JSON.stringify({ success: false, message: err?.message || "Erro ao atualizar usuário." }),
         { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
     }
@@ -10768,7 +10768,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
             JSON.stringify({
               sucesso: false,
               mensagem:
-                "Acesso bloqueado: Seu usuário locatário está inativo ou bloqueado pelo cliente titular.",
+                "Acesso bloqueado: Seu perfil de usuário está inativo ou bloqueado pelo cliente titular.",
             }),
             { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
           );
@@ -10790,7 +10790,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
             JSON.stringify({
               sucesso: false,
               mensagem:
-                "Ação não permitida: Seu perfil de locatário não possui autorização para bloquear veículos.",
+                "Ação não permitida: Seu perfil de usuário não possui autorização para bloquear veículos.",
             }),
             { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
           );
@@ -10801,7 +10801,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
             JSON.stringify({
               sucesso: false,
               mensagem:
-                "Ação não permitida: Seu perfil de locatário não possui autorização para desbloquear veículos.",
+                "Ação não permitida: Seu perfil de usuário não possui autorização para desbloquear veículos.",
             }),
             { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
           );
@@ -10816,7 +10816,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
               JSON.stringify({
                 sucesso: false,
                 mensagem:
-                  "Ação não autorizada: Este veículo não está atribuído ao seu usuário locatário.",
+                  "Ação não autorizada: Este veículo não está atribuído ao seu perfil de usuário.",
               }),
               { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
             );

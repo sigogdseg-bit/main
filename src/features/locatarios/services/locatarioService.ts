@@ -187,7 +187,7 @@ export async function validarConviteLocatario(token: string): Promise<ValidacaoC
     if (res.ok) {
       return await res.json();
     }
-    return { valido: false, mensagem: "Convite de locatário inválido ou expirado." };
+    return { valido: false, mensagem: "Convite de usuário inválido ou expirado." };
   } catch (err: any) {
     return { valido: false, mensagem: err?.message || "Erro de conexão ao validar convite." };
   }
