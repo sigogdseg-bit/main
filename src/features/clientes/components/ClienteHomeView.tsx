@@ -34,6 +34,8 @@ import { listarLocatarios } from "@/features/locatarios/services/locatarioServic
 import type { LocatarioCliente } from "@/features/locatarios/types";
 import { carregarPostosVigilancia } from "@/features/vigilantes/services/vigilanteService";
 import type { PostoVigilancia } from "@/features/vigilantes/types";
+import { carregarClientes } from "@/features/clientes/services/clienteService";
+import type { Cliente } from "../types";
 import {
   listarMensalidades,
   verificarStatusFinanceiroCliente,
@@ -70,6 +72,29 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
   );
 
   const isLocatario = Boolean(session?.isLocatario || session?.role === "locatario");
+  const isOperadorOuAdmin = Boolean(
+    session?.isAdmin ||
+    session?.isOperador ||
+    session?.role === "adm" ||
+    session?.role === "operador",
+  );
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clienteFiltroSelecionado, setClienteFiltroSelecionado] = useState<string>("todos");
+
+  useEffect(() => {
+    if (!isOperadorOuAdmin) return;
+    let ativo = true;
+    carregarClientes()
+      .then((clis) => {
+        if (ativo && Array.isArray(clis)) {
+          setClientes(clis);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      ativo = false;
+    };
+  }, [isOperadorOuAdmin]);
 
   // Gestão de Locatários Subordinados
   const [modalLocatariosAberto, setModalLocatariosAberto] = useState(false);
@@ -229,9 +254,14 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     };
   }, [session?.userId, session?.clienteId, session?.isMotorista, isLocatario]);
 
-  // Filtro de busca, status de infográficos e filtro de locatário
+  // Filtro de busca, status de infográficos, filtro de locatário e filtro de cliente (ADM/Operador)
   const veiculosFiltrados = useMemo(() => {
     let lista = veiculos;
+
+    // Filtro por cliente selecionado (ADM e Operador - padrão: todos)
+    if (isOperadorOuAdmin && clienteFiltroSelecionado !== "todos") {
+      lista = lista.filter((v) => v.cliente_id === clienteFiltroSelecionado);
+    }
 
     // Filtro por locatário selecionado
     if (locatarioFiltroSelecionado !== "todos") {
@@ -260,7 +290,22 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         (v.marca_modelo && v.marca_modelo.toLowerCase().includes(termo)) ||
         (v.cliente_nome && v.cliente_nome.toLowerCase().includes(termo)),
     );
-  }, [veiculos, busca, filtroStatus, locatarioFiltroSelecionado, locatarios]);
+  }, [
+    veiculos,
+    busca,
+    filtroStatus,
+    locatarioFiltroSelecionado,
+    locatarios,
+    isOperadorOuAdmin,
+    clienteFiltroSelecionado,
+  ]);
+
+  const postosFixosFiltrados = useMemo(() => {
+    if (isOperadorOuAdmin && clienteFiltroSelecionado !== "todos") {
+      return postosFixos.filter((p) => p.cliente_id === clienteFiltroSelecionado);
+    }
+    return postosFixos;
+  }, [postosFixos, isOperadorOuAdmin, clienteFiltroSelecionado]);
 
   // Contadores rápidos de telemetria baseados na comunicação factual do rastreador
   const totalVeiculos = veiculos.length;
@@ -556,9 +601,42 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
               Todos)
             </button>
           )}
+          {isOperadorOuAdmin && clienteFiltroSelecionado !== "todos" && (
+            <button
+              type="button"
+              onClick={() => setClienteFiltroSelecionado("todos")}
+              className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
+              title="Limpar filtro de cliente"
+            >
+              (Cliente:{" "}
+              {clientes.find((c) => c.id === clienteFiltroSelecionado)?.nome_razao_social ||
+                "Selecionado"}{" "}
+              - Ver Todos)
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+          {/* Dropdown de Clientes para Perfil Administrador e Operador (Padrão: Todos) */}
+          {isOperadorOuAdmin && clientes.length > 0 && (
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-2.5 py-1.5 shadow-xs shrink-0">
+              <Building2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+              <select
+                value={clienteFiltroSelecionado}
+                onChange={(e) => setClienteFiltroSelecionado(e.target.value)}
+                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                title="Filtrar veículos por cliente (Padrão: Todos os Clientes)"
+              >
+                <option value="todos">Todos os Clientes ({clientes.length})</option>
+                {clientes.map((cli) => (
+                  <option key={cli.id} value={cli.id}>
+                    {cli.nome_razao_social}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Dropdown de Locatários para o Cliente Locador (Padrão: Todos) */}
           {locatarios.length > 0 && !isLocatario && (
             <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-2.5 py-1.5 shadow-xs shrink-0">
@@ -761,7 +839,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
       )}
 
       {/* 5. Propriedades Monitoradas (Postos Fixos do Cliente) */}
-      {postosFixos.length > 0 && (
+      {postosFixosFiltrados.length > 0 && (
         <div id="secao-postos-fixos" className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -778,12 +856,13 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
               </div>
             </div>
             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 font-mono font-tabular">
-              {postosFixos.length} {postosFixos.length === 1 ? "propriedade" : "propriedades"}
+              {postosFixosFiltrados.length}{" "}
+              {postosFixosFiltrados.length === 1 ? "propriedade" : "propriedades"}
             </span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {postosFixos.map((posto) => (
+            {postosFixosFiltrados.map((posto) => (
               <div
                 key={posto.id}
                 className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 p-4 shadow-xs hover:shadow-md transition-all space-y-3"

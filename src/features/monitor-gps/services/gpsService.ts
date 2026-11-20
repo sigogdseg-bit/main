@@ -140,7 +140,7 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
           cor,
           ano,
           tipo_veiculo,
-          tipo_medicao,
+          horimetro_modo,
           horimetro_horas,
           ignicao_status,
           bloqueado,
@@ -404,7 +404,11 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
         horimetro_horas: Number(v.horimetro_horas || 0),
         tipo_medicao:
           (v.tipo_medicao as any) ||
-          (v.tipo_veiculo === "maquina" || v.tipo_veiculo === "trator" ? "horimetro" : "km"),
+          (v.horimetro_modo === "horimetro"
+            ? "horimetro"
+            : v.tipo_veiculo === "maquina" || v.tipo_veiculo === "trator"
+              ? "horimetro"
+              : "km"),
         status_operacional,
         rastreador_id: v.rastreador_id || null,
         rastreador_imei: v.rastreador_imei || null,

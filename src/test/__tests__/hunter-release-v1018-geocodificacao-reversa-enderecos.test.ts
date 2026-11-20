@@ -8,7 +8,13 @@ describe("Hunter — Release v1.0.1.8: Geocodificação Reversa e Endereço Leg�
   const rootDir = process.cwd();
 
   it("1. Versão deve ser rigorosamente incrementada para 1.0.1.8 ou superior", () => {
-    assert.ok(APP_VERSION_NUMERO >= "1.0.1.8");
+    const [maior, menor, patch, build] = APP_VERSION_NUMERO.split(".").map(Number);
+    const versaoValida =
+      maior > 1 ||
+      (maior === 1 && menor > 0) ||
+      (maior === 1 && menor === 0 && patch > 1) ||
+      (maior === 1 && menor === 0 && patch === 1 && build >= 8);
+    assert.ok(versaoValida, "Versão deve ser igual ou superior a 1.0.1.8");
   });
 
   it("2. HunterVehicleCard deve exibir endereço legível e NUNCA expor coordenadas brutas (Lat/Lon)", () => {

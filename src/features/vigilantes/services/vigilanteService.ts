@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { obterSessaoCacheada } from "@/features/auth/services/authService";
 import {
   calcularDistanciaMetros,
   pontoDentroDoPoligono,
@@ -153,8 +154,9 @@ export async function excluirVigilante(id: string): Promise<boolean> {
 export async function carregarPostosVigilancia(clienteId?: string): Promise<PostoVigilancia[]> {
   // 1. Tenta buscar via endpoint de alta disponibilidade no servidor
   try {
+    const sessaoAtual = obterSessaoCacheada();
     const sess = await supabase.auth.getSession();
-    const token = sess.data.session?.access_token;
+    const token = sess.data.session?.access_token || (sessaoAtual as any)?.token;
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 
@@ -420,8 +422,9 @@ export async function salvarPostoVigilancia(
  */
 export async function excluirPostoVigilancia(id: string): Promise<boolean> {
   try {
+    const sessaoAtual = obterSessaoCacheada();
     const sess = await supabase.auth.getSession();
-    const token = sess.data.session?.access_token;
+    const token = sess.data.session?.access_token || (sessaoAtual as any)?.token;
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
 

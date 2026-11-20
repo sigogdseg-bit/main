@@ -59,6 +59,8 @@ import {
   carregarTurnos,
 } from "@/features/vigilantes/services/vigilanteService";
 import type { PostoVigilancia, TurnoVigilancia } from "@/features/vigilantes/types";
+import { carregarClientes } from "@/features/clientes/services/clienteService";
+import type { Cliente } from "@/features/clientes/types";
 import { listarLocatarios } from "@/features/locatarios/services/locatarioService";
 import type { LocatarioCliente } from "@/features/locatarios/types";
 import {
@@ -208,6 +210,21 @@ export function GpsMonitorView({
   const [postosVigilancia, setPostosVigilancia] = useState<PostoVigilancia[]>([]);
   const [turnosVigilancia, setTurnosVigilancia] = useState<TurnoVigilancia[]>([]);
   const [postosExpandidos, setPostosExpandidos] = useState(false);
+  const [clientesBase, setClientesBase] = useState<Cliente[]>([]);
+
+  useEffect(() => {
+    let ativo = true;
+    carregarClientes()
+      .then((res) => {
+        if (ativo && Array.isArray(res)) {
+          setClientesBase(res);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   useEffect(() => {
     let ativo = true;
@@ -310,27 +327,48 @@ export function GpsMonitorView({
       { id: string; nome: string; totalVeiculos: number; totalPostos: number }
     >();
 
+    // 1. Popula com todos os clientes cadastrados no banco de dados
+    clientesBase.forEach((c) => {
+      if (!c.id) return;
+      mapa.set(c.id, {
+        id: c.id,
+        nome: c.nome_razao_social || "Cliente",
+        totalVeiculos: 0,
+        totalPostos: 0,
+      });
+    });
+
+    // 2. Contabiliza veículos e assegura nomes oficiais
     veiculos.forEach((v) => {
       const cId = v.cliente_id;
       if (!cId) return;
       const cNome = v.cliente_nome || "Cliente sem nome";
       if (!mapa.has(cId)) {
         mapa.set(cId, { id: cId, nome: cNome, totalVeiculos: 0, totalPostos: 0 });
+      } else if (mapa.get(cId)!.nome === "Cliente" && cNome !== "Cliente") {
+        mapa.get(cId)!.nome = cNome;
       }
       mapa.get(cId)!.totalVeiculos += 1;
     });
 
+    // 3. Contabiliza postos de vigilância (propriedades monitoradas)
     postosVigilancia.forEach((p) => {
       const cId = (p as any).cliente_id;
       if (!cId) return;
       if (!mapa.has(cId)) {
-        mapa.set(cId, { id: cId, nome: "Cliente da Base", totalVeiculos: 0, totalPostos: 0 });
+        const cliEncontrado = clientesBase.find((c) => c.id === cId);
+        mapa.set(cId, {
+          id: cId,
+          nome: cliEncontrado?.nome_razao_social || "GD Segurança Privada",
+          totalVeiculos: 0,
+          totalPostos: 0,
+        });
       }
       mapa.get(cId)!.totalPostos += 1;
     });
 
     return Array.from(mapa.values()).sort((a, b) => a.nome.localeCompare(b.nome));
-  }, [veiculos, postosVigilancia]);
+  }, [clientesBase, veiculos, postosVigilancia]);
 
   // Filtragem de veículos com isolamento estrito de cliente e respeito aos filtros de frota
   const veiculosFiltrados = useMemo(() => {

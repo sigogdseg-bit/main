@@ -11,7 +11,13 @@ describe("Hunter — Release v1.0.1.7: Módulos da Propriedade, Contadores Factu
   const rootDir = process.cwd();
 
   it("1. Versão deve ser no mínimo 1.0.1.7", () => {
-    assert.ok(APP_VERSION_NUMERO >= "1.0.1.7", "Versão deve ser igual ou superior a 1.0.1.7");
+    const [maior, menor, patch, build] = APP_VERSION_NUMERO.split(".").map(Number);
+    const versaoValida =
+      maior > 1 ||
+      (maior === 1 && menor > 0) ||
+      (maior === 1 && menor === 0 && patch > 1) ||
+      (maior === 1 && menor === 0 && patch === 1 && build >= 7);
+    assert.ok(versaoValida, "Versão deve ser igual ou superior a 1.0.1.7");
   });
 
   it("2. VehicleTelemetryDrawer deve renderizar menu exclusivo para Propriedades Monitoradas", () => {

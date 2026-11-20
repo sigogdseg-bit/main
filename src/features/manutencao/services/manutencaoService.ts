@@ -140,7 +140,7 @@ export async function carregarVeiculosDoCliente(
           placa,
           marca_modelo,
           tipo_veiculo,
-          tipo_medicao,
+          horimetro_modo,
           odometro_km,
           horimetro_horas,
           ano,
@@ -197,6 +197,7 @@ export async function carregarVeiculosDoCliente(
       const odometro = Math.round(v.odometro_km || 0);
       const isHorimetro =
         v.tipo_medicao === "horimetro" ||
+        v.horimetro_modo === "horimetro" ||
         v.tipo_veiculo === "maquina" ||
         v.tipo_veiculo === "trator" ||
         v.tipo_veiculo === "equipamento";
@@ -324,7 +325,7 @@ export async function carregarItensManutencao(veiculoId?: string): Promise<Plano
           placa,
           marca_modelo,
           tipo_veiculo,
-          tipo_medicao,
+          horimetro_modo,
           odometro_km,
           horimetro_horas,
           clientes (
@@ -346,6 +347,7 @@ export async function carregarItensManutencao(veiculoId?: string): Promise<Plano
     return data.map((item: any) => {
       const isHorimetro =
         item.veiculos?.tipo_medicao === "horimetro" ||
+        item.veiculos?.horimetro_modo === "horimetro" ||
         item.veiculos?.tipo_veiculo === "maquina" ||
         item.veiculos?.tipo_veiculo === "trator" ||
         item.veiculos?.tipo_veiculo === "equipamento";

@@ -3486,7 +3486,7 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
           cor,
           ano,
           tipo_veiculo,
-          tipo_medicao,
+          horimetro_modo,
           horimetro_horas,
           ignicao_status,
           bloqueado,
@@ -3590,6 +3590,14 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
 
       const veiculosFormatados = (veiculosFrota || []).map((v: any) => ({
         ...v,
+        tipo_medicao:
+          v.tipo_medicao ||
+          (v.horimetro_modo === "horimetro"
+            ? "horimetro"
+            : v.tipo_veiculo === "maquina" || v.tipo_veiculo === "trator"
+              ? "horimetro"
+              : "km"),
+        horimetro_horas: Number(v.horimetro_horas || 0),
         rastreador_modelo: v.rastreadores?.modelo || "G900L",
       }));
 
@@ -3699,19 +3707,29 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
         );
       }
 
-      // 2. Fallback direto update
-      const updateData: Record<string, any> = {
-        tipo_medicao: medicao,
+      // 2. Fallback direto update com suporte resiliente a horimetro_modo e tipo_medicao
+      const updateDataNativo: Record<string, any> = {
+        horimetro_modo: medicao,
         updated_at: new Date().toISOString(),
       };
       if (horimetroNum !== null) {
-        updateData.horimetro_horas = horimetroNum;
+        updateDataNativo.horimetro_horas = horimetroNum;
       }
 
-      const { error: upErr } = await adminClient
+      // Tenta gravar tipo_medicao caso a coluna exista no banco
+      let { error: upErr } = await adminClient
         .from("veiculos")
-        .update(updateData)
+        .update({ ...updateDataNativo, tipo_medicao: medicao })
         .eq("id", veiculoId);
+
+      // Se a coluna tipo_medicao ainda não existir no schema remoto, persiste via horimetro_modo nativo
+      if (upErr && upErr.message && upErr.message.includes("tipo_medicao")) {
+        const fallbackRes = await adminClient
+          .from("veiculos")
+          .update(updateDataNativo)
+          .eq("id", veiculoId);
+        upErr = fallbackRes.error;
+      }
 
       if (upErr) {
         return new Response(JSON.stringify({ success: false, message: upErr.message }), {
@@ -13665,7 +13683,7 @@ async function handleApiVigilantes(request: Request, env: unknown): Promise<Resp
       let query = adminClient.from("areas_seguras").select("*").eq("tipo", "posto_vigilancia");
 
       if (clienteIdParam) {
-        query = query.eq("cliente_id", clienteIdParam);
+        query = query.or(`cliente_id.eq.${clienteIdParam},cliente_id.is.null`);
       }
 
       const { data, error } = await query.order("created_at", { ascending: false });

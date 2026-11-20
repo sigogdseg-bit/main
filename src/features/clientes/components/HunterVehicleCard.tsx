@@ -60,7 +60,8 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
   const statusCom = avaliarStatusComunicacao(veiculo.ultima_atualizacao);
   const isOnline = statusCom.ativo;
   const isPropriedade = isPropriedadeMonitorada(veiculo);
-  const isHorimetro = veiculo.tipo_medicao === "horimetro";
+  const isHorimetro =
+    veiculo.tipo_medicao === "horimetro" || (veiculo as any).horimetro_modo === "horimetro";
 
   // Estado e resolução assíncrona do endereço legível (nunca expor coordenadas brutas)
   const [enderecoLocal, setEnderecoLocal] = useState<string>(
