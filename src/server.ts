@@ -25,7 +25,7 @@ const CSP_DIRECTIVES = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  `connect-src 'self' ${SUPABASE_ORIGIN ? `${SUPABASE_ORIGIN} wss://${SUPABASE_HOST}` : ""} https://*.supabase.co https://*.cloudflareinsights.com https://cloudflareinsights.com https://*.openstreetmap.org https://photon.komoot.io https://*.project-osrm.org https://router.project-osrm.org https://routing.openstreetmap.de https://*.arcgisonline.com https://*.maptiler.com https://gd.oficial.tec.br https://sigoguardiao.oficial.tec.br https://*.z-api.io https://*.evolution-api.com https://gps.oficial.tec.br:* http://gps.oficial.tec.br:* http://167.234.233.82:* https://167.234.233.82:* http://137.66.4.11:* https://137.66.4.11:* https://gps.sigoguardiao.oficial.tec.br:* http://gps.sigoguardiao.oficial.tec.br:* https://hunter-gps-gateway.fly.dev http://hunter-gps-gateway.fly.dev:* https://hunter-whatsapp-gateway.fly.dev https://generativelanguage.googleapis.com https://trigger.macrodroid.com https://*.macrodroid.com`,
+  `connect-src 'self' ${SUPABASE_ORIGIN ? `${SUPABASE_ORIGIN} wss://${SUPABASE_HOST}` : ""} https://*.supabase.co https://*.cloudflareinsights.com https://cloudflareinsights.com https://*.openstreetmap.org https://photon.komoot.io https://*.project-osrm.org https://router.project-osrm.org https://routing.openstreetmap.de https://*.arcgisonline.com https://*.maptiler.com https://gd.oficial.tec.br https://*.z-api.io https://*.evolution-api.com https://gps.oficial.tec.br:* http://gps.oficial.tec.br:* http://167.234.233.82:* https://167.234.233.82:* http://137.66.4.11:* https://137.66.4.11:* https://hunter-gps-gateway.fly.dev http://hunter-gps-gateway.fly.dev:* https://gd-whatsapp-gateway.fly.dev https://generativelanguage.googleapis.com https://trigger.macrodroid.com https://*.macrodroid.com`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -623,11 +623,10 @@ async function despacharNotificacaoWhatsappSuperAdm(
       "http://167.234.233.82:8082"
     ) // Gateway WhatsApp Exclusivo GD Segurança (Porta 8082 na Oracle Cloud Always Free, isolado do SIGO Guardião)
       .replace(/\/$/, "");
+    // Isolamento estrito do GD Segurança contra a linha do SIGO Guardião (https://hunter-whatsapp-gateway.fly.dev)
     const endpointsGateway = [
       gatewayUrl,
-      ...(gatewayUrl !== "https://hunter-whatsapp-gateway.fly.dev"
-        ? ["https://hunter-whatsapp-gateway.fly.dev"]
-        : []),
+      ...(gatewayUrl !== "http://167.234.233.82:8083" ? ["http://167.234.233.82:8083"] : []),
     ];
 
     const token = "hunter-guardiao-whatsapp-secret-key-2026";
@@ -11059,8 +11058,8 @@ async function handleApiWhatsapp(
     (typeof process !== "undefined" &&
       (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
     (env && ((env as any).GD_WHATSAPP_GATEWAY_URL || (env as any).WHATSAPP_GATEWAY_URL)) ||
-    "http://167.234.233.82:8082"
-  ) // Gateway WhatsApp Exclusivo GD Segurança (Porta 8082 na Oracle Cloud Always Free, isolado do SIGO Guardião)
+    "http://167.234.233.82:8083"
+  ) // Gateway WhatsApp Exclusivo GD Segurança (Porta 8083 dedicada, isolada do SIGO Guardião)
     .replace(/\/$/, "");
 
   // 1. GET / HEAD /api/whatsapp/status
@@ -11068,7 +11067,7 @@ async function handleApiWhatsapp(
     url.pathname === "/api/whatsapp/status" &&
     (request.method === "GET" || request.method === "HEAD")
   ) {
-    const alvos = [gatewayUrl, "http://167.234.233.82:8082", "https://gps.oficial.tec.br:8082"];
+    const alvos = [gatewayUrl, "http://167.234.233.82:8083"];
     let ultimoErro = "";
 
     for (const alvo of alvos) {
@@ -11081,23 +11080,13 @@ async function handleApiWhatsapp(
         });
         clearTimeout(timeoutId);
         if (res.ok) {
+          const serverHeader = res.headers.get("server") || "";
+          if (serverHeader.toLowerCase().includes("guardiao")) {
+            continue;
+          }
           const data = await res.json();
-          // BLINDAGEM PÉTREA: Se a linha for o número do Guardião (5524992501512), rejeita terminantemente no GD!
-          const numStr = String(data?.numero || "");
-          if (numStr.includes("992501512") || numStr.includes("5524992501512")) {
-            return new Response(
-              JSON.stringify({
-                status: "aguardando_linha_gd",
-                conectado: false,
-                numero: null,
-                aviso:
-                  "Linha do SIGO Guardião detectada (5524992501512). Conecte a nova linha dedicada do GD Segurança via QR Code.",
-              }),
-              {
-                status: 200,
-                headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-              },
-            );
+          if (data?.app && data.app !== "gd-seguranca" && data.app !== "hunter") {
+            continue;
           }
           return new Response(JSON.stringify(data), {
             status: 200,

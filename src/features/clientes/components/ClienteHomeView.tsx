@@ -182,7 +182,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         const lista = await carregarPostosVigilancia(session?.clienteId || undefined);
         if (ativo) {
           const filtrados = session?.clienteId
-            ? lista.filter((p) => p.cliente_id === session.clienteId)
+            ? lista.filter((p) => !p.cliente_id || p.cliente_id === session.clienteId)
             : lista;
           setPostosFixos(filtrados);
         }
@@ -347,21 +347,21 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     }
   };
 
-  // Redirecionamento para o mapa com seleção
+  // Redirecionamento para o mapa com foco e seleção imediata
   const handleVerNoMapa = (veiculo: VeiculoGps) => {
     try {
       localStorage.setItem("@hunter_veiculo_selecionado_id", veiculo.id);
     } catch {}
-    navigate({ to: "/monitor-gps" as any });
+    navigate({ to: "/monitor-gps" as any, search: { veiculo: veiculo.id } as any });
   };
 
-  // Redirecionamento para o cockpit / monitor
+  // Redirecionamento para o cockpit / monitor com foco
   const handleAbrirCockpit = (veiculo: VeiculoGps) => {
     try {
       localStorage.setItem("@hunter_veiculo_selecionado_id", veiculo.id);
       localStorage.setItem("@hunter_abrir_cockpit", "true");
     } catch {}
-    navigate({ to: "/monitor-gps" as any });
+    navigate({ to: "/monitor-gps" as any, search: { veiculo: veiculo.id } as any });
   };
 
   // Nome do cliente e inicial
@@ -902,7 +902,10 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
                       try {
                         localStorage.setItem("@hunter_veiculo_selecionado_id", `posto-${posto.id}`);
                       } catch {}
-                      navigate({ to: "/monitor-gps" as any });
+                      navigate({
+                        to: "/monitor-gps" as any,
+                        search: { posto: `posto-${posto.id}` } as any,
+                      });
                     }}
                     className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-xs transition active:scale-95 cursor-pointer"
                   >
@@ -913,13 +916,17 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
                     onClick={() => {
                       try {
                         localStorage.setItem("@hunter_veiculo_selecionado_id", `posto-${posto.id}`);
-                        localStorage.setItem("@hunter_abrir_cockpit", "true");
+                        localStorage.setItem("@hunter_modo_horimetro", "true");
+                        localStorage.removeItem("@hunter_abrir_cockpit");
                       } catch {}
-                      navigate({ to: "/monitor-gps" as any });
+                      navigate({
+                        to: "/monitor-gps" as any,
+                        search: { posto: `posto-${posto.id}` } as any,
+                      });
                     }}
                     className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs transition active:scale-95 cursor-pointer"
                   >
-                    <span>Cockpit 3D</span>
+                    <span>Horímetro e Métricas</span>
                   </button>
                 </div>
               </div>

@@ -1085,6 +1085,49 @@ export function GpsMonitorView({
     [modoVisualizacao],
   );
 
+  // Foco imediato no item selecionado (Veículo ou Posto Fixo) vindo do Painel Geral ou URL
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const alvoId =
+      urlParams.get("veiculo") ||
+      urlParams.get("veiculoId") ||
+      urlParams.get("posto") ||
+      localStorage.getItem("@hunter_veiculo_selecionado_id");
+
+    if (!alvoId) return;
+
+    if (alvoId.startsWith("posto-") || alvoId.startsWith("propriedade-")) {
+      const postoIdLimpo = alvoId.replace(/^(posto|propriedade)-/, "");
+      const posto = postosVigilancia.find((p) => p.id === postoIdLimpo || p.id === alvoId);
+      if (posto) {
+        localStorage.removeItem("@hunter_veiculo_selecionado_id");
+        const lat = Number(posto.latitude);
+        const lng = Number(posto.longitude);
+        if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+          const timer = setTimeout(() => {
+            if (modoVisualizacao === "2D") {
+              leafletRef.current?.centralizarCoordenadas(lat, lng, 18);
+            } else {
+              maplibreRef.current?.centralizarCoordenadas?.(lat, lng, 18);
+            }
+          }, 400);
+          return () => clearTimeout(timer);
+        }
+      }
+    } else {
+      const veiculo = veiculos.find((v) => v.id === alvoId || v.placa === alvoId);
+      if (veiculo) {
+        localStorage.removeItem("@hunter_veiculo_selecionado_id");
+        setVeiculoSelecionado(veiculo);
+        const timer = setTimeout(() => {
+          centralizarNoVeiculo(veiculo);
+        }, 400);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [veiculos, postosVigilancia, modoVisualizacao, centralizarNoVeiculo, setVeiculoSelecionado]);
+
   // Avaliação contínua de desvio de rota viária em tempo real (Ponto A -> Ponto B)
   useEffect(() => {
     if (!veiculoSelecionado || !rotaMonitoradaAtiva) return;

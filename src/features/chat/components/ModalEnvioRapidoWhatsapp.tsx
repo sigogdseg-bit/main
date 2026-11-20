@@ -108,34 +108,22 @@ export function ModalEnvioRapidoWhatsapp({
   const [gatewayNumero, setGatewayNumero] = useState<string | null>(null);
   const [checandoGateway, setChecandoGateway] = useState(false);
 
-  // Checa status do Gateway WhatsApp com redundância de endpoints (proxy interno + direto)
+  // Checa status do Gateway WhatsApp via proxy canônico do servidor
   const verificarGateway = async () => {
     setChecandoGateway(true);
-    const endpoints = ["/api/whatsapp/status", "http://167.234.233.82:8082/status"];
-
-    for (const ep of endpoints) {
-      try {
-        const res = await fetch(ep, { signal: AbortSignal.timeout(7000) });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.conectado) {
-            const numStr = String(json.numero || "");
-            // Blindagem: Linha do Guardião (5524992501512) é rejeitada no GD
-            if (numStr.includes("992501512") || numStr.includes("5524992501512")) {
-              setGatewayOnline(false);
-              setGatewayNumero(null);
-              setChecandoGateway(false);
-              return;
-            }
-            setGatewayOnline(true);
-            setGatewayNumero(json.numero || null);
-            setChecandoGateway(false);
-            return;
-          }
+    try {
+      const res = await fetch("/api/whatsapp/status", { signal: AbortSignal.timeout(7000) });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.conectado) {
+          setGatewayOnline(true);
+          setGatewayNumero(json.numero || null);
+          setChecandoGateway(false);
+          return;
         }
-      } catch {
-        /* tenta próximo endpoint de contingência */
       }
+    } catch {
+      /* gateway offline */
     }
 
     setGatewayOnline(false);
