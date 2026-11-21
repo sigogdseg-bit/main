@@ -23,7 +23,8 @@
     "VITE_SUPABASE_ANON_KEY": "sb_publishable_MZA6N9ys7HHpIBHQlk3s8Q_Olx-47zC",
     "APP_ENV": "production",
     "APP_PUBLIC_URL": "https://gd.oficial.tec.br",
-    "WHATSAPP_GATEWAY_URL": "https://gps.oficial.tec.br",
+    "WHATSAPP_GATEWAY_URL": "https://gd-whatsapp-gateway.fly.dev",
+    "GD_WHATSAPP_GATEWAY_URL": "https://gd-whatsapp-gateway.fly.dev",
     "CRON_SECRET": "hunter-cron-jammer-2026"
   }
 }

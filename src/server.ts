@@ -620,14 +620,12 @@ async function despacharNotificacaoWhatsappSuperAdm(
         (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
       envObj.GD_WHATSAPP_GATEWAY_URL ||
       envObj.WHATSAPP_GATEWAY_URL ||
-      "http://167.234.233.82:8082"
-    ) // Gateway WhatsApp Exclusivo GD Segurança (Porta 8082 na Oracle Cloud Always Free, isolado do SIGO Guardião)
+      "https://gd-whatsapp-gateway.fly.dev"
+    ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Fly.io gd-whatsapp-gateway.fly.dev / hunter-whatsapp-gateway.fly.dev, 100% isolado do SIGO Guardião)
       .replace(/\/$/, "");
     // Isolamento estrito do GD Segurança contra a linha do SIGO Guardião (https://hunter-whatsapp-gateway.fly.dev)
-    const endpointsGateway = [
-      gatewayUrl,
-      ...(gatewayUrl !== "http://167.234.233.82:8083" ? ["http://167.234.233.82:8083"] : []),
-    ];
+    // O GD Segurança opera exclusivamente com o gateway dedicado gd-whatsapp-gateway.fly.dev (migrado da porta 167.234.233.82:8082)
+    const endpointsGateway = [gatewayUrl];
 
     const token = "hunter-guardiao-whatsapp-secret-key-2026";
 
@@ -685,6 +683,441 @@ async function despacharNotificacaoWhatsappSuperAdm(
   } catch (errGeral) {
     console.warn("[SUPERADM-WHATSAPP] Erro geral ao disparar notificação:", errGeral);
   }
+}
+
+/**
+ * handleApiLgpd — Gestão de Direitos dos Titulares de Dados (LGPD Lei nº 13.709/2018, Art. 18)
+ * e Defesas Cibernéticas contra IDOR, BOLA, Fraude e Engenharia Social.
+ */
+async function handleApiLgpd(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (!url.pathname.startsWith("/api/lgpd")) {
+    return null;
+  }
+
+  const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  // 1. POST /api/lgpd/solicitar (Abertura formal de requisição pelo titular)
+  if (url.pathname === "/api/lgpd/solicitar" && request.method === "POST") {
+    try {
+      const body = (await request.json().catch(() => ({}))) as any;
+      const nomeLimpo = (body.titular_nome || "").trim().slice(0, 150);
+      const docLimpo = (body.titular_documento || "").replace(/\D/g, "").slice(0, 14);
+      const emailLimpo = (body.titular_email || "").trim().toLowerCase().slice(0, 120);
+      const tipo = (body.tipo_solicitacao || "confirmacao").trim().toLowerCase();
+      const justificativa = (body.justificativa || "").trim().slice(0, 500);
+
+      const tiposPermitidos = [
+        "confirmacao",
+        "acesso",
+        "retificacao",
+        "anonimizacao",
+        "exclusao",
+        "portabilidade",
+        "revogacao_consentimento",
+      ];
+
+      if (!nomeLimpo || !emailLimpo || !tiposPermitidos.includes(tipo)) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Campos obrigatórios ausentes ou tipo de solicitação inválido.",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // Validação de formato de e-mail básico
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailLimpo)) {
+        return new Response(
+          JSON.stringify({ success: false, message: "E-mail informado possui formato inválido." }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // Prevenção IDOR / BOLA: Se o usuário estiver autenticado, garante que o e-mail confere com o da sessão
+      const authHeader = request.headers.get("Authorization") || "";
+      let userIdAutenticado: string | null = null;
+      if (authHeader.startsWith("Bearer ")) {
+        const token = authHeader.replace("Bearer ", "").trim();
+        const { data: userData } = await adminClient.auth.getUser(token);
+        if (userData?.user) {
+          userIdAutenticado = userData.user.id;
+          const userEmailAuth = (userData.user.email || "").toLowerCase();
+          if (userEmailAuth && userEmailAuth !== emailLimpo) {
+            return new Response(
+              JSON.stringify({
+                success: false,
+                message: "O e-mail da solicitação deve corresponder ao da conta autenticada.",
+              }),
+              { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+            );
+          }
+        }
+      }
+
+      // Gera protocolo canônico e auditável
+      const dataHoje = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      const sufixoAleatorio = Math.random().toString(16).substring(2, 8).toUpperCase();
+      const protocolo = `LGPD-${dataHoje}-${sufixoAleatorio}`;
+
+      const { data: novaSol, error: errInsert } = await adminClient
+        .from("lgpd_solicitacoes")
+        .insert({
+          protocolo,
+          titular_nome: nomeLimpo,
+          titular_documento: docLimpo || "NÃO INFORMADO",
+          titular_email: emailLimpo,
+          tipo_solicitacao: tipo,
+          status: "pendente",
+          justificativa: justificativa || null,
+        })
+        .select()
+        .single();
+
+      if (errInsert || !novaSol) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Falha ao persistir a solicitação de direitos do titular.",
+          }),
+          { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // Trilha imutável em system_activity_logs (minimização: sem dados sensíveis)
+      await adminClient
+        .from("system_activity_logs")
+        .insert({
+          user_id: userIdAutenticado,
+          acao: "solicitacao_lgpd_art18",
+          detalhe: `Solicitação LGPD ${tipo} registrada com protocolo ${protocolo}`,
+        })
+        .catch(() => {});
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          protocolo,
+          status: "pendente",
+          tipo_solicitacao: tipo,
+          mensagem:
+            "Solicitação registrada com sucesso sob os termos do Art. 18 da LGPD (Lei nº 13.709/2018).",
+        }),
+        { status: 201, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro interno no processamento LGPD.",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // 2. GET /api/lgpd/consultar (Consulta de status por protocolo com DLP e proteção IDOR)
+  if (url.pathname === "/api/lgpd/consultar" && request.method === "GET") {
+    try {
+      const protocolo = (url.searchParams.get("protocolo") || "").trim();
+      const authHeader = request.headers.get("Authorization") || "";
+
+      // Se protocolo fornecido, busca específica com DLP (Data Loss Prevention)
+      if (protocolo) {
+        const { data: sol, error } = await adminClient
+          .from("lgpd_solicitacoes")
+          .select(
+            "protocolo, titular_nome, titular_documento, titular_email, tipo_solicitacao, status, justificativa, created_at, atendido_em",
+          )
+          .eq("protocolo", protocolo)
+          .maybeSingle();
+
+        if (error || !sol) {
+          return new Response(
+            JSON.stringify({ success: false, message: "Protocolo não localizado ou inexistente." }),
+            { status: 404, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+          );
+        }
+
+        // DLP: Mascaramento preventivo de documento e e-mail para não vazar dados
+        const docMask =
+          sol.titular_documento && sol.titular_documento.length >= 6
+            ? `${sol.titular_documento.slice(0, 3)}***${sol.titular_documento.slice(-2)}`
+            : "***";
+        const emailPartes = (sol.titular_email || "").split("@");
+        const emailMask =
+          emailPartes.length === 2 ? `${emailPartes[0].slice(0, 2)}***@${emailPartes[1]}` : "***";
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            solicitacao: {
+              protocolo: sol.protocolo,
+              titular_nome: sol.titular_nome,
+              titular_documento_mascarado: docMask,
+              titular_email_mascarado: emailMask,
+              tipo_solicitacao: sol.tipo_solicitacao,
+              status: sol.status,
+              justificativa: sol.justificativa,
+              criado_em: sol.created_at,
+              atendido_em: sol.atendido_em,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // Se sem protocolo, requer autenticação para listar as solicitações do próprio titular ou superadmin
+      if (!authHeader.startsWith("Bearer ")) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Protocolo ou autenticação obrigatória para consulta.",
+          }),
+          { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const token = authHeader.replace("Bearer ", "").trim();
+      const { data: userData } = await adminClient.auth.getUser(token);
+      if (!userData?.user) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Sessão inválida ou expirada." }),
+          { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("role")
+        .eq("id", userData.user.id)
+        .single();
+
+      const isAdm =
+        profile?.role === "superadmin" ||
+        profile?.role === "adm" ||
+        profile?.role === "superadmin_auditor";
+
+      let query = adminClient
+        .from("lgpd_solicitacoes")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (!isAdm) {
+        query = query.eq("titular_email", userData.user.email);
+      }
+
+      const { data: lista, error: errLista } = await query;
+      if (errLista) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Erro ao consultar solicitações LGPD." }),
+          { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      return new Response(JSON.stringify({ success: true, solicitacoes: lista || [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro na consulta LGPD." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // 3. POST /api/lgpd/tramitar (Atendimento ou Rejeição administrativa por SuperADM / DPO)
+  if (url.pathname === "/api/lgpd/tramitar" && request.method === "POST") {
+    try {
+      const authHeader = request.headers.get("Authorization") || "";
+      if (!authHeader.startsWith("Bearer ")) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Autenticação requerida para tramitação administrativa.",
+          }),
+          { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const token = authHeader.replace("Bearer ", "").trim();
+      const { data: userData } = await adminClient.auth.getUser(token);
+      if (!userData?.user) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Sessão inválida ou expirada." }),
+          { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("role, email")
+        .eq("id", userData.user.id)
+        .single();
+
+      const rolesAdmin = ["superadmin", "adm", "superadmin_auditor"];
+      if (!profile?.role || !rolesAdmin.includes(profile.role)) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message:
+              "Privilégio insuficiente. Apenas administradores podem tramitar solicitações LGPD.",
+          }),
+          { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const body = (await request.json().catch(() => ({}))) as any;
+      const id = (body.id || "").trim();
+      const decisao = (body.decisao || "").trim().toLowerCase();
+      const justificativa = (body.justificativa || "").trim().slice(0, 1000);
+
+      if (!id || (decisao !== "atendido" && decisao !== "rejeitado")) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Identificador ou decisão inválida (atendido ou rejeitado).",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { error: errUpdate } = await adminClient
+        .from("lgpd_solicitacoes")
+        .update({
+          status: decisao,
+          justificativa: justificativa || null,
+          atendido_por: profile.email || userData.user.email || "SuperADM",
+          atendido_em: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", id);
+
+      if (errUpdate) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Falha ao atualizar tramitação no banco de dados.",
+          }),
+          { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      // Auditoria no system_activity_logs
+      await adminClient
+        .from("system_activity_logs")
+        .insert({
+          user_id: userData.user.id,
+          acao: "tramitacao_lgpd_executada",
+          detalhe: `Solicitação LGPD ${id} tramitada como ${decisao} por ${profile.email || userData.user.email}`,
+        })
+        .catch(() => {});
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Solicitação tramitada como ${decisao} com sucesso.`,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro na tramitação LGPD." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  // 4. GET /api/lgpd/meus-dados (Direito de Acesso facilitado do titular autenticado - Art. 18, II)
+  if (url.pathname === "/api/lgpd/meus-dados" && request.method === "GET") {
+    try {
+      const authHeader = request.headers.get("Authorization") || "";
+      if (!authHeader.startsWith("Bearer ")) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            message: "Autenticação requerida para acesso aos dados do titular.",
+          }),
+          { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const token = authHeader.replace("Bearer ", "").trim();
+      const { data: userData } = await adminClient.auth.getUser(token);
+      if (!userData?.user) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Sessão inválida ou expirada." }),
+          { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("id, email, nome, role, created_at")
+        .eq("id", userData.user.id)
+        .maybeSingle();
+
+      const { data: cliente } = await adminClient
+        .from("clientes")
+        .select(
+          "id, nome_razao_social, email, cpf_cnpj, telefone, endereco, status, plano, created_at",
+        )
+        .or(`user_id.eq.${userData.user.id},email.eq.${userData.user.email}`)
+        .maybeSingle();
+
+      let veiculosTitular: any[] = [];
+      if (cliente?.id) {
+        const { data: veics } = await adminClient
+          .from("veiculos")
+          .select("id, placa, modelo, marca, cor, ano, status_veiculo, status_conexao, created_at")
+          .eq("cliente_id", cliente.id);
+        veiculosTitular = veics || [];
+      }
+
+      // Registro de auditoria do acesso realizado pelo titular
+      await adminClient
+        .from("system_activity_logs")
+        .insert({
+          user_id: userData.user.id,
+          acao: "acesso_dados_titular_lgpd",
+          detalhe: `Titular ${userData.user.email} acessou o espelho integral de seus dados pessoais`,
+        })
+        .catch(() => {});
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          relatorio: {
+            titular: {
+              usuario_id: userData.user.id,
+              email: userData.user.email,
+              perfil: profile || null,
+              dados_cadastrais: cliente || null,
+            },
+            veiculos_vinculados: veiculosTitular,
+            garantia_legal:
+              "Dados disponibilizados em conformidade com o Art. 18, II da Lei nº 13.709/2018 (LGPD).",
+            gerado_em: new Date().toISOString(),
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao consultar dados do titular.",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  return null;
 }
 
 async function handleApiConvites(request: Request, env: unknown): Promise<Response | null> {
@@ -6112,7 +6545,7 @@ async function handleApiPropostas(request: Request, env: unknown): Promise<Respo
         (typeof process !== "undefined" &&
           (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
         (env && ((env as any).GD_WHATSAPP_GATEWAY_URL || (env as any).WHATSAPP_GATEWAY_URL)) ||
-        "http://167.234.233.82:8082"
+        "https://gd-whatsapp-gateway.fly.dev"
       ).replace(/\/$/, "");
 
       const tokenGw = "hunter-guardiao-whatsapp-secret-key-2026";
@@ -6132,12 +6565,7 @@ async function handleApiPropostas(request: Request, env: unknown): Promise<Respo
         };
       }
 
-      const endpoints = [
-        `${gatewayUrl}/api/send`,
-        `${gatewayUrl}/api/v1/messages/send`,
-        "http://167.234.233.82:8082/api/send",
-        "https://gps.oficial.tec.br:8082/api/send",
-      ];
+      const endpoints = [`${gatewayUrl}/api/v1/messages/send`, `${gatewayUrl}/api/send`];
 
       for (const ep of endpoints) {
         try {
@@ -9025,8 +9453,8 @@ async function despacharWhatsappAlertaServer(
     (typeof process !== "undefined" &&
       (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
     (_env && ((_env as any).GD_WHATSAPP_GATEWAY_URL || (_env as any).WHATSAPP_GATEWAY_URL)) ||
-    "http://167.234.233.82:8082"
-  ) // Gateway WhatsApp Exclusivo GD Segurança (Porta 8082 na Oracle Cloud Always Free, isolado do SIGO Guardião)
+    "https://gd-whatsapp-gateway.fly.dev"
+  ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Fly.io gd-whatsapp-gateway.fly.dev / hunter-whatsapp-gateway.fly.dev, 100% isolado do SIGO Guardião)
     .replace(/\/$/, "");
 
   const headersSupabase = {
@@ -11058,8 +11486,8 @@ async function handleApiWhatsapp(
     (typeof process !== "undefined" &&
       (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
     (env && ((env as any).GD_WHATSAPP_GATEWAY_URL || (env as any).WHATSAPP_GATEWAY_URL)) ||
-    "http://167.234.233.82:8083"
-  ) // Gateway WhatsApp Exclusivo GD Segurança (Porta 8083 dedicada, isolada do SIGO Guardião)
+    "https://gd-whatsapp-gateway.fly.dev"
+  ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Fly.io gd-whatsapp-gateway.fly.dev / hunter-whatsapp-gateway.fly.dev, 100% isolado do SIGO Guardião)
     .replace(/\/$/, "");
 
   // 1. GET / HEAD /api/whatsapp/status
@@ -11067,7 +11495,7 @@ async function handleApiWhatsapp(
     url.pathname === "/api/whatsapp/status" &&
     (request.method === "GET" || request.method === "HEAD")
   ) {
-    const alvos = [gatewayUrl, "http://167.234.233.82:8083"];
+    const alvos = [gatewayUrl];
     let ultimoErro = "";
 
     for (const alvo of alvos) {
@@ -11676,6 +12104,12 @@ export default {
       return pwaResponse;
     }
 
+    // Intercepta rotas de LGPD (Direitos dos Titulares Art. 18, Confirmação, Acesso e Anonimização)
+    const lgpdResponse = await handleApiLgpd(request, env);
+    if (lgpdResponse) {
+      return lgpdResponse;
+    }
+
     // Intercepta rotas de validação e cadastro de convites de instalador
     const conviteResponse = await handleApiConvites(request, env);
     if (conviteResponse) {
@@ -12048,8 +12482,8 @@ async function despacharWhatsappGatewayServer(fone: string, mensagem: string): P
     const gatewayUrl = (
       (typeof process !== "undefined" &&
         (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
-      "http://167.234.233.82:8082"
-    ) // Gateway WhatsApp Exclusivo GD Segurança (Porta 8082 na Oracle Cloud Always Free, isolado do SIGO Guardião)
+      "https://gd-whatsapp-gateway.fly.dev"
+    ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Fly.io gd-whatsapp-gateway.fly.dev / hunter-whatsapp-gateway.fly.dev, 100% isolado do SIGO Guardião)
       .replace(/\/$/, "");
     const token = "hunter-guardiao-whatsapp-secret-key-2026";
 

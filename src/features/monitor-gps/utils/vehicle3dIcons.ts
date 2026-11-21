@@ -538,13 +538,13 @@ export function obterPaletaGlossyPin(corHex: string = "#0284C7"): PaletaGlossyPi
   }
   if (isAmber) {
     return {
-      gradTopo: "#FB923C",
-      gradCentro: "#F97316",
-      gradBase: "#C2410C",
-      flancoLuz: "#9A3412",
-      flancoEscuro: "#7C2D12",
-      furoSombra: "#9A3412",
-      furoLuz: "#F97316",
+      gradTopo: "#FDE68A",
+      gradCentro: "#F59E0B",
+      gradBase: "#D97706",
+      flancoLuz: "#B45309",
+      flancoEscuro: "#92400E",
+      furoSombra: "#B45309",
+      furoLuz: "#F59E0B",
       fundoVitrine: "#FFFFFF",
     };
   }

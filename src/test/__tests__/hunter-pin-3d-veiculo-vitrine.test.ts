@@ -41,9 +41,9 @@ describe("Hunter — Pin 3D Volumétrico com Tipo de Veículo no Interior (DJR-N
     const paletaAzul = obterPaletaGlossyPin("#38BDF8");
     assert.equal(paletaAzul.gradCentro, "#2563EB");
 
-    // Âmbar / Laranja: Estacionado com Ignição Desligada
+    // Âmbar / Ouro: Estacionado com Ignição Desligada (Calibrado para amarelo-ouro #F59E0B inconfundível)
     const paletaAmbar = obterPaletaGlossyPin("#F97316");
-    assert.equal(paletaAmbar.gradCentro, "#F97316");
+    assert.equal(paletaAmbar.gradCentro, "#F59E0B");
 
     // Vermelho: Alerta / Bloqueado / Offline
     const paletaVermelho = obterPaletaGlossyPin("#EF4444");
