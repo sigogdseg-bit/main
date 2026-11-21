@@ -11,6 +11,8 @@ interface MapaRondaVigilanteProps {
     longitude: number;
     nome?: string;
     ultimaAtualizacao?: string;
+    statusRota?: "conforme" | "desvio" | "atrasado";
+    velocidadeKmH?: number;
   } | null;
   modoAdicionarPonto?: boolean;
   onAdicionarPontoClick?: (coords: { latitude: number; longitude: number }) => void;
@@ -29,6 +31,7 @@ export function MapaRondaVigilante({
   const mapRef = useRef<L.Map | null>(null);
   const perimetroLayerRef = useRef<L.Polygon | L.Circle | null>(null);
   const checkpointsLayerRef = useRef<L.LayerGroup | null>(null);
+  const rotaLinhaRef = useRef<L.Polyline | null>(null);
   const vigilanteMarkerRef = useRef<L.Marker | null>(null);
 
   // Inicializa mapa em ultra-zoom (zoom 18 - 21)
@@ -175,44 +178,97 @@ export function MapaRondaVigilante({
 
       layerGroup.addLayer(marker);
     });
+
+    // Traça a rota viária / perimetral conectada entre os checkpoints
+    const map = mapRef.current;
+    if (rotaLinhaRef.current && map) {
+      map.removeLayer(rotaLinhaRef.current);
+      rotaLinhaRef.current = null;
+    }
+
+    if (map && checkpoints.length >= 2) {
+      const latlngs: L.LatLngExpression[] = checkpoints.map((c) => [c.latitude, c.longitude]);
+      latlngs.push([checkpoints[0].latitude, checkpoints[0].longitude]);
+      rotaLinhaRef.current = L.polyline(latlngs, {
+        color: "#2563eb",
+        weight: 3.5,
+        opacity: 0.85,
+        dashArray: "8, 6",
+      }).addTo(map);
+    }
   }, [checkpoints]);
 
-  // Atualiza Marcador do Vigilante (Pessoa Rastreada)
+  // Atualiza Marcador do Vigilante (Pessoa Rastreada) com Indicador de Rota em Tempo Real
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
 
     if (posicaoVigilante && posicaoVigilante.latitude && posicaoVigilante.longitude) {
+      const isDesvio = posicaoVigilante.statusRota === "desvio";
+      const isAtrasado = posicaoVigilante.statusRota === "atrasado";
+
+      const gradiente = isDesvio
+        ? "linear-gradient(135deg, #e11d48, #9f1239)"
+        : isAtrasado
+          ? "linear-gradient(135deg, #d97706, #b45309)"
+          : "linear-gradient(135deg, #ea580c, #c2410c)";
+
+      const sombra = isDesvio
+        ? "0 4px 14px rgba(225, 29, 72, 0.7)"
+        : isAtrasado
+          ? "0 4px 14px rgba(217, 119, 6, 0.7)"
+          : "0 4px 14px rgba(234, 88, 12, 0.6)";
+
+      const ringPulse = isDesvio
+        ? "rgba(225, 29, 72, 0.35)"
+        : isAtrasado
+          ? "rgba(217, 119, 6, 0.35)"
+          : "rgba(234, 88, 12, 0.25)";
+
       const vigilanteIcon = L.divIcon({
         className: "relative flex items-center justify-center",
         html: `
           <div style="
-            background: linear-gradient(135deg, #ea580c, #c2410c);
+            background: ${gradiente};
             color: #ffffff;
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             border-radius: 9999px;
             border: 2.5px solid #ffffff;
-            box-shadow: 0 4px 14px rgba(234, 88, 12, 0.6);
+            box-shadow: ${sombra};
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 16px;
+            font-size: 17px;
           ">
-            👮
+            ${isDesvio ? "⚠️" : "👮"}
           </div>
           <div style="
             position: absolute;
-            width: 44px;
-            height: 44px;
+            width: 48px;
+            height: 48px;
             border-radius: 9999px;
-            background: rgba(234, 88, 12, 0.25);
-            animation: pulse 1.5s infinite;
+            background: ${ringPulse};
+            animation: pulse 1.2s infinite;
           "></div>
         `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
+        iconSize: [34, 34],
+        iconAnchor: [17, 17],
       });
+
+      const statusTexto = isDesvio
+        ? "⚠️ DESVIO DE ROTA DETECTADO!"
+        : isAtrasado
+          ? "⏰ CHECKPOINT ATRASADO!"
+          : "EM RONDA (NA ROTA)";
+
+      const corTooltip = isDesvio
+        ? "text-rose-400 border-rose-500/50"
+        : isAtrasado
+          ? "text-amber-400 border-amber-500/50"
+          : "text-orange-400 border-orange-500/30";
+
+      const tooltipContent = `👮 ${posicaoVigilante.nome || "Vigilante"}: ${statusTexto}${posicaoVigilante.ultimaAtualizacao ? ` • ${posicaoVigilante.ultimaAtualizacao}` : ""}`;
 
       if (!vigilanteMarkerRef.current) {
         const marker = L.marker([posicaoVigilante.latitude, posicaoVigilante.longitude], {
@@ -220,26 +276,21 @@ export function MapaRondaVigilante({
           zIndexOffset: 1000,
         }).addTo(map);
 
-        marker.bindTooltip(
-          `Vigilante: ${posicaoVigilante.nome || "Em Turno"}${posicaoVigilante.ultimaAtualizacao ? ` • ${posicaoVigilante.ultimaAtualizacao}` : ""}`,
-          {
-            permanent: true,
-            direction: "bottom",
-            offset: [0, 16],
-            className:
-              "bg-slate-950 text-orange-400 font-bold text-[10px] px-2 py-0.5 rounded border border-orange-500/30 shadow",
-          },
-        );
+        marker.bindTooltip(tooltipContent, {
+          permanent: true,
+          direction: "bottom",
+          offset: [0, 18],
+          className: `bg-slate-950 font-bold text-[10px] px-2 py-0.5 rounded border shadow ${corTooltip}`,
+        });
 
         vigilanteMarkerRef.current = marker;
       } else {
+        vigilanteMarkerRef.current.setIcon(vigilanteIcon);
         vigilanteMarkerRef.current.setLatLng([
           posicaoVigilante.latitude,
           posicaoVigilante.longitude,
         ]);
-        vigilanteMarkerRef.current.setTooltipContent(
-          `Vigilante: ${posicaoVigilante.nome || "Em Turno"}${posicaoVigilante.ultimaAtualizacao ? ` • ${posicaoVigilante.ultimaAtualizacao}` : ""}`,
-        );
+        vigilanteMarkerRef.current.setTooltipContent(tooltipContent);
       }
     } else if (vigilanteMarkerRef.current) {
       map.removeLayer(vigilanteMarkerRef.current);

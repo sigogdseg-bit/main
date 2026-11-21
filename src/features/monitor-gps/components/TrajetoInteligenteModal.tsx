@@ -62,6 +62,7 @@ import {
 } from "../services/trajetoSalvoService";
 import { ModalPortal } from "@/shared/components/ModalPortal";
 import { iniciarRotaMonitorada, type RotaMonitorada } from "../services/rotaMonitoradaService";
+import { carregarCheckpoints } from "@/features/vigilantes/services/vigilanteService";
 
 interface TrajetoInteligenteModalProps {
   veiculo?: VeiculoGps | null;
@@ -79,16 +80,28 @@ export function TrajetoInteligenteModal({
   const { session } = useAuth();
   const userId = session?.userId || "";
 
+  const isPropriedade = Boolean(
+    veiculo?.tipo_veiculo === "propriedade" ||
+    veiculo?.id?.startsWith("posto-") ||
+    veiculo?.placa?.startsWith("POSTO-"),
+  );
+
   // 1. Estados dos Pontos da Rota
   const [saida, setSaida] = useState<PontoRota>(() => {
     const lat = veiculo?.latitude || -22.5235;
     const lon = veiculo?.longitude || -44.1042;
     return {
       id: "origem-inicial",
-      titulo: veiculo ? `Posição Atual (${veiculo.placa})` : "Ponto de Saída",
-      endereco: veiculo
-        ? `Coordenadas do veículo: ${lat.toFixed(5)}, ${lon.toFixed(5)}`
-        : "Volta Redonda, RJ",
+      titulo: isPropriedade
+        ? `Base / Guarita (${veiculo?.marca_modelo || veiculo?.placa})`
+        : veiculo
+          ? `Posição Atual (${veiculo.placa})`
+          : "Ponto de Saída",
+      endereco: isPropriedade
+        ? `Ponto Base / Guarita: ${lat.toFixed(5)}, ${lon.toFixed(5)}`
+        : veiculo
+          ? `Coordenadas do veículo: ${lat.toFixed(5)}, ${lon.toFixed(5)}`
+          : "Volta Redonda, RJ",
       latitude: lat,
       longitude: lon,
       tipo: "saida",
@@ -96,15 +109,38 @@ export function TrajetoInteligenteModal({
   });
 
   const [paradas, setParadas] = useState<PontoRota[]>([]);
-  const [retornarAoPontoSaida, setRetornarAoPontoSaida] = useState(false);
+  const [retornarAoPontoSaida, setRetornarAoPontoSaida] = useState(isPropriedade);
   const [chegada, setChegada] = useState<PontoRota>({
     id: "chegada-1",
     tipo: "chegada",
-    titulo: "Ponto de Chegada (Destino)",
+    titulo: isPropriedade ? "Retorno à Base (Fim da Ronda)" : "Ponto de Chegada (Destino)",
     endereco: "",
     latitude: 0,
     longitude: 0,
   });
+
+  // Carrega checkpoints cadastrados no banco caso seja uma propriedade/posto fixo
+  useEffect(() => {
+    if (!isPropriedade || !veiculo) return;
+    const postoIdReal = veiculo.id.replace("posto-", "");
+    carregarCheckpoints(postoIdReal).then((cps) => {
+      if (cps && cps.length > 0) {
+        setParadas((prev) => {
+          if (prev.length > 0) return prev;
+          return cps.map((cp, idx) => ({
+            id: cp.id || `cp-${idx}`,
+            tipo: "parada",
+            titulo: cp.nome,
+            endereco: cp.horario_previsto
+              ? `Checkpoint ${idx + 1}: ${cp.nome} (Horário: ${cp.horario_previsto})`
+              : `Checkpoint ${idx + 1}: ${cp.nome}`,
+            latitude: cp.latitude,
+            longitude: cp.longitude,
+          }));
+        });
+      }
+    });
+  }, [isPropriedade, veiculo?.id]);
 
   // 2. Modos de Ordenação: Automática Inteligente (Logística 2-Opt) ou Manual (Ajustada pelo Usuário)
   const [ordemModo, setOrdemModo] = useState<"auto" | "manual">("auto");
@@ -1089,11 +1125,18 @@ export function TrajetoInteligenteModal({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100">
-                    Planejamento de Trajeto Inteligente
+                    {isPropriedade
+                      ? "Planejamento de Rota de Ronda e Checkpoints"
+                      : "Planejamento de Trajeto Inteligente"}
                   </h2>
                   {veiculo && (
                     <span className="font-mono text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 font-bold">
                       {veiculo.placa}
+                    </span>
+                  )}
+                  {isPropriedade && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                      POSTO FIXO
                     </span>
                   )}
                   {trajetoEmEdicao && (
@@ -1104,8 +1147,9 @@ export function TrajetoInteligenteModal({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Otimização por deslocamento viário real (2-Opt) com ajuste manual e edição de
-                  rotas salvas
+                  {isPropriedade
+                    ? "Definição de checkpoints georreferenciados para ronda perimetral de vigilantes e segurança patrimonial"
+                    : "Otimização por deslocamento viário real (2-Opt) com ajuste manual e edição de rotas salvas"}
                 </p>
               </div>
             </div>
@@ -1200,7 +1244,7 @@ export function TrajetoInteligenteModal({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-orange-600 dark:text-orange-400 flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-orange-500 animate-pulse" />
-                    1. Saída (Origem)
+                    {isPropriedade ? "1. Saída (Ponto Base / Guarita)" : "1. Saída (Origem)"}
                   </span>
 
                   {veiculo && (
@@ -1208,16 +1252,22 @@ export function TrajetoInteligenteModal({
                       onClick={() => {
                         setSaida({
                           ...saida,
-                          endereco: `Posição GPS do veículo ${veiculo.placa}`,
+                          endereco: isPropriedade
+                            ? `Ponto Base / Guarita (${veiculo.marca_modelo || veiculo.placa})`
+                            : `Posição GPS do veículo ${veiculo.placa}`,
                           latitude: veiculo.latitude || saida.latitude,
                           longitude: veiculo.longitude || saida.longitude,
                         });
-                        toast.success("Posição GPS atual do carro definida como saída!");
+                        toast.success(
+                          isPropriedade
+                            ? "Posição GPS da base / guarita definida como saída!"
+                            : "Posição GPS atual do carro definida como saída!",
+                        );
                       }}
                       className="text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:text-orange-500 flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm cursor-pointer"
                     >
                       <LocateFixed className="h-3 w-3" />
-                      <span>Posição do Carro</span>
+                      <span>{isPropriedade ? "Posição da Base" : "Posição do Carro"}</span>
                     </button>
                   )}
                 </div>
@@ -1298,7 +1348,9 @@ export function TrajetoInteligenteModal({
                 <div className="flex items-center justify-between flex-wrap gap-1">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                      Paradas Intermediárias ({paradas.length})
+                      {isPropriedade
+                        ? `Pontos de Checkpoint da Ronda (${paradas.length})`
+                        : `Paradas Intermediárias (${paradas.length})`}
                     </span>
 
                     {ordemModo === "manual" ? (
@@ -1318,7 +1370,11 @@ export function TrajetoInteligenteModal({
                         onClick={handleReotimizarIA}
                         disabled={otimizandoIA}
                         className="px-2 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/25 transition flex items-center gap-1 cursor-pointer"
-                        title="Otimizar paradas pela Matriz Viária Real e Algoritmo 2-Opt"
+                        title={
+                          isPropriedade
+                            ? "Otimizar ordem dos checkpoints pelo caminho mais rápido"
+                            : "Otimizar paradas pela Matriz Viária Real e Algoritmo 2-Opt"
+                        }
                       >
                         <Sparkles className="h-3 w-3" />
                         <span>{otimizandoIA ? "Otimizando..." : "Otimizar por IA"}</span>
@@ -1330,14 +1386,16 @@ export function TrajetoInteligenteModal({
                       className="px-2 py-1 rounded-lg text-[10px] font-bold bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 hover:bg-orange-500/25 transition flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="h-3 w-3" />
-                      <span>Adicionar</span>
+                      <span>{isPropriedade ? "Adicionar Checkpoint" : "Adicionar"}</span>
                     </button>
                   </div>
                 </div>
 
                 {paradas.length === 0 ? (
                   <div className="p-3 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-[11px] text-slate-400">
-                    Nenhuma parada adicionada. Adicione quantas visitas ou entregas desejar.
+                    {isPropriedade
+                      ? "Nenhum checkpoint adicionado. Adicione os pontos de passagem e ronda perimetral da propriedade."
+                      : "Nenhuma parada adicionada. Adicione quantas visitas ou entregas desejar."}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1353,7 +1411,9 @@ export function TrajetoInteligenteModal({
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
                                 <MapPin className="h-3.5 w-3.5" />
-                                <span>Parada {idx + 1}</span>
+                                <span>
+                                  {isPropriedade ? `Checkpoint ${idx + 1}` : `Parada ${idx + 1}`}
+                                </span>
                               </span>
 
                               {trechoAtual && (
@@ -1386,7 +1446,9 @@ export function TrajetoInteligenteModal({
                               <button
                                 onClick={() => handleRemoverParada(parada.id)}
                                 className="p-1 rounded-lg text-slate-400 hover:text-rose-500 transition cursor-pointer ml-1"
-                                title="Remover esta parada"
+                                title={
+                                  isPropriedade ? "Remover este checkpoint" : "Remover esta parada"
+                                }
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </button>
@@ -1400,7 +1462,11 @@ export function TrajetoInteligenteModal({
                                 <input
                                   type="text"
                                   autoFocus
-                                  placeholder="Digite o endereço da parada..."
+                                  placeholder={
+                                    isPropriedade
+                                      ? "Digite o nome ou local do checkpoint..."
+                                      : "Digite o endereço da parada..."
+                                  }
                                   value={termoBusca}
                                   onChange={(e) => setTermoBusca(e.target.value)}
                                   className="w-full pl-8 pr-8 py-1.5 bg-white dark:bg-slate-900 border border-amber-500/50 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none"
@@ -1452,7 +1518,10 @@ export function TrajetoInteligenteModal({
                               className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 cursor-pointer hover:border-amber-500/40 transition flex items-center justify-between"
                             >
                               <span className="truncate">
-                                {parada.endereco || "Clique para buscar o endereço da parada..."}
+                                {parada.endereco ||
+                                  (isPropriedade
+                                    ? "Clique para definir o local do checkpoint..."
+                                    : "Clique para buscar o endereço da parada...")}
                               </span>
                               <Search className="h-3.5 w-3.5 text-slate-400 shrink-0 ml-1" />
                             </div>
@@ -1474,7 +1543,9 @@ export function TrajetoInteligenteModal({
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold text-rose-600 dark:text-rose-400 flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-rose-500" />
-                    Chegada (Destino Final)
+                    {isPropriedade
+                      ? "Chegada (Retorno à Base / Fim da Ronda)"
+                      : "Chegada (Destino Final)"}
                   </span>
 
                   {/* Opcao de Retornar a Saida */}
@@ -1490,7 +1561,7 @@ export function TrajetoInteligenteModal({
                       className="h-3.5 w-3.5 rounded text-orange-500 focus:ring-orange-500 border-slate-300 cursor-pointer"
                     />
                     <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
-                      Retornar à saída
+                      {isPropriedade ? "Retornar à Base (Guarita)" : "Retornar à saída"}
                     </span>
                   </label>
                 </div>
@@ -1499,7 +1570,9 @@ export function TrajetoInteligenteModal({
                   <div className="p-2 rounded-xl bg-orange-500/10 border border-orange-500/30 text-xs text-orange-700 dark:text-orange-300 flex items-center gap-2">
                     <RotateCcw className="h-3.5 w-3.5 shrink-0" />
                     <span className="truncate">
-                      Rota circular: O veículo retornará ao mesmo endereço de saída.
+                      {isPropriedade
+                        ? "Ronda circular: O vigilante retornará ao ponto base/guarita após percorrer todos os checkpoints."
+                        : "Rota circular: O veículo retornará ao mesmo endereço de saída."}
                     </span>
                   </div>
                 ) : campoBuscaAtivo === "chegada" ? (
@@ -1606,7 +1679,13 @@ export function TrajetoInteligenteModal({
                     <>
                       <Navigation className="h-4 w-4 shrink-0" />
                       <span>
-                        {ordemModo === "manual" ? "Calcular Trajeto" : "Montar Trajetória"}
+                        {calculandoRota
+                          ? "Calculando..."
+                          : isPropriedade
+                            ? "Montar Rota de Ronda"
+                            : ordemModo === "manual"
+                              ? "Calcular Trajeto"
+                              : "Montar Trajetória"}
                       </span>
                     </>
                   )}

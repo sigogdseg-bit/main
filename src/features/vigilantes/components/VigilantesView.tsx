@@ -26,16 +26,32 @@ import {
   avaliarPosicaoVigilante,
   notificarAlertaRondaWhatsapp,
   excluirCheckpoint,
+  calcularTemposDeslocamentoCheckpoints,
+  verificarDesvioRotaVigilante,
+  verificarAtrasoProximoPonto,
+  carregarCicloAtivo,
+  dispararAlertaRonda,
 } from "../services/vigilanteService";
-import type { Vigilante, PostoVigilancia, RondaCheckpoint, TurnoVigilancia } from "../types";
+import type {
+  Vigilante,
+  PostoVigilancia,
+  RondaCheckpoint,
+  TurnoVigilancia,
+  CicloRondaExecucao,
+} from "../types";
 import { MapaRondaVigilante } from "./MapaRondaVigilante";
 import { ModalNovoVigilante } from "./ModalNovoVigilante";
 import { ModalNovoPosto } from "./ModalNovoPosto";
 import { ModalNovoCheckpoint } from "./ModalNovoCheckpoint";
 import { ModalEscalaTurno } from "./ModalEscalaTurno";
+import { VisaoVigilanteOperacional } from "./VisaoVigilanteOperacional";
+import { useAuth } from "@/features/auth/context/AuthContext";
 import { toast } from "sonner";
 
 export function VigilantesView() {
+  const { session } = useAuth();
+  const [modoVisaoVigilante, setModoVisaoVigilante] = useState(false);
+  const [calculandoTempos, setCalculandoTempos] = useState(false);
   const [abaAtiva, setAbaAtiva] = useState<"mapa" | "escalas" | "cadastros">("mapa");
 
   // Dados
@@ -56,13 +72,20 @@ export function VigilantesView() {
   >(undefined);
   const [modoMarcarPontoNoMapa, setModoMarcarPontoNoMapa] = useState(false);
 
-  // Posição ao vivo do rastreador pessoal do vigilante
+  // Posição ao vivo do rastreador / aplicativo do vigilante
   const [posicaoVigilante, setPosicaoVigilante] = useState<{
     latitude: number;
     longitude: number;
     nome?: string;
     ultimaAtualizacao?: string;
+    statusRota?: "conforme" | "desvio" | "atrasado";
+    velocidadeKmH?: number;
   } | null>(null);
+
+  // Estados de Auditoria da Ronda na Central
+  const [cicloAtivoCentral, setCicloAtivoCentral] = useState<CicloRondaExecucao | null>(null);
+  const [alertaCentralDesvio, setAlertaCentralDesvio] = useState<string | null>(null);
+  const [alertaCentralAtraso, setAlertaCentralAtraso] = useState<string | null>(null);
 
   // Turno ativo no posto selecionado
   const turnoAtivoNoPosto = useMemo(() => {
@@ -113,84 +136,138 @@ export function VigilantesView() {
     }
   }, [postoSelecionado, carregarPontosDoPosto]);
 
-  // Ouve telemetria em tempo real do rastreador pessoal do vigilante ativo
+  // Monitoramento contínuo de posição e alertas em tempo real na Central
   useEffect(() => {
-    if (!turnoAtivoNoPosto?.rastreador_imei) {
+    if (!postoSelecionado) {
       setPosicaoVigilante(null);
       return;
     }
 
-    const imei = turnoAtivoNoPosto.rastreador_imei;
+    const postoId = postoSelecionado.id;
 
-    // Busca última posição conhecida no banco
-    const buscarUltimaPosicao = async () => {
-      try {
-        const { data } = await supabase
-          .from("posicoes_veiculos")
-          .select("latitude, longitude, created_at, endereco")
-          .eq("imei", imei)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        if (data && data.latitude && data.longitude) {
+    // 1. Carga inicial da última posição registrada no posto
+    try {
+      const rawLive = localStorage.getItem(`gd_posicao_live_${postoId}`);
+      if (rawLive) {
+        const parsed = JSON.parse(rawLive);
+        if (parsed.latitude && parsed.longitude) {
           setPosicaoVigilante({
-            latitude: data.latitude,
-            longitude: data.longitude,
-            nome: turnoAtivoNoPosto.vigilante?.nome || "Vigilante",
-            ultimaAtualizacao: new Date(data.created_at).toLocaleTimeString("pt-BR"),
-          });
-        } else if (postoSelecionado) {
-          // Posição inicial próxima do posto se ainda não houver telemetria gravada
-          setPosicaoVigilante({
-            latitude: postoSelecionado.latitude + 0.0001,
-            longitude: postoSelecionado.longitude + 0.0001,
-            nome: turnoAtivoNoPosto.vigilante?.nome || "Vigilante",
-            ultimaAtualizacao: "Aguardando sinal GPS",
+            latitude: parsed.latitude,
+            longitude: parsed.longitude,
+            nome: parsed.vigilanteNome || turnoAtivoNoPosto?.vigilante?.nome || "Vigilante",
+            ultimaAtualizacao: new Date(parsed.timestamp).toLocaleTimeString("pt-BR"),
+            statusRota: parsed.statusRota || "conforme",
+            velocidadeKmH: parsed.velocidadeKmH,
           });
         }
-      } catch {
-        if (postoSelecionado) {
+      } else if (postoSelecionado.latitude && postoSelecionado.longitude) {
+        setPosicaoVigilante({
+          latitude: postoSelecionado.latitude + 0.00008,
+          longitude: postoSelecionado.longitude + 0.00008,
+          nome: turnoAtivoNoPosto?.vigilante?.nome || "Vigilante",
+          ultimaAtualizacao: "Aguardando sinal",
+          statusRota: "conforme",
+        });
+      }
+    } catch {}
+
+    // 2. Inscrição no canal Realtime Broadcast do Posto
+    const canalRonda = supabase
+      .channel(`hunter_ronda_live_${postoId}`)
+      .on("broadcast", { event: "posicao_vigilante" }, (msg: any) => {
+        const dados = msg?.payload || msg;
+        if (dados?.latitude && dados?.longitude) {
           setPosicaoVigilante({
-            latitude: postoSelecionado.latitude,
-            longitude: postoSelecionado.longitude,
-            nome: turnoAtivoNoPosto.vigilante?.nome || "Vigilante",
-            ultimaAtualizacao: "Aguardando sinal",
+            latitude: dados.latitude,
+            longitude: dados.longitude,
+            nome: dados.vigilanteNome || turnoAtivoNoPosto?.vigilante?.nome || "Vigilante",
+            ultimaAtualizacao: new Date().toLocaleTimeString("pt-BR"),
+            statusRota: dados.statusRota || "conforme",
+            velocidadeKmH: dados.velocidadeKmH,
           });
         }
+      })
+      .on("broadcast", { event: "novo_alerta_ronda" }, (msg: any) => {
+        const alerta = msg?.payload || msg;
+        if (alerta?.detalhes) {
+          toast.error(alerta.detalhes);
+        }
+      })
+      .subscribe();
+
+    // 3. Ouvinte de eventos locais no navegador
+    const handlePosicaoLiveLocal = (e: any) => {
+      const d = e.detail;
+      if (d && d.postoId === postoId && d.latitude && d.longitude) {
+        setPosicaoVigilante({
+          latitude: d.latitude,
+          longitude: d.longitude,
+          nome: d.vigilanteNome || turnoAtivoNoPosto?.vigilante?.nome || "Vigilante",
+          ultimaAtualizacao: new Date().toLocaleTimeString("pt-BR"),
+          statusRota: d.statusRota || "conforme",
+          velocidadeKmH: d.velocidadeKmH,
+        });
       }
     };
 
-    buscarUltimaPosicao();
+    const handleAlertaRondaLocal = (e: any) => {
+      const a = e.detail;
+      if (a && a.postoId === postoId) {
+        toast.error(`🚨 ${a.detalhes}`);
+      }
+    };
 
-    // Inscrição em tempo real no canal do Supabase
-    const canal = supabase
-      .channel(`vigilante-imei-${imei}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "posicoes_veiculos",
-          filter: `imei=eq.${imei}`,
-        },
-        (payload: any) => {
-          if (payload.new && payload.new.latitude && payload.new.longitude) {
-            setPosicaoVigilante({
-              latitude: payload.new.latitude,
-              longitude: payload.new.longitude,
-              nome: turnoAtivoNoPosto.vigilante?.nome || "Vigilante",
-              ultimaAtualizacao: new Date().toLocaleTimeString("pt-BR"),
-            });
-          }
-        },
-      )
-      .subscribe();
+    if (typeof window !== "undefined") {
+      window.addEventListener("hunter:posicao_vigilante_live", handlePosicaoLiveLocal);
+      window.addEventListener("hunter:alerta_ronda", handleAlertaRondaLocal);
+    }
 
     return () => {
-      supabase.removeChannel(canal);
+      supabase.removeChannel(canalRonda);
+      if (typeof window !== "undefined") {
+        window.removeEventListener("hunter:posicao_vigilante_live", handlePosicaoLiveLocal);
+        window.removeEventListener("hunter:alerta_ronda", handleAlertaRondaLocal);
+      }
     };
-  }, [turnoAtivoNoPosto, postoSelecionado]);
+  }, [postoSelecionado, turnoAtivoNoPosto]);
+
+  // Auditoria periódica na Central para detectar Desvios de Rota e Atrasos (Anti-Omissão)
+  useEffect(() => {
+    if (!postoSelecionado) {
+      setAlertaCentralDesvio(null);
+      setAlertaCentralAtraso(null);
+      return;
+    }
+
+    const auditarStatusRondaCentral = async () => {
+      // 1. Checa ciclo ativo
+      const ciclo = await carregarCicloAtivo(postoSelecionado.id);
+      setCicloAtivoCentral(ciclo);
+
+      if (ciclo && ciclo.status === "em_andamento") {
+        const atraso = verificarAtrasoProximoPonto(postoSelecionado.id, ciclo, checkpoints);
+        setAlertaCentralAtraso(atraso.atrasado ? atraso.mensagem || null : null);
+      } else {
+        setAlertaCentralAtraso(null);
+      }
+
+      // 2. Checa desvio de rota se houver posição conhecida do vigilante
+      if (posicaoVigilante && posicaoVigilante.latitude && posicaoVigilante.longitude) {
+        const desvio = verificarDesvioRotaVigilante(
+          posicaoVigilante,
+          postoSelecionado,
+          checkpoints,
+        );
+        setAlertaCentralDesvio(desvio.emDesvio ? desvio.motivo : null);
+      } else {
+        setAlertaCentralDesvio(null);
+      }
+    };
+
+    auditarStatusRondaCentral();
+    const interval = setInterval(auditarStatusRondaCentral, 10000);
+    return () => clearInterval(interval);
+  }, [postoSelecionado, checkpoints, posicaoVigilante]);
 
   // Avaliação situacional da ronda
   const statusRonda = useMemo(() => {
@@ -245,6 +322,43 @@ export function VigilantesView() {
     }
   };
 
+  const handleCalcularTemposCheckpoints = async () => {
+    if (!postoSelecionado || checkpoints.length === 0) {
+      toast.error("Nenhum checkpoint cadastrado neste posto.");
+      return;
+    }
+
+    setCalculandoTempos(true);
+    try {
+      const atualizados = await calcularTemposDeslocamentoCheckpoints(
+        postoSelecionado.id,
+        checkpoints,
+      );
+      setCheckpoints(atualizados);
+      toast.success(
+        "Tempos de deslocamento calculados com sucesso! Janela padrão de ±3 min aplicada.",
+      );
+    } catch {
+      toast.error("Falha ao calcular tempos de deslocamento.");
+    } finally {
+      setCalculandoTempos(false);
+    }
+  };
+
+  // Se o usuário logado for Vigilante ou se o supervisor ativar o modo de simulação
+  if (session?.isVigilante || modoVisaoVigilante) {
+    const vigAtual = vigilantes.find(
+      (v) => v.usuario_id === session?.userId || v.email === session?.email,
+    );
+    return (
+      <VisaoVigilanteOperacional
+        vigilanteLogado={vigAtual || null}
+        modoSupervisor={!session?.isVigilante}
+        onVoltarPainelGeral={() => setModoVisaoVigilante(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-4 max-w-7xl mx-auto p-2 sm:p-4 pb-20">
       {/* Header do Módulo Vigilante */}
@@ -271,6 +385,14 @@ export function VigilantesView() {
 
         {/* Botões Rápidos de Ação */}
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setModoVisaoVigilante(true)}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-blue-700 hover:bg-blue-600 text-white shadow-md shadow-blue-700/20 active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Smartphone className="h-3.5 w-3.5" />
+            <span>Simular Visão do Vigilante</span>
+          </button>
+
           <button
             onClick={() => setModalTurnoAberto(true)}
             className="px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
@@ -340,7 +462,7 @@ export function VigilantesView() {
       {abaAtiva === "mapa" && (
         <div className="space-y-4">
           {/* Seletor do Posto e Status Situacional */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Seletor de Posto */}
             <div className="p-3.5 rounded-2xl bg-[#eaf0f8] dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800 space-y-1.5">
               <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase">
@@ -371,20 +493,51 @@ export function VigilantesView() {
                 </span>
                 <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 mt-0.5">
                   <UserCheck className="h-3.5 w-3.5 text-blue-500" />
-                  {turnoAtivoNoPosto?.vigilante?.nome || "Nenhum vigilante escalado"}
+                  {turnoAtivoNoPosto?.vigilante?.nome || posicaoVigilante?.nome || "Vigilante"}
                 </span>
                 <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-                  IMEI Portátil: {turnoAtivoNoPosto?.rastreador_imei || "Sem rastreador vinculado"}
+                  Matrícula: {turnoAtivoNoPosto?.vigilante?.matricula || "VIG-01"}
                 </span>
               </div>
               <span
                 className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${
-                  turnoAtivoNoPosto
+                  turnoAtivoNoPosto || posicaoVigilante
                     ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
                     : "bg-slate-200 dark:bg-slate-800 text-slate-500 border-slate-300 dark:border-slate-700"
                 }`}
               >
-                {turnoAtivoNoPosto ? "EM TURNO" : "SEM ESCALA"}
+                {turnoAtivoNoPosto || posicaoVigilante ? "EM RONDA" : "SEM ESCALA"}
+              </span>
+            </div>
+
+            {/* Deslocamento ao Vivo do Vigilante */}
+            <div className="p-3.5 rounded-2xl bg-[#eaf0f8] dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping inline-block" />
+                  <span className="text-[10px] font-bold text-slate-400 uppercase block">
+                    Monitoramento ao Vivo
+                  </span>
+                </div>
+                <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 mt-0.5 font-mono">
+                  {posicaoVigilante
+                    ? `${posicaoVigilante.latitude.toFixed(5)}, ${posicaoVigilante.longitude.toFixed(5)}`
+                    : "Aguardando sinal GPS"}
+                </span>
+                <span className="text-[10px] text-slate-500 block mt-0.5">
+                  Última leitura: {posicaoVigilante?.ultimaAtualizacao || "--:--"}
+                </span>
+              </div>
+              <span
+                className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${
+                  alertaCentralDesvio
+                    ? "bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500/40 animate-pulse"
+                    : alertaCentralAtraso
+                      ? "bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/40"
+                      : "bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30"
+                }`}
+              >
+                {alertaCentralDesvio ? "DESVIO" : alertaCentralAtraso ? "ATRASO" : "NA ROTA"}
               </span>
             </div>
 
@@ -395,7 +548,7 @@ export function VigilantesView() {
                   Auditoria de Perímetro
                 </span>
                 <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 mt-0.5">
-                  {statusRonda.dentroDoPerimetro ? (
+                  {statusRonda.dentroDoPerimetro && !alertaCentralDesvio ? (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                       <span className="text-emerald-600 dark:text-emerald-400">
@@ -405,9 +558,7 @@ export function VigilantesView() {
                   ) : (
                     <>
                       <AlertTriangle className="h-4 w-4 text-rose-500" />
-                      <span className="text-rose-600 dark:text-rose-400">
-                        Fora do Perímetro Tático!
-                      </span>
+                      <span className="text-rose-600 dark:text-rose-400">Alerta de Trajeto!</span>
                     </>
                   )}
                 </span>
@@ -429,6 +580,41 @@ export function VigilantesView() {
               </button>
             </div>
           </div>
+
+          {/* Alertas em Tempo Real na Central de Monitoramento */}
+          {alertaCentralDesvio && (
+            <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-800 dark:text-rose-200 text-xs font-bold flex items-center justify-between shadow-sm animate-pulse">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0" />
+                <div>
+                  <span className="block font-black text-rose-700 dark:text-rose-300">
+                    ALERTA TÁTICO NA CENTRAL: DESVIO DE ROTA DETECTADO!
+                  </span>
+                  <span className="font-normal">{alertaCentralDesvio}</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg bg-rose-600 text-white shrink-0">
+                AÇÃO IMEDIATA
+              </span>
+            </div>
+          )}
+
+          {alertaCentralAtraso && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/15 border border-amber-500/40 text-amber-900 dark:text-amber-200 text-xs font-bold flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2.5">
+                <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <div>
+                  <span className="block font-black text-amber-700 dark:text-amber-300">
+                    ALERTA TÁTICO NA CENTRAL: PONTO DE RONDA NÃO ATINGIDO NO TEMPO ESTIPULADO!
+                  </span>
+                  <span className="font-normal">{alertaCentralAtraso}</span>
+                </div>
+              </div>
+              <span className="text-[10px] font-mono font-bold px-2.5 py-1 rounded-lg bg-amber-500 text-slate-950 shrink-0">
+                JANELA EXPIRADA
+              </span>
+            </div>
+          )}
 
           {/* Mapa Ultra-Aproximado com Perímetro e Checkpoints Azuis */}
           {postoSelecionado ? (
@@ -469,19 +655,36 @@ export function VigilantesView() {
 
           {/* Lista de Checkpoints Azuis com Horários Previstos e Janela ±3min */}
           <div className="p-4 sm:p-5 rounded-3xl bg-[#eaf0f8] dark:bg-slate-900 border border-slate-300/60 dark:border-slate-800 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <span className="h-3 w-3 rounded-full bg-blue-600 inline-block shadow-[0_0_8px_#2563eb]" />
-                  Roteiro de Checkpoints Azuis (Tolerância Estrita: ±3 min)
+                  Roteiro de Ronda Contínua 24h (Tolerância Dinâmica: ±3 min)
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Pontos obrigatórios onde o vigilante deve ser detectado no horário programado
+                  Sequência ordenada de pontos onde o deslocamento é calculado automaticamente e a
+                  presença física é aferida por GPS absoluto
                 </p>
               </div>
-              <span className="text-xs font-bold font-mono px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                {checkpoints.length} pontos
-              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleCalcularTemposCheckpoints}
+                  disabled={calculandoTempos || checkpoints.length === 0}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                >
+                  {calculandoTempos ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Radio className="h-3.5 w-3.5" />
+                  )}
+                  <span>Calcular Rota e Tempos (±3 min)</span>
+                </button>
+
+                <span className="text-xs font-bold font-mono px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                  {checkpoints.length} pontos
+                </span>
+              </div>
             </div>
 
             {checkpoints.length === 0 ? (
@@ -515,15 +718,18 @@ export function VigilantesView() {
 
                         <span className="text-xs font-bold font-mono px-2 py-0.5 rounded-lg bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30 flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {horaStr}
+                          {cp.tempo_deslocamento_minutos
+                            ? `+${cp.tempo_deslocamento_minutos} min`
+                            : horaStr}
                         </span>
                       </div>
 
                       <div className="flex items-center justify-between pt-2 border-t border-slate-200 dark:border-slate-800 text-[11px]">
                         <span className="text-slate-500 font-medium">
-                          Janela:{" "}
+                          Deslocamento:{" "}
                           <strong className="text-blue-600 dark:text-blue-400">
-                            ±{cp.tolerancia_minutos || 3} min
+                            {cp.tempo_deslocamento_minutos ?? 5} min (±{cp.tolerancia_minutos || 3}{" "}
+                            min)
                           </strong>
                         </span>
 

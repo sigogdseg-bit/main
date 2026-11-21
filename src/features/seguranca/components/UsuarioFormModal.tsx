@@ -455,6 +455,7 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                     ) : (
                       <>
                         <option value="operador">Operador de Monitoramento</option>
+                        <option value="vigilante">Vigilante (Rondas e Escala Tática)</option>
                         <option value="financeiro">
                           Financeiro (Gestão Financeira e Cobrança)
                         </option>

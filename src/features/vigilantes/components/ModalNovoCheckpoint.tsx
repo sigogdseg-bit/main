@@ -23,17 +23,15 @@ export function ModalNovoCheckpoint({
   onSalvo,
 }: ModalNovoCheckpointProps) {
   const [nome, setNome] = useState(checkpointEmEdicao?.nome || "");
-  const [horarioPrevisto, setHorarioPrevisto] = useState(
-    checkpointEmEdicao?.horario_previsto
-      ? checkpointEmEdicao.horario_previsto.slice(0, 5)
-      : "22:00",
+  const [tempoDeslocamentoMinutos, setTempoDeslocamentoMinutos] = useState(
+    checkpointEmEdicao?.tempo_deslocamento_minutos ?? 5,
   );
   const [ordem, setOrdem] = useState(checkpointEmEdicao?.ordem ?? proximaOrdem);
   const [toleranciaMinutos, setToleranciaMinutos] = useState(
     checkpointEmEdicao?.tolerancia_minutos ?? 3,
   );
   const [raioCapturaMetros, setRaioCapturaMetros] = useState(
-    checkpointEmEdicao?.raio_captura_metros ?? 5,
+    checkpointEmEdicao?.raio_captura_metros ?? 15,
   );
   const [latitude, setLatitude] = useState(
     checkpointEmEdicao?.latitude || coordenadasIniciais?.latitude || 0,
@@ -47,10 +45,6 @@ export function ModalNovoCheckpoint({
     e.preventDefault();
     if (!nome.trim()) {
       toast.error("Informe o nome ou identificação do ponto de ronda.");
-      return;
-    }
-    if (!horarioPrevisto) {
-      toast.error("Informe o horário previsto para a passagem do vigilante.");
       return;
     }
     if (!latitude || !longitude) {
@@ -67,7 +61,7 @@ export function ModalNovoCheckpoint({
         latitude,
         longitude,
         ordem,
-        horario_previsto: `${horarioPrevisto}:00`,
+        tempo_deslocamento_minutos: tempoDeslocamentoMinutos,
         tolerancia_minutos: toleranciaMinutos,
         raio_captura_metros: raioCapturaMetros,
         cor_marcador: "#2563eb", // Azul tático canônico
@@ -140,13 +134,16 @@ export function ModalNovoCheckpoint({
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase mb-1 flex items-center gap-1">
                   <Clock className="h-3.5 w-3.5 text-blue-500" />
-                  Horário Previsto *
+                  Tempo Deslocamento (Minutos) *
                 </label>
                 <input
-                  type="time"
+                  type="number"
+                  min="1"
+                  max="120"
                   required
-                  value={horarioPrevisto}
-                  onChange={(e) => setHorarioPrevisto(e.target.value)}
+                  value={tempoDeslocamentoMinutos}
+                  onChange={(e) => setTempoDeslocamentoMinutos(parseInt(e.target.value, 10) || 5)}
+                  placeholder="Ex: 5"
                   className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono font-bold"
                 />
               </div>
@@ -165,21 +162,16 @@ export function ModalNovoCheckpoint({
               </div>
             </div>
 
-            {/* Aviso da Janela Estrita */}
+            {/* Aviso da Janela Dinâmica 24h */}
             <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-900 dark:text-blue-300 text-xs space-y-1">
               <div className="flex items-center gap-1.5 font-bold">
                 <AlertTriangle className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                <span>Regra de Tolerância: ±{toleranciaMinutos} minutos</span>
+                <span>Ronda Dinâmica 24h: Tolerância de ±{toleranciaMinutos} minutos</span>
               </div>
               <p className="text-[11px] text-blue-800/80 dark:text-blue-300/80">
-                O vigilante deverá ser detectado neste ponto entre{" "}
-                <strong>
-                  {horarioPrevisto
-                    ? `${horarioPrevisto} (-${toleranciaMinutos}m a +${toleranciaMinutos}m)`
-                    : "--:--"}
-                </strong>
-                . Caso não compareça, um alerta sonoro e visual será emitido na Central e enviado
-                via WhatsApp para a supervisão.
+                O horário deste ponto é calculado dinamicamente quando a ronda inicia ou logo após a
+                passagem pelo ponto anterior (+{tempoDeslocamentoMinutos} min). A presença deve
+                ocorrer dentro da janela de ±{toleranciaMinutos} minutos via GPS absoluto.
               </p>
             </div>
 
@@ -207,11 +199,11 @@ export function ModalNovoCheckpoint({
                   max="100"
                   step="1"
                   value={raioCapturaMetros}
-                  onChange={(e) => setRaioCapturaMetros(parseInt(e.target.value, 10) || 5)}
+                  onChange={(e) => setRaioCapturaMetros(parseInt(e.target.value, 10) || 15)}
                   className="w-full bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono font-bold"
                 />
                 <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium block mt-1">
-                  Padrão cirúrgico: 5m (presença física real)
+                  Padrão alta precisão: 15m (presença física real via GPS)
                 </span>
               </div>
             </div>

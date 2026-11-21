@@ -581,6 +581,10 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
       ];
     }
 
+    if (role === "vigilante" && (!modulos || modulos.length === 0)) {
+      modulos = ["vigilantes"];
+    }
+
     if (role === "financeiro" && (!modulos || modulos.length === 0)) {
       modulos = [
         "financeiro",
@@ -630,6 +634,7 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
       podeBloquearDesbloquear,
       isInstalador: role === "instalador",
       isMotorista: role === "motorista",
+      isVigilante: role === "vigilante",
       isFuncionario: role === "funcionario",
       isFinanceiro: role === "financeiro",
       isRevendedor: role === "revendedor",

@@ -93,7 +93,30 @@ export function aplicarPatchTempoRealNaLista(
     ignicao,
     bloqueado,
     status_operacional,
-    rumo: typeof patch.rumo === "number" && !isNaN(patch.rumo) ? patch.rumo : atual.rumo,
+    rumo:
+      typeof patch.rumo === "number" && !isNaN(patch.rumo) && patch.rumo > 0
+        ? patch.rumo
+        : atual.latitude &&
+            atual.longitude &&
+            typeof patch.latitude === "number" &&
+            typeof patch.longitude === "number" &&
+            (patch.latitude !== atual.latitude || patch.longitude !== atual.longitude)
+          ? Math.round(
+              ((Math.atan2(
+                Math.sin(((patch.longitude - atual.longitude) * Math.PI) / 180) *
+                  Math.cos((patch.latitude * Math.PI) / 180),
+                Math.cos((atual.latitude * Math.PI) / 180) *
+                  Math.sin((patch.latitude * Math.PI) / 180) -
+                  Math.sin((atual.latitude * Math.PI) / 180) *
+                    Math.cos((patch.latitude * Math.PI) / 180) *
+                    Math.cos(((patch.longitude - atual.longitude) * Math.PI) / 180),
+              ) *
+                180) /
+                Math.PI +
+                360) %
+                360,
+            )
+          : atual.rumo,
     ultima_atualizacao: patch.ultima_atualizacao || atual.ultima_atualizacao,
     satelites:
       typeof patch.satelites === "number" && !isNaN(patch.satelites)

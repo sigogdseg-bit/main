@@ -24,6 +24,9 @@ export function ModalNovoVigilante({
     vigilanteEmEdicao?.turno_padrao || "12x36",
   );
   const [observacoes, setObservacoes] = useState(vigilanteEmEdicao?.observacoes || "");
+  const [email, setEmail] = useState(vigilanteEmEdicao?.email || "");
+  const [criarAcessoLogin, setCriarAcessoLogin] = useState(false);
+  const [senhaAcesso, setSenhaAcesso] = useState("");
   const [salvando, setSalvando] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,6 +44,7 @@ export function ModalNovoVigilante({
         cpf: cpf.trim() || null,
         matricula: matricula.trim() || null,
         telefone: telefone.trim() || null,
+        email: email.trim() || null,
         turno_padrao: turnoPadrao,
         observacoes: observacoes.trim() || null,
         ativo: true,
@@ -163,6 +167,34 @@ export function ModalNovoVigilante({
                   <option value="personalizado">Personalizado</option>
                 </select>
               </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-blue-500/10 border border-blue-500/20 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-[11px] font-bold text-blue-900 dark:text-blue-300 uppercase flex items-center gap-1.5">
+                  <UserCheck className="h-3.5 w-3.5 text-blue-500" />
+                  Acesso ao Sistema (Perfil Vigilante)
+                </label>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                  Role: vigilante
+                </span>
+              </div>
+              <div>
+                <label className="block text-[10px] text-slate-600 dark:text-slate-400 mb-0.5">
+                  E-mail de Login do Vigilante
+                </label>
+                <input
+                  type="email"
+                  placeholder="vigilante@gdseguranca.com.br"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full bg-white dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-blue-500 font-mono"
+                />
+              </div>
+              <p className="text-[10px] text-blue-800/80 dark:text-blue-300/80 leading-relaxed">
+                Ao cadastrar este e-mail, o profissional acessa o sistema exclusivamente com a visão
+                de sua escala e acompanhamento da ronda ponto a ponto.
+              </p>
             </div>
 
             <div>

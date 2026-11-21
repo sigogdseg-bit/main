@@ -182,6 +182,10 @@ export function AlertasAcidenteBanner({
 
   const formatarTituloTipo = (tipo: string, detalhes?: string) => {
     switch (tipo) {
+      case "desvio_rota_vigilante":
+        return "🚨 Desvio de Rota do Vigilante (Ronda Tática)";
+      case "ausencia_checkpoint_vigilante":
+        return "⏰ Checkpoint de Ronda Não Atingido no Tempo Estipulado";
       case "suspeita_jammer":
         return "Suspeita de Jammer / Silenciamento Súbito";
       case "desvio_rota":

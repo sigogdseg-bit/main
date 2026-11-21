@@ -488,7 +488,7 @@ export function PropostasTab() {
                     )}
                   </div>
                   <span className="inline-block text-[9px] font-semibold text-orange-600 dark:text-orange-400">
-                    Locação Inclusa
+                    Rastreador e Chip Inclusos
                   </span>
                   <div className="text-[11px] text-slate-600 dark:text-slate-400">
                     Inst.:{" "}
@@ -525,7 +525,7 @@ export function PropostasTab() {
                     )}
                   </div>
                   <span className="inline-block text-[9px] font-semibold text-slate-500">
-                    Locação Inclusa
+                    Rastreador e Chip Inclusos
                   </span>
                   <div className="text-[11px] text-slate-600 dark:text-slate-400">
                     Inst.:{" "}

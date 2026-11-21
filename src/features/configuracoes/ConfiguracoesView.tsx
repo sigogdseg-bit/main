@@ -998,84 +998,111 @@ export function ConfiguracoesView() {
                           <Users className="w-4 h-4 text-amber-600 dark:text-amber-400" />
                           <span className="text-xs font-bold">Escolha o cliente para emular:</span>
                           <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                            {clientesFiltrados.length} clientes
+                            {listaClientes.length} cadastrados
                           </span>
                         </div>
 
-                        {/* Campo de Busca Rápida de Clientes */}
-                        <div className="relative w-full sm:w-64">
-                          <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50 text-slate-500" />
-                          <input
-                            type="text"
-                            placeholder="Buscar por nome ou CPF/CNPJ..."
-                            value={buscaCliente}
-                            onChange={(e) => setBuscaCliente(e.target.value)}
-                            className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none focus:ring-1 focus:ring-amber-500 text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Lista Exclusiva de Clientes (Sem Usuários/Perfis) */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-[280px] overflow-y-auto pr-1">
-                        {carregandoClientes ? (
-                          <div className="col-span-full py-8 text-center text-xs opacity-60">
-                            Carregando catálogo de clientes cadastrados...
+                        {/* Campo de Busca Opcional para Filtrar a Lista Suspensa */}
+                        {listaClientes.length > 3 && (
+                          <div className="relative w-full sm:w-64">
+                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 opacity-50 text-slate-500" />
+                            <input
+                              type="text"
+                              placeholder="Filtrar por nome ou CPF/CNPJ..."
+                              value={buscaCliente}
+                              onChange={(e) => setBuscaCliente(e.target.value)}
+                              className="w-full pl-8 pr-2.5 py-1.5 text-xs rounded-xl border border-slate-300/80 dark:border-slate-700 bg-white dark:bg-slate-900 outline-none focus:ring-1 focus:ring-amber-500 text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+                            />
                           </div>
-                        ) : clientesFiltrados.length === 0 ? (
-                          <div className="col-span-full py-8 text-center text-xs opacity-60">
-                            Nenhum cliente encontrado.
-                          </div>
-                        ) : (
-                          clientesFiltrados.map((cli) => {
-                            const isAtivo = clienteEmulado?.id === cli.id;
-                            return (
-                              <button
-                                key={cli.id}
-                                type="button"
-                                onClick={() => {
-                                  emularCliente({
-                                    id: cli.id,
-                                    nome: cli.nome_razao_social,
-                                    userId: cli.user_id,
-                                    documento: cli.documento,
-                                    plano: cli.plano,
-                                    telefone: cli.telefone,
-                                  });
-                                  toast.success(
-                                    `Modo Cliente ativado: emulando ${cli.nome_razao_social}`,
-                                  );
-                                }}
-                                className={`flex flex-col gap-1 p-2.5 rounded-xl border transition text-left cursor-pointer ${
-                                  isAtivo
-                                    ? "border-amber-500 bg-amber-500/15 text-amber-950 dark:text-amber-100 shadow-xs"
-                                    : isNeumorph
-                                      ? "bg-[#eaf0f8] dark:bg-slate-900/60 border-slate-300/40 dark:border-slate-800 hover:border-amber-500/50 hover:bg-amber-500/5"
-                                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/40 hover:border-amber-500/50 hover:bg-amber-500/5"
-                                }`}
-                              >
-                                <div className="flex items-center justify-between gap-1">
-                                  <span className="text-xs font-bold truncate">
-                                    {cli.nome_razao_social}
-                                  </span>
-                                  {isAtivo && (
-                                    <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-500 text-white shrink-0">
-                                      Emulando
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center justify-between text-[10px] opacity-70">
-                                  <span className="truncate">
-                                    {cli.documento || "Sem documento"}
-                                  </span>
-                                  <span className="capitalize font-bold text-amber-600 dark:text-amber-400">
-                                    {cli.plano ? `Plano ${cli.plano}` : "Básico"}
-                                  </span>
-                                </div>
-                              </button>
-                            );
-                          })
                         )}
                       </div>
+
+                      {/* Lista Suspensa (Dropdown Select) com suporte a centenas de clientes */}
+                      <div className="relative">
+                        <select
+                          value={clienteEmulado?.id || ""}
+                          onChange={(e) => {
+                            const idEscolhido = e.target.value;
+                            if (!idEscolhido) {
+                              desfazerEmulacao();
+                              toast.success("Emulação cancelada. Retornado ao modo global.");
+                              return;
+                            }
+                            const cli = listaClientes.find((c) => c.id === idEscolhido);
+                            if (cli) {
+                              emularCliente({
+                                id: cli.id,
+                                nome: cli.nome_razao_social,
+                                userId: cli.user_id,
+                                documento: cli.documento,
+                                plano: cli.plano,
+                                telefone: cli.telefone,
+                              });
+                              toast.success(
+                                `Modo Cliente ativado: emulando ${cli.nome_razao_social}`,
+                              );
+                            }
+                          }}
+                          className={`${inputInsetClass} font-bold cursor-pointer text-xs sm:text-sm`}
+                          disabled={carregandoClientes}
+                        >
+                          <option value="">
+                            {carregandoClientes
+                              ? "Carregando clientes cadastrados..."
+                              : clientesFiltrados.length === 0
+                                ? "Nenhum cliente encontrado no filtro"
+                                : `-- Selecione o cliente na lista suspensa (${clientesFiltrados.length}) --`}
+                          </option>
+                          {clientesFiltrados.map((cli) => {
+                            const doc = cli.documento ? ` • ${cli.documento}` : "";
+                            const plan = cli.plano
+                              ? ` • Plano ${String(cli.plano).toUpperCase()}`
+                              : " • Plano BÁSICO";
+                            return (
+                              <option key={cli.id} value={cli.id}>
+                                {cli.nome_razao_social} {doc} {plan}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      {/* Card do Cliente Atualmente Emulado com Ação Rápida */}
+                      {clienteEmulado && (
+                        <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-950 dark:text-amber-200">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-xs shrink-0">
+                              <UserCheck className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-black text-xs sm:text-sm truncate">
+                                  {clienteEmulado.nome}
+                                </span>
+                                <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-500 text-white shrink-0">
+                                  Emulando
+                                </span>
+                              </div>
+                              <span className="text-[11px] opacity-80 block truncate font-mono">
+                                {clienteEmulado.documento ? `${clienteEmulado.documento} • ` : ""}
+                                {clienteEmulado.plano
+                                  ? `Plano ${String(clienteEmulado.plano).toUpperCase()}`
+                                  : "Plano MASTER"}
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              desfazerEmulacao();
+                              toast.success("Emulação cancelada. Retornado ao modo global.");
+                            }}
+                            className="px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-600 hover:bg-amber-700 text-white transition active:scale-95 shrink-0 cursor-pointer shadow-xs"
+                          >
+                            Voltar ao Modo Global
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

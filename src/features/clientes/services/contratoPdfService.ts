@@ -391,11 +391,11 @@ export async function emitirContratoPrestacaoServicosPdf(
 
   const partesRows = [
     [
-      "LOCADORA DO EQUIPAMENTO:",
+      "CONTRATADA:",
       `DARIO DE NOVAES GONÇALVES JÚNIOR, empresário individual optante pelo Microempreendedor Individual (MEI), inscrito no CNPJ sob o nº 26.581.175/0001-23, com sede na Rua Dom Antônio Cabral, nº 225, Bairro São Luiz, Volta Redonda/RJ, CEP 27286-210, titular dos direitos e da plataforma digital ${APP_NOME.toUpperCase()} (https://gd.oficial.tec.br).`,
     ],
     [
-      "LOCATÁRIO E USUÁRIO (CLIENTE):",
+      "CONTRATANTE:",
       `${cliente.nome_razao_social || "Não informado"}\nDocumento (CPF/CNPJ): ${docFormatado}\nEndereço: ${enderecoCliente}\nE-mail: ${cliente.email || "Não informado"}\nTelefone/WhatsApp: ${telFormatado}`,
     ],
   ];
@@ -422,7 +422,7 @@ export async function emitirContratoPrestacaoServicosPdf(
   doc.text("2. DO OBJETO DO CONTRATO E DA MODALIDADE DE SERVIÇO", 14, currentY);
   currentY += 4;
 
-  const objetoTexto = `O presente contrato tem por objeto exclusivo e oneroso a LOCAÇÃO DE EQUIPAMENTO ELETRÔNICO PARA RASTREAMENTO VEICULAR (hardware telemático GPS/GNSS devidamente HOMOLOGADO PELA ANATEL) e chip SIM Card M2M/GPRS/LTE (bens móveis infungíveis de propriedade exclusiva da LOCADORA), mediante pagamento de aluguel periódico. Cada veículo e rastreador contratado é especificado individualmente na Tabela 3 deste instrumento, discriminando modelo, IMEI, especificações técnicas, homologação ANATEL, operadora e chip M2M em uso. A plataforma digital proprietária ${APP_NOME.toUpperCase()} (acessível via web e aplicativo mobile) é DISPONIBILIZADA A TÍTULO INTEIRAMENTE GRATUITO AO LOCATÁRIO, como ferramenta acessória de cortesia tecnológica inerente à locação do equipamento, sem qualquer ganho, cobrança ou comercialização de software/SaaS, exclusivamente para viabilizar que o próprio LOCATÁRIO realize seu AUTOMONITORAMENTO veicular direto, consultando localização geográfica, histórico de trajetos, registros de paradas e telemetria de ignição.`;
+  const objetoTexto = `O presente contrato tem por objeto a prestação de serviços especializados de segurança privada, rastreamento tático veicular e proteção patrimonial, com a cessão em regime de comodato de hardware telemático GPS/GNSS devidamente HOMOLOGADO PELA ANATEL e chip SIM Card M2M dedicado para transmissão de dados. Cada veículo contratado é especificado individualmente na Tabela 3 deste instrumento, discriminando modelo, IMEI, especificações técnicas, homologação ANATEL, operadora e chip M2M em uso. A plataforma digital proprietária ${APP_NOME.toUpperCase()} (acessível via web e aplicativo mobile) é disponibilizada ao CONTRATANTE para acompanhamento tático em tempo real, consultando localização geográfica, histórico de trajetos, registros de paradas e telemetria de ignição.`;
 
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
@@ -456,11 +456,11 @@ export async function emitirContratoPrestacaoServicosPdf(
 
   const textoMensalidade =
     valorMensalidade > 0
-      ? `R$ ${valorMensalidade.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} por mês (aluguel do equipamento)`
+      ? `R$ ${valorMensalidade.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} por mês (mensalidade do plano)`
       : "Cortesia / Incluso no Plano Master";
   const textoGlobal =
     valorMensalidade > 0
-      ? `R$ ${valorTotalContrato.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${mesesContrato} parcelas mensais de locação)`
+      ? `R$ ${valorTotalContrato.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${mesesContrato} parcelas mensais do plano de serviço)`
       : "Isento / Cortesia Comercial";
 
   const planoDef = obterDefinicaoPlano(cliente.plano);
@@ -474,12 +474,12 @@ export async function emitirContratoPrestacaoServicosPdf(
     ],
     [
       "Regime Jurídico da Contratação",
-      "LOCAÇÃO DE BEM MÓVEL (arts. 565 a 578 do CC/2002 c/c Súmula Vinculante 31 do STF). Plataforma GD Rastreamento disponibilizada a título gratuito aos locatários para automonitoramento.",
+      "PRESTAÇÃO DE SERVIÇOS DE SEGURANÇA E RASTREAMENTO TÁTICO COM COMODATO DE EQUIPAMENTOS HOMOLOGADOS PELA ANATEL.",
     ],
     ["Taxa de Instalação e Ativação", textoTaxaInstalacao],
     ["Vigência Inicial Contratada", `${mesesContrato} meses (${dataInicioStr} a ${dataFimStr})`],
-    ["Valor Mensal da Locação do Equipamento", textoMensalidade],
-    ["Valor Global do Período de Locação", textoGlobal],
+    ["Valor Mensal do Plano de Serviço", textoMensalidade],
+    ["Valor Global do Período Contratado", textoGlobal],
     ["Data de Vencimento Mensal", `Todo dia ${diaVencimento} de cada mês calendário`],
     ["Regra de Renovação Contratual", tipoRenovacaoTexto],
     [
@@ -515,7 +515,11 @@ export async function emitirContratoPrestacaoServicosPdf(
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(11);
   doc.setFont("helvetica", "bold");
-  doc.text("3. VEÍCULOS, RASTREADORES E ESPECIFICAÇÕES TÉCNICAS (BENS LOCADOS)", 14, currentY);
+  doc.text(
+    "3. VEÍCULOS, RASTREADORES E ESPECIFICAÇÕES TÉCNICAS (EQUIPAMENTOS EM COMODATO)",
+    14,
+    currentY,
+  );
   currentY += 4;
 
   let veiculosRows: string[][] = [];
@@ -532,7 +536,7 @@ export async function emitirContratoPrestacaoServicosPdf(
       const imeiText = v.rastreador_imei
         ? `IMEI: ${v.rastreador_imei}`
         : "IMEI: A vincular na ativação";
-      const rastreadorText = `${modeloRastreador}\n${imeiText}\n(Bem móvel locado — Propriedade da LOCADORA)`;
+      const rastreadorText = `${modeloRastreador}\n${imeiText}\n(Equipamento em Comodato — Propriedade da CONTRATADA)`;
 
       const homologacaoText = `${v.homologado_anatel || "Homologado ANATEL"}\n${v.rastreador_especificacoes || "GNSS + 4G LTE Cat-1 + Telemetria de Ignição"}`;
 
@@ -548,7 +552,7 @@ export async function emitirContratoPrestacaoServicosPdf(
       [
         "1",
         "A vincular na instalação\nAguardando cadastro de placa",
-        "J16 4G LTE\nIMEI: Pendente de ativação\n(Bem móvel locado — Propriedade da LOCADORA)",
+        "J16 4G LTE\nIMEI: Pendente de ativação\n(Equipamento em Comodato — Propriedade da CONTRATADA)",
         "Homologado ANATEL\nGNSS + 4G LTE Cat-1 + Telemetria de Ignição",
         "Algar Telecom (M2M)\nICCID: Pendente de ativação\nTráfego M2M Dedicado",
       ],
@@ -561,7 +565,7 @@ export async function emitirContratoPrestacaoServicosPdf(
       [
         "#",
         "Veículo Cadastrado",
-        "Rastreador Locado (Hardware)",
+        "Rastreador em Comodato (Hardware)",
         "Homologação ANATEL e Especificações",
         "Chip SIM Card M2M",
       ],
@@ -594,44 +598,44 @@ export async function emitirContratoPrestacaoServicosPdf(
   currentY += 6;
 
   const clausulas = [
-    // CLÁUSULA 1 — Natureza e Não Incidência de Segurança Privada (Lei 14.967/2024 e PF)
-    `CLÁUSULA PRIMEIRA - DA NATUREZA DA OPERAÇÃO, LOCAÇÃO EXCLUSIVA E NÃO INCIDÊNCIA DE SEGURANÇA PRIVADA: Declaram as partes, de forma expressa, irrevogável e para todos os efeitos de direito, que a presente contratação restringe-se exclusivamente à LOCAÇÃO DE EQUIPAMENTO ELETRÔNICO DE RASTREAMENTO (BEM MÓVEL) com disponibilização gratuita de plataforma digital para AUTOMONITORAMENTO PELO PRÓPRIO LOCATÁRIO. A LOCADORA não comercializa software nem aufere lucro pela disponibilização do sistema, inexistindo cobrança de SaaS. A LOCADORA NÃO PRESTA SERVIÇOS DE SEGURANÇA PRIVADA, vigilância patrimonial armada ou desarmada, escolta, segurança pessoal ou transporte de valores, não se enquadrando nas atividades reguladas pela Lei nº 14.967/2024 (Estatuto da Segurança Privada) e não estando sujeita a fiscalização, registro ou autorização prévia da Polícia Federal (DELSP/DREX/PF). A LOCADORA não disponibiliza central humana de monitoramento 24 horas, não mantém operadores para acompanhamento visual contínuo de telas, não despacha viaturas de socorro presencial e não oferece equipes de pronta resposta a campo.`,
+    // CLÁUSULA 1 — Natureza da Operação e Serviços de Segurança e Rastreamento
+    `CLÁUSULA PRIMEIRA - DA NATUREZA DA OPERAÇÃO E PRESTAÇÃO DE SERVIÇOS DE SEGURANÇA E RASTREAMENTO: A CONTRATADA presta serviços de segurança privada, rastreamento tático veicular e proteção patrimonial através de hardware homologado pela ANATEL em regime de comodato com conectividade M2M e plataforma digital ${APP_NOME.toUpperCase()}. O CONTRATANTE dispõe de ferramentas de monitoramento em tempo real, telemetria e gestão tática.`,
 
-    // CLÁUSULA 2 — Ausência de Seguro Patrimonial e Não Garantia de Recuperação
-    `CLÁUSULA SEGUNDA - DA AUSÊNCIA DE SEGURO PATRIMONIAL E DA NÃO GARANTIA DE RECUPERAÇÃO DO VEÍCULO: O presente contrato NÃO CONSTITUI, sob qualquer hipótese ou interpretação, CONTRATO DE SEGURO PATRIMONIAL, apólice de proteção veicular ou garantia de recuperação do automóvel em caso de furto, roubo, sequestro ou apropriação indébita. O equipamento locado e a plataforma ${APP_NOME.toUpperCase()} constituem exclusivamente instrumentos de auxílio tecnológico para automonitoramento direto pelo próprio LOCATÁRIO. Havendo sinistro, furto ou roubo, cabe exclusivamente ao LOCATÁRIO acionar imediatamente as autoridades de segurança pública competentes (Polícia Militar via 190 ou Polícia Civil), disponibilizando a estas, se entender cabível, as coordenadas geográficas emitidas pelo equipamento. A LOCADORA não garante a recuperação do bem e não responde por indenizações materiais, lucros cessantes ou danos morais decorrentes de ilícitos praticados por terceiros.`,
+    // CLÁUSULA 2 — Proteção e Gestão Patrimonial
+    `CLÁUSULA SEGUNDA - DA PROTEÇÃO E GESTÃO PATRIMONIAL: O presente contrato tem por escopo o rastreamento tático, a segurança patrimonial e a gestão telemática de frotas e veículos. O CONTRATANTE reconhece que o sistema opera como ferramenta de segurança e gestão preventiva. Havendo sinistro, furto ou roubo, a CONTRATADA prestará apoio técnico por meio de sua telemetria e o CONTRATANTE deverá formalizar imediatamente o acionamento dos órgãos policiais competentes (190).`,
 
-    // CLÁUSULA 3 — Do Automonitoramento, Limitações Técnicas Inerentes, Ciclos de Repouso e Áreas de Silêncio Eletromagnético
-    `CLÁUSULA TERCEIRA - DO AUTOMONITORAMENTO, LIMITAÇÕES TÉCNICAS, INTERVALOS DE REPOUSO E ZONAS DE SILÊNCIO ELETROMAGNÉTICO: O serviço de automonitoramento depende diretamente da integridade dos satélites de posicionamento global (GPS/GNSS) e dos serviços públicos de telecomunicações e conectividade de dados móveis (GPRS/LTE/4G) prestados por concessionárias autorizadas pela ANATEL. A transmissão e precisão dos dados estão sujeitas a interferências técnicas e condições externas alheias à vontade e fora do controle da LOCADORA, tais como: (i) áreas de sombra, ausência temporária de cobertura celular, zonas rurais, desfiladeiros ou relevos com barreira geográfica; (ii) estacionamentos em subsolos, túneis, garagens fechadas ou subterrâneas, galpões de concreto armado, contêineres e coberturas metálicas; (iii) utilização criminosa de bloqueadores de radiofrequência (jammers); (iv) descarregamento, defeito, avaria elétrica, corte de chicote ou desconexão da bateria; e (v) condições climáticas e interferências geomagnéticas.
-PARÁGRAFO PRIMEIRO — CICLOS DE CONSERVAÇÃO EM REPOUSO: Com o veículo estacionado e a ignição desligada, o equipamento opera em ciclos programados de repouso para conservação da bateria do automóvel e sustentabilidade de tráfego, transmitindo pulsos periódicos de manutenção e reportando posição imediata ao menor sinal de ignição ou deslocamento físico detectado por seus sensores internos.
-PARÁGRAFO SEGUNDO — INTERRUPÇÃO EM ÁREAS SEM CONECTIVIDADE E CORTE DE FIAÇÃO: Em situações nas quais o veículo se encontre em áreas desprovidas de cobertura de telefonia móvel celular ou sob blindagem estrutural (como subsolos, garagens enclausuradas, áreas rurais ou zonas de sombra), a comunicação com a plataforma digital resta temporariamente suspensa por impossibilidade física de propagação de ondas eletromagnéticas. Caso ocorra o rompimento físico da fiação, violação, corte da alimentação ou separação física do equipamento em local sem cobertura de rede, os dados de alerta e telemetria permanecerão retidos na memória interna não volátil do aparelho até que haja o restabelecimento da conectividade com as antenas de telefonia móvel.
-PARÁGRAFO TERCEIRO — DA ÚLTIMA LOCALIZAÇÃO CONHECIDA E ISENÇÃO DE RESPONSABILIDADE: Na hipótese de corte de fiação, remoção ou abandono do rastreador em local sem conectividade, bem como no caso de deslocamento físico do veículo desprovido do equipamento ou sob zonas de sombra de sinal, a plataforma digital registrará e exibirá estrita e exclusivamente como última localização conhecida as coordenadas do exato ponto em que ocorreu a última transmissão válida com as torres de telecomunicações. A LOCADORA fica expressamente isenta de qualquer responsabilidade civil, material, contratual ou securitária pela não localização posterior do veículo quando este tiver sido separado fisicamente do equipamento locado ou deslocado em zonas de silêncio eletromagnético. A quilometragem informada na plataforma é aferida por interpolação de telemetria geoespacial, podendo apresentar divergências técnicas naturais em relação ao hodômetro analógico/digital do painel do automóvel.`,
+    // CLÁUSULA 3 — Do Monitoramento, Conectividade e Áreas de Silêncio Eletromagnético
+    `CLÁUSULA TERCEIRA - DO MONITORAMENTO, LIMITAÇÕES TÉCNICAS E ZONAS DE SILÊNCIO ELETROMAGNÉTICO: O serviço depende diretamente da integridade dos satélites de posicionamento global (GPS/GNSS) e dos serviços de telecomunicações e dados móveis (GPRS/LTE/4G). A transmissão e precisão dos dados estão sujeitas a interferências técnicas alheias à CONTRATADA, tais como áreas de sombra celular, subsolos, galpões metálicos ou uso ilícito de bloqueadores de sinal (jammers).
+PARÁGRAFO PRIMEIRO — CICLOS DE CONSERVAÇÃO EM REPOUSO: Com o veículo estacionado e a ignição desligada, o equipamento opera em ciclos programados de repouso para conservação da bateria do automóvel.
+PARÁGRAFO SEGUNDO — INTERRUPÇÃO EM ÁREAS SEM CONECTIVIDADE E CORTE DE FIAÇÃO: Em situações de ausência temporária de sinal celular, os dados permanecem retidos na memória interna do aparelho até o restabelecimento da conectividade.
+PARÁGRAFO TERCEIRO — DA ÚLTIMA LOCALIZAÇÃO CONHECIDA: Na hipótese de corte de fiação ou remoção do rastreador em local sem conectividade, a plataforma registrará e exibirá as coordenadas da última transmissão válida.`,
 
-    // CLÁUSULA 4 — Remuneração Exclusiva da Locação do Equipamento
-    `CLÁUSULA QUARTA - DA REMUNERAÇÃO EXCLUSIVA DA LOCAÇÃO DO EQUIPAMENTO E ENCARGOS MORATÓRIOS: O valor mensal pactuado destina-se estrita e exclusivamente a remunerar a LOCAÇÃO DO EQUIPAMENTO ELETRÔNICO DE RASTREAMENTO E DO CHIP SIM CARD M2M, sendo o acesso à plataforma de automonitoramento concedido a título gratuito e como cortesia inerente ao aluguel. O LOCATÁRIO pagará o valor do aluguel do equipamento até o dia ${diaVencimento} de cada mês. O não pagamento no vencimento sujeita o LOCATÁRIO, de pleno direito e independentemente de notificação judicial ou extrajudicial (art. 397 do Código Civil), a: (a) MULTA MORATÓRIA de 2% (dois por cento) sobre o débito em aberto; (b) JUROS DE MORA de 1% (um por cento) ao mês pro rata die (art. 406 do CC c/c art. 161, § 1º, do CTN); e (c) ATUALIZAÇÃO MONETÁRIA pelo índice IPCA/IBGE. O atraso superior a 5 (cinco) dias corridos ensejará notificação e a suspensão temporária do acesso à plataforma, sem desoneração dos aluguéis devidos pelo equipamento. Atrasos superiores a 30 (trinta) dias autorizam a LOCADORA a rescindir a locação por inadimplemento, recolher os equipamentos locados e promover a cobrança judicial do débito, acrescido de honorários advocatícios de 10% (dez por cento) sobre o montante devido, nos termos do art. 395 do Código Civil.`,
+    // CLÁUSULA 4 — Remuneração dos Serviços
+    `CLÁUSULA QUARTA - DA REMUNERAÇÃO DOS SERVIÇOS E ENCARGOS MORATÓRIOS: O valor mensal pactuado remunera a prestação dos serviços de segurança, rastreamento tático e conectividade com cessão em comodato dos equipamentos homologados. O CONTRATANTE pagará a mensalidade até o dia ${diaVencimento} de cada mês. O atraso no pagamento sujeita a: (a) MULTA MORATÓRIA de 2% (dois por cento); (b) JUROS DE MORA de 1% (um por cento) ao mês; e (c) ATUALIZAÇÃO MONETÁRIA pelo IPCA/IBGE. O atraso superior a 5 dias autoriza a suspensão dos serviços e acima de 30 dias a rescisão por inadimplemento.`,
 
     // CLÁUSULA 5 — Prazo, Vigência e Renovação
-    `CLÁUSULA QUINTA - DO PRAZO CONTRATUAL, DA VIGÊNCIA E DA RENOVAÇÃO: O presente contrato possui vigência inicial de ${mesesContrato} (${mesesContrato === 1 ? "um" : mesesContrato === 6 ? "seis" : mesesContrato === 12 ? "doze" : mesesContrato === 24 ? "vinte e quatro" : String(mesesContrato)}) meses, com início em ${dataInicioStr} e término previsto em ${dataFimStr}. O contrato é indivisível quanto ao prazo: o cancelamento imotivado antes do término pelo LOCATÁRIO enseja multa penal compensatória equivalente a 20% (vinte por cento) do saldo das parcelas vincendas (art. 416 do CC). Ao término da vigência, aplicar-se-á a regra de renovação pactuada: ${tipoRenovacaoTexto}. A solicitação de não renovação deve ser manifestada por escrito com antecedência mínima de 30 (trinta) dias.`,
+    `CLÁUSULA QUINTA - DO PRAZO CONTRATUAL, DA VIGÊNCIA E DA RENOVAÇÃO: O presente contrato possui vigência inicial de ${mesesContrato} (${mesesContrato === 1 ? "um" : mesesContrato === 6 ? "seis" : mesesContrato === 12 ? "doze" : mesesContrato === 24 ? "vinte e quatro" : String(mesesContrato)}) meses, com início em ${dataInicioStr} e término previsto em ${dataFimStr}. O cancelamento imotivado antes do término pelo CONTRATANTE enseja multa penal compensatória equivalente a 20% (vinte por cento) do saldo das parcelas vincendas. Ao término da vigência, aplicar-se-á a regra de renovação pactuada: ${tipoRenovacaoTexto}.`,
 
-    // CLÁUSULA 6 — Regime Jurídico de Locação dos Equipamentos, Homologação ANATEL e Devolução Obrigatória
-    `CLÁUSULA SEXTA - DO REGIME DE LOCAÇÃO DOS EQUIPAMENTOS, HOMOLOGAÇÃO ANATEL E DEVOLUÇÃO OBRIGATÓRIA: O rastreador veicular e o chip SIM Card M2M vinculados a cada veículo são cedidos exclusivamente sob o regime jurídico de LOCAÇÃO DE BENS MÓVEIS (arts. 565 a 578 do Código Civil), permanecendo sob a propriedade exclusiva e inalienável da LOCADORA. Todos os equipamentos eletrônicos disponibilizados são devidamente HOMOLOGADOS PELA ANATEL (Agência Nacional de Telecomunicações), em estrita conformidade com as normas regulamentares de telecomunicações vigentes (Resolução ANATEL nº 717/2019 e correlatas), assegurando proteção, imunidade contra interferências e integridade aos sistemas originais do veículo. Rescindido ou encerrado o contrato, a qualquer causa, o LOCATÁRIO obriga-se a disponibilizar os equipamentos para desinstalação ou entregá-los na sede da LOCADORA no prazo improrrogável de 10 (dez) dias úteis. A não devolução ou avaria grave dos equipamentos obriga o LOCATÁRIO a indenizar a LOCADORA em R$ 450,00 (quatrocentos e cinquenta reais) por rastreador e R$ 50,00 (cinquenta reais) por chip SIM M2M, sob pena de ação de reintegração de posse (art. 560 do CPC) e cobrança de perdas e danos. O furto ou roubo do VEÍCULO não exime a obrigação de indenizar os equipamentos, salvo mediante apresentação de Boletim de Ocorrência formal e não recuperação comprovada em 60 (sessenta) dias.`,
+    // CLÁUSULA 6 — Regime de Comodato dos Equipamentos, Homologação ANATEL e Devolução
+    `CLÁUSULA SEXTA - DO REGIME DE COMODATO DOS EQUIPAMENTOS, HOMOLOGAÇÃO ANATEL E DEVOLUÇÃO: O rastreador veicular e o chip SIM Card M2M vinculados a cada veículo são cedidos sob regime de COMODATO para a prestação dos serviços contratados, permanecendo sob a propriedade da CONTRATADA. Todos os equipamentos são HOMOLOGADOS PELA ANATEL. Rescindido ou encerrado o contrato, a qualquer causa, o CONTRATANTE obriga-se a devolver os equipamentos no prazo de 10 (dez) dias úteis. A não devolução obriga à indenização de R$ 450,00 por rastreador e R$ 50,00 por chip.`,
 
-    // CLÁUSULA 7 — Obrigações e Responsabilidades do Locatário
-    `CLÁUSULA SÉTIMA - DAS OBRIGAÇÕES E DAS RESPONSABILIDADES DO LOCATÁRIO: O LOCATÁRIO compromete-se a: (i) zelar pela guarda e perfeito funcionamento dos equipamentos locados; (ii) manter suas credenciais de acesso seguras e sigilosas; (iii) utilizar a ferramenta com estrita observância da legislação e da boa-fé objetiva, sendo expressamente proibido o uso da plataforma para fins ilícitos, perseguição (stalking — art. 147-A do Código Penal), constrangimento ilegal ou violação da privacidade de terceiros; e (iv) cientificar previamente condutores e terceiros que utilizem o veículo sobre a existência do rastreador, garantindo conformidade com a LGPD. O LOCATÁRIO responde de forma exclusiva por danos causados a terceiros pelo uso indevido da plataforma ou do comando de bloqueio remoto.`,
+    // CLÁUSULA 7 — Obrigações do Contratante
+    `CLÁUSULA SÉTIMA - DAS OBRIGAÇÕES E RESPONSABILIDADES DO CONTRATANTE: O CONTRATANTE compromete-se a zelar pelo perfeito funcionamento dos equipamentos em comodato, manter suas credenciais seguras e utilizar a ferramenta com estrita observância da legislação e da boa-fé objetiva, cientificando condutores sobre a existência do rastreador em conformidade com a LGPD.`,
 
-    // CLÁUSULA 8 — Obrigações da Locadora e Limitação de Responsabilidade
-    `CLÁUSULA OITAVA - DAS OBRIGAÇÕES DA LOCADORA E DA LIMITAÇÃO DE RESPONSABILIDADE: A LOCADORA compromete-se a: (i) manter a plataforma digital acessível com padrão de disponibilidade comercial habitual; (ii) fornecer orientações e suporte técnico para operação da ferramenta; e (iii) substituir os equipamentos locados que apresentarem defeitos técnicos de fabricação, desde que não decorrentes de mau uso, adulteração de lacres ou avaria elétrica no veículo. A responsabilidade da LOCADORA circunscreve-se ao correto funcionamento dos meios contratados, não respondendo por lucros cessantes, danos indiretos ou prejuízos decorrentes de caso fortuito ou força maior (art. 393 do Código Civil).`,
+    // CLÁUSULA 8 — Obrigações da Contratada
+    `CLÁUSULA OITAVA - DAS OBRIGAÇÕES DA CONTRATADA E LIMITAÇÃO DE RESPONSABILIDADE: A CONTRATADA compromete-se a manter a plataforma digital acessível com padrão de disponibilidade comercial habitual, prestar suporte técnico para a operação e substituir equipamentos que apresentarem vícios de fabricação não decorrentes de mau uso.`,
 
-    // CLÁUSULA 9 — Proteção de Dados Pessoais (LGPD — Lei nº 13.709/2018)
-    `CLÁUSULA NONA - DA PROTEÇÃO DE DADOS PESSOAIS E DA CONFORMIDADE COM A LGPD: Em estrito cumprimento à Lei Geral de Proteção de Dados Pessoais (LGPD — Lei nº 13.709/2018), o LOCATÁRIO atua como CONTROLADOR dos dados de deslocamento de seu veículo e declara possuir legitimidade legal para o automonitoramento. A LOCADORA atua como OPERADORA, processando e armazenando os dados em infraestrutura segura com criptografia em repouso e em trânsito, controle de acesso e trilhas de auditoria, exclusivamente para execução deste contrato (art. 7º, V, da LGPD). Os dados de telemetria não serão comercializados ou compartilhados com terceiros, salvo por ordem judicial ou expressa determinação legal.`,
+    // CLÁUSULA 9 — Proteção de Dados Pessoais (LGPD)
+    `CLÁUSULA NONA - DA PROTEÇÃO DE DADOS PESSOAIS E CONFORMIDADE COM A LGPD: Em cumprimento à LGPD (Lei nº 13.709/2018), os dados de posicionamento e telemetria são tratados com criptografia, controle de acesso e auditoria para a execução dos serviços de segurança e rastreamento contratados.`,
 
-    // CLÁUSULA 10 — Licença de Uso de Software e Propriedade Intelectual
-    `CLÁUSULA DÉCIMA - DA LICENÇA DE USO DE SOFTWARE E PROPRIEDADE INTELECTUAL: A plataforma ${APP_NOME.toUpperCase()}, seus módulos, marcas, logotipos, interfaces e códigos constituem propriedade intelectual exclusiva de Dario de Novaes Gonçalves Junior, protegidos pela Lei nº 9.609/1998 (Lei do Software) e pela Lei nº 9.279/1996 (Propriedade Industrial). É concedida ao LOCATÁRIO licença de uso pessoal, temporária, intransferível e não exclusiva, sendo expressamente vedada qualquer engenharia reversa, cópia, sublicenciamento ou desvio de finalidade.`,
+    // CLÁUSULA 10 — Licença de Uso de Software
+    `CLÁUSULA DÉCIMA - DA LICENÇA DE USO DE SOFTWARE E PROPRIEDADE INTELECTUAL: A plataforma ${APP_NOME.toUpperCase()}, módulos e códigos constituem propriedade intelectual exclusiva, sendo concedida ao CONTRATANTE licença de uso temporária, intransferível e não exclusiva para a gestão e segurança dos veículos contratados.`,
 
-    // CLÁUSULA 11 — Assinatura Eletrônica, Autenticidade e Força Probatória
-    `CLÁUSULA DÉCIMA PRIMEIRA - DA ASSINATURA ELETRÔNICA, AUTENTICIDADE E FORÇA EXECUTIVA: As partes reconhecem a plena validade jurídica, eficácia probatória e executividade deste contrato formalizado por meio eletrônico (art. 10, § 2º, da MP nº 2.200-2/2001 e art. 784, III, do CPC), gerando hash criptográfico SHA-256 e selo de autenticidade SGD gravados imutavelmente no banco de dados. Qualquer via impressa ou digital emitida conterá o selo e código de verificação para conferência pública de integridade em https://gd.oficial.tec.br/verificar.`,
+    // CLÁUSULA 11 — Assinatura Eletrônica
+    `CLÁUSULA DÉCIMA PRIMEIRA - DA ASSINATURA ELETRÔNICA E AUTENTICIDADE: As partes reconhecem a plena validade jurídica e executividade deste contrato formalizado por meio eletrônico (art. 10, § 2º, da MP nº 2.200-2/2001 e art. 784, III, do CPC), gerando hash criptográfico SHA-256 e selo de autenticidade SGD gravados imutavelmente.`,
 
-    // CLÁUSULA 12 — Foro de Eleição
-    `CLÁUSULA DÉCIMA SEGUNDA - DO FORO DE ELEIÇÃO: Para dirimir quaisquer controvérsias oriundas da interpretação ou execução do presente instrumento, as partes elegem, com renúncia expressa a qualquer outro por mais privilegiado que seja, o Foro da Comarca de ${APP_CIDADE_FORO.toUpperCase()}.`,
+    // CLÁUSULA 12 — Foro
+    `CLÁUSULA DÉCIMA SEGUNDA - DO FORO DE ELEIÇÃO: Para dirimir quaisquer controvérsias oriundas da interpretação ou execução do presente instrumento, as partes elegem o Foro da Comarca de ${APP_CIDADE_FORO.toUpperCase()}.`,
   ];
 
   doc.setFontSize(7.5);

@@ -134,19 +134,20 @@ describe("GD Rastreamento — Módulo de Propostas Comerciais e Efetividade de V
     );
   });
 
-  test("Menção Obrigatória de Locação de Equipamento e Automonitoramento no Documento PDF", () => {
+  test("Proposta Oficial em PDF: Segurança Privada, Rastreamento Tático e Ausência de Menção a Locação", () => {
     const pdfServiceContent = fs.readFileSync(
       path.resolve(process.cwd(), "src/features/financeiro/services/propostaPdfService.ts"),
       "utf-8",
     );
     assert.ok(
-      pdfServiceContent.toLowerCase().includes("locação") ||
-        pdfServiceContent.toLowerCase().includes("locacao"),
-      "Documento oficial PDF deve conter expressamente o regime de locação de equipamento",
+      !pdfServiceContent.toLowerCase().includes("locação") &&
+        !pdfServiceContent.toLowerCase().includes("locacao"),
+      "Documento oficial PDF não deve conter menção a locação de rastreadores",
     );
     assert.ok(
-      pdfServiceContent.toLowerCase().includes("automonitoramento"),
-      "Documento oficial PDF deve destacar a modalidade de automonitoramento direto",
+      pdfServiceContent.toLowerCase().includes("seguranca") ||
+        pdfServiceContent.toLowerCase().includes("segurança"),
+      "Documento oficial PDF deve destacar a segurança e rastreamento tático",
     );
     const msg = formatarMensagemWhatsAppProposta(propostaExemplo);
     assert.ok(

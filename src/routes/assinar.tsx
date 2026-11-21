@@ -516,8 +516,7 @@ function PaginaAssinaturaCliente() {
                   <span>Documento Oficial Certificado</span>
                 </div>
                 <h2 className="text-lg sm:text-xl font-black text-white tracking-tight uppercase">
-                  CONTRATO DE LOCAÇÃO DE EQUIPAMENTO ELETRÔNICO PARA RASTREAMENTO VEICULAR E
-                  AUTOMONITORAMENTO
+                  CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE SEGURANÇA PRIVADA E RASTREAMENTO TÁTICO
                 </h2>
                 <div className="flex flex-wrap items-center justify-center gap-4 text-xs font-mono text-slate-400 pt-2">
                   <span>
@@ -542,15 +541,14 @@ function PaginaAssinaturaCliente() {
                   Pelo presente instrumento particular, as partes qualificadas têm entre si justo e
                   acordado o presente{" "}
                   <strong className="text-white">
-                    CONTRATO DE LOCAÇÃO DE EQUIPAMENTO ELETRÔNICO PARA RASTREAMENTO VEICULAR E
-                    AUTOMONITORAMENTO
+                    CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE SEGURANÇA PRIVADA, RASTREAMENTO TÁTICO E
+                    MONITORAMENTO VEICULAR
                   </strong>
-                  , em conformidade com o Código Civil Brasileiro (Lei nº 10.406/2002 — arts. 565 a
-                  578 pertinentes à Locação de Coisas Móveis), a Lei Geral de Proteção de Dados
-                  Pessoais (Lei nº 13.709/2018), a Lei do Software (Lei nº 9.609/1998) e o Código de
-                  Defesa do Consumidor (Lei nº 8.078/1990), regendo-se pelas cláusulas e condições a
-                  seguir estipuladas sob os princípios da probidade e da boa-fé objetiva (art. 422
-                  do Código Civil).
+                  , em conformidade com o Código Civil Brasileiro (Lei nº 10.406/2002), a Lei Geral
+                  de Proteção de Dados Pessoais (Lei nº 13.709/2018), a Lei do Software (Lei nº
+                  9.609/1998) e o Código de Defesa do Consumidor (Lei nº 8.078/1990), regendo-se
+                  pelas cláusulas e condições a seguir estipuladas sob os princípios da probidade e
+                  da boa-fé objetiva (art. 422 do Código Civil).
                 </p>
               </section>
 
@@ -562,7 +560,7 @@ function PaginaAssinaturaCliente() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      LOCADORA DO EQUIPAMENTO:
+                      CONTRATADA:
                     </span>
                     <p className="font-bold text-white text-sm">
                       DARIO DE NOVAES GONÇALVES JÚNIOR - MEI
@@ -575,14 +573,14 @@ function PaginaAssinaturaCliente() {
                     <p className="text-slate-400">
                       Plataforma Oficial:{" "}
                       <span className="text-orange-400 font-mono">
-                        GD Rastreamento (https://gd.oficial.tec.br)
+                        GD Segurança Privada (https://gd.oficial.tec.br)
                       </span>
                     </p>
                   </div>
 
                   <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-1.5">
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      LOCATÁRIO E USUÁRIO (CLIENTE):
+                      CONTRATANTE:
                     </span>
                     <p className="font-bold text-white text-sm">
                       {contrato.cliente.nome_razao_social || "Não informado"}
@@ -607,25 +605,23 @@ function PaginaAssinaturaCliente() {
                   2. DO OBJETO DO CONTRATO E MODALIDADE DE SERVIÇO
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-300 text-justify leading-relaxed">
-                  O presente contrato tem por objeto exclusivo e oneroso a{" "}
+                  Constitui objeto deste instrumento a prestação de serviços especializados de{" "}
                   <strong className="text-white">
-                    LOCAÇÃO DE EQUIPAMENTO ELETRÔNICO PARA RASTREAMENTO VEICULAR
-                  </strong>{" "}
-                  (hardware telemático GPS/GNSS devidamente HOMOLOGADO PELA ANATEL) e chip SIM Card
-                  M2M/GPRS/LTE (bens móveis infungíveis de propriedade exclusiva da LOCADORA),
-                  mediante pagamento de aluguel periódico. A plataforma digital proprietária{" "}
-                  <strong className="text-white">{APP_NOME.toUpperCase()}</strong> é DISPONIBILIZADA
-                  A TÍTULO INTEIRAMENTE GRATUITO AO LOCATÁRIO, como ferramenta acessória de cortesia
-                  tecnológica inerente à locação do equipamento, sem qualquer ganho, cobrança ou
-                  comercialização de software (SaaS), exclusivamente para viabilizar que o próprio
-                  LOCATÁRIO realize seu automonitoramento veicular direto.
+                    SEGURANÇA PRIVADA, RASTREAMENTO TÁTICO VEICULAR E PROTEÇÃO PATRIMONIAL
+                  </strong>
+                  , com a cessão em regime de comodato de equipamento eletrônico de rastreamento
+                  telemático GPS/GNSS devidamente HOMOLOGADO PELA ANATEL, acompanhado de chip SIM
+                  Card M2M/LTE dedicado para transmissão de dados. A plataforma digital proprietária{" "}
+                  <strong className="text-white">{APP_NOME.toUpperCase()}</strong> é disponibilizada
+                  ao CONTRATANTE para acompanhamento tático em tempo real, telemetria, rotas e
+                  alertas.
                 </p>
               </section>
 
-              {/* 3. Parâmetros da Locação */}
+              {/* 3. Parâmetros da Contratação */}
               <section className="space-y-3">
                 <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wide border-b border-slate-800 pb-1">
-                  3. PARÂMETROS DA LOCAÇÃO E CONDIÇÕES PACTUADAS
+                  3. PARÂMETROS DO PLANO E CONDIÇÕES PACTUADAS
                 </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs border border-slate-800 rounded-xl overflow-hidden">
@@ -644,7 +640,7 @@ function PaginaAssinaturaCliente() {
                       </tr>
                       <tr className="bg-slate-950/60">
                         <td className="p-3 font-bold text-slate-400">
-                          Aluguel Mensal do Equipamento
+                          Mensalidade do Plano de Serviço
                         </td>
                         <td className="p-3 font-bold text-orange-400">
                           {contrato.valor_mensalidade > 0
@@ -659,9 +655,9 @@ function PaginaAssinaturaCliente() {
                         </td>
                       </tr>
                       <tr className="bg-slate-950/60">
-                        <td className="p-3 font-bold text-slate-400">Plataforma Digital</td>
+                        <td className="p-3 font-bold text-slate-400">Equipamentos e Chips</td>
                         <td className="p-3 text-slate-300">
-                          Disponibilizada a título gratuito para automonitoramento direto
+                          Cedidos em comodato inclusos no plano de serviço
                         </td>
                       </tr>
                       <tr>
@@ -675,10 +671,10 @@ function PaginaAssinaturaCliente() {
                 </div>
               </section>
 
-              {/* 4. Veículos e Rastreadores Vinculados */}
+              {/* 4. Veículos e Equipamentos Vinculados */}
               <section className="space-y-3">
                 <h3 className="text-sm font-bold text-orange-400 uppercase tracking-wide border-b border-slate-800 pb-1">
-                  4. VEÍCULOS E BENS MÓVEIS LOCADOS (RASTREADORES E CHIPS)
+                  4. VEÍCULOS E EQUIPAMENTOS EM COMODATO (RASTREADORES E CHIPS)
                 </h3>
                 {contrato.cliente.veiculos && contrato.cliente.veiculos.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -722,50 +718,44 @@ function PaginaAssinaturaCliente() {
                 <div className="space-y-3.5 text-xs text-slate-300 text-justify leading-relaxed">
                   <p>
                     <strong className="text-white">
-                      CLÁUSULA PRIMEIRA - DA NATUREZA DA OPERAÇÃO E NÃO INCIDÊNCIA DE SEGURANÇA
-                      PRIVADA:
+                      CLÁUSULA PRIMEIRA - DA NATUREZA DA OPERAÇÃO E PRESTAÇÃO DE SERVIÇOS:
                     </strong>{" "}
-                    A presente contratação restringe-se exclusivamente à LOCAÇÃO DE EQUIPAMENTO
-                    ELETRÔNICO DE RASTREAMENTO (BEM MÓVEL). A LOCADORA NÃO PRESTA SERVIÇOS DE
-                    SEGURANÇA PRIVADA, vigilância patrimonial armada ou desarmada, escolta armada ou
-                    transporte de valores, não se enquadrando nas atividades da Lei nº 14.967/2024 e
-                    não estando sujeita a fiscalização da Polícia Federal. Não há disponibilização
-                    de central humana 24 horas ou pronta resposta presencial a campo.
+                    A CONTRATADA presta serviços de segurança privada, rastreamento tático veicular
+                    e proteção patrimonial através de hardware homologado pela ANATEL em regime de
+                    comodato com conectividade M2M e plataforma digital GD Segurança Privada.
                   </p>
 
                   <p>
                     <strong className="text-white">
-                      CLÁUSULA SEGUNDA - DA AUSÊNCIA DE SEGURO PATRIMONIAL E NÃO GARANTIA DE
-                      RECUPERAÇÃO:
+                      CLÁUSULA SEGUNDA - DA PROTEÇÃO E GESTÃO PATRIMONIAL:
                     </strong>{" "}
-                    O presente instrumento NÃO CONSTITUI CONTRATO DE SEGURO PATRIMONIAL nem garantia
-                    de recuperação do automóvel em caso de furto, roubo ou apropriação indébita. O
-                    sistema é ferramenta exclusiva de auxílio ao automonitoramento direto pelo
-                    LOCATÁRIO. Em caso de sinistro, cabe ao LOCATÁRIO acionar imediatamente as
-                    autoridades policiais (Polícia Militar via 190 ou Polícia Civil).
+                    O presente instrumento tem por escopo o rastreamento tático, monitoramento e
+                    gestão patrimonial preventiva. Em caso de sinistro, furto ou roubo, a CONTRATADA
+                    prestará apoio técnico por meio de sua telemetria e o CONTRATANTE acionará as
+                    autoridades competentes (Polícia Militar via 190 ou Polícia Civil).
                   </p>
 
                   <p>
                     <strong className="text-white">
-                      CLÁUSULA TERCEIRA - DO AUTOMONITORAMENTO E DAS LIMITAÇÕES TÉCNICAS:
+                      CLÁUSULA TERCEIRA - DO MONITORAMENTO E DAS LIMITAÇÕES TÉCNICAS:
                     </strong>{" "}
                     A transmissão de dados depende diretamente de satélites GPS/GNSS e cobertura de
                     dados móveis (GPRS/LTE/4G). Interferências externas como áreas de sombra
                     celular, garagens fechadas, subsolos, condições climáticas adversas ou uso
-                    criminoso de bloqueadores de radiofrequência (jammers) podem degradar
-                    temporariamente a transmissão dos dados, sem responsabilização da LOCADORA.
+                    ilícito de bloqueadores de radiofrequência (jammers) podem degradar
+                    temporariamente a transmissão dos dados, sem responsabilização da CONTRATADA.
                   </p>
 
                   <p>
                     <strong className="text-white">
-                      CLÁUSULA QUARTA - DA REMUNERAÇÃO DA LOCAÇÃO E ENCARGOS MORATÓRIOS:
+                      CLÁUSULA QUARTA - DA REMUNERAÇÃO DOS SERVIÇOS E ENCARGOS MORATÓRIOS:
                     </strong>{" "}
-                    O valor mensal destina-se exclusivamente a remunerar o aluguel do rastreador e
-                    chip SIM M2M. O não pagamento no vencimento sujeita o LOCATÁRIO a multa
-                    moratória de 2%, juros de mora de 1% ao mês e atualização monetária pelo
-                    IPCA/IBGE. Atrasos superiores a 5 dias ensejam suspensão temporária do acesso à
-                    plataforma e atrasos superiores a 30 dias autorizam rescisão com recolhimento
-                    dos equipamentos e cobrança legal.
+                    O valor mensal remunera a prestação dos serviços de segurança, rastreamento
+                    tático e conectividade com comodato dos equipamentos. O não pagamento no
+                    vencimento sujeita o CONTRATANTE a multa moratória de 2%, juros de mora de 1% ao
+                    mês e atualização monetária pelo IPCA/IBGE. Atrasos superiores a 5 dias ensejam
+                    suspensão temporária do acesso à plataforma e atrasos superiores a 30 dias
+                    autorizam rescisão com recolhimento dos equipamentos e cobrança legal.
                   </p>
 
                   <p>
@@ -774,55 +764,55 @@ function PaginaAssinaturaCliente() {
                     </strong>{" "}
                     O contrato possui vigência de 12 (doze) meses, renovando-se automaticamente por
                     iguais períodos caso não haja denúncia por escrito com 30 dias de antecedência.
-                    O cancelamento imotivado antes do término pelo LOCATÁRIO enseja multa
+                    O cancelamento imotivado antes do término pelo CONTRATANTE enseja multa
                     compensatória de 20% sobre as parcelas vincendas (art. 416 do Código Civil).
                   </p>
 
                   <p>
                     <strong className="text-white">
-                      CLÁUSULA SEXTA - DO REGIME DE LOCAÇÃO E DEVOLUÇÃO OBRIGATÓRIA:
+                      CLÁUSULA SEXTA - DO REGIME DE COMODATO E DEVOLUÇÃO OBRIGATÓRIA:
                     </strong>{" "}
-                    Os rastreadores e chips M2M permanecem como propriedade exclusiva da LOCADORA.
-                    Encerrado o contrato por qualquer motivo, o LOCATÁRIO obriga-se a disponibilizar
-                    ou devolver os equipamentos em até 10 dias úteis, sob pena de indenização de R$
+                    Os rastreadores e chips M2M são cedidos sob regime de comodato para a prestação
+                    dos serviços. Encerrado o contrato por qualquer motivo, o CONTRATANTE obriga-se
+                    a devolver os equipamentos em até 10 dias úteis, sob pena de indenização de R$
                     450,00 por rastreador e R$ 50,00 por chip SIM M2M, além de reintegração de
                     posse.
                   </p>
 
                   <p>
                     <strong className="text-white">
-                      CLÁUSULA SÉTIMA - DAS OBRIGAÇÕES E RESPONSABILIDADES DO LOCATÁRIO:
+                      CLÁUSULA SÉTIMA - DAS OBRIGAÇÕES E RESPONSABILIDADES DO CONTRATANTE:
                     </strong>{" "}
-                    O LOCATÁRIO compromete-se a zelar pelo perfeito funcionamento dos bens, manter o
-                    sigilo de suas senhas, utilizar a ferramenta estritamente para fins lícitos e
-                    cientificar previamente condutores terceiros quanto à existência do rastreador,
-                    em estrita conformidade com a LGPD.
+                    O CONTRATANTE compromete-se a zelar pelo perfeito funcionamento dos bens em
+                    comodato, manter o sigilo de suas senhas, utilizar a ferramenta estritamente
+                    para fins lícitos e cientificar previamente condutores terceiros quanto à
+                    existência do rastreador, em estrita conformidade com a LGPD.
                   </p>
 
                   <p>
                     <strong className="text-white">
-                      CLÁUSULA OITAVA - DAS OBRIGAÇÕES DA LOCADORA E LIMITAÇÃO DE RESPONSABILIDADE:
+                      CLÁUSULA OITAVA - DAS OBRIGAÇÕES DA CONTRATADA E LIMITAÇÃO DE
+                      RESPONSABILIDADE:
                     </strong>{" "}
-                    A LOCADORA compromete-se a manter a plataforma acessível com padrões habituais
-                    de mercado, prestar suporte técnico e substituir equipamentos com defeito de
-                    fabricação. A responsabilidade da LOCADORA limita-se ao fornecimento dos meios
-                    contratados, não respondendo por caso fortuito ou força maior.
+                    A CONTRATADA compromete-se a manter a plataforma acessível com padrões habituais
+                    de mercado, prestar suporte técnico e substituir equipamentos com vício de
+                    fabricação.
                   </p>
 
                   <p>
                     <strong className="text-white">
                       CLÁUSULA NONA - DA PROTEÇÃO DE DADOS PESSOAIS (LGPD — LEI Nº 13.709/2018):
                     </strong>{" "}
-                    O LOCATÁRIO atua como controlador de seus dados de deslocamento e a LOCADORA
-                    como operadora técnica. Os dados são protegidos com criptografia e trilhas de
-                    auditoria, sendo vedada sua comercialização ou compartilhamento com terceiros.
+                    O CONTRATANTE atua como controlador de seus dados e a CONTRATADA como operadora
+                    técnica. Os dados são protegidos com criptografia e trilhas de auditoria, sendo
+                    vedada sua comercialização ou compartilhamento com terceiros.
                   </p>
 
                   <p>
                     <strong className="text-white">
                       CLÁUSULA DÉCIMA - DA PROPRIEDADE INTELECTUAL:
                     </strong>{" "}
-                    A plataforma GD Rastreamento, marcas, logotipos e interfaces constituem
+                    A plataforma GD Segurança Privada, marcas, logotipos e interfaces constituem
                     propriedade intelectual exclusiva de Dario de Novaes Gonçalves Júnior, sendo
                     concedida apenas licença de uso pessoal, temporária e intransferível.
                   </p>

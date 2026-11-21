@@ -36,7 +36,7 @@ async function carregarImagemBase64(url: string): Promise<string | null> {
 /**
  * Emite e faz o download do documento PDF da Proposta Comercial Oficial GD Rastreamento
  * Estrutura:
- * - Página 1: Dados do Cliente, Veículo, Condições Comerciais (com Locação de Equipamentos e Automonitoramento) e Aceite
+ * - Página 1: Dados do Cliente, Veículo, Condições Comerciais (com Equipamentos e Rastreamento Tático Inclusos) e Aceite
  * - Página 2: Catálogo de Módulos e Funcionalidades Explicadas em Detalhes com Transparência Jurídica
  */
 export async function emitirPropostaComercialPdf(
@@ -104,7 +104,7 @@ export async function emitirPropostaComercialPdf(
   doc.setFont("helvetica", "normal");
   doc.setTextColor(203, 213, 225); // slate-300
   doc.text(
-    `PROPOSTA COMERCIAL DE LOCAÇÃO E AUTOMONITORAMENTO • v${APP_VERSION_NUMERO}`,
+    `PROPOSTA COMERCIAL DE PRESTAÇÃO DE SERVIÇOS E SEGURANÇA TÁTICA • v${APP_VERSION_NUMERO}`,
     offsetTextoX,
     20,
     { maxWidth: 160 },
@@ -186,7 +186,7 @@ export async function emitirPropostaComercialPdf(
     doc.text(`Hardware:`, 115, posY + 20);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(16, 185, 129); // emerald-600
-    doc.text("LOCACAO INCLUSA", 148, posY + 20);
+    doc.text("RASTREADOR E CHIP INCLUSOS", 148, posY + 20);
   }
 
   posY += 34;
@@ -218,7 +218,7 @@ export async function emitirPropostaComercialPdf(
       "• Alertas de velocidade maxima configuravel",
     ],
     [
-      "• Locacao de rastreador homologado ANATEL e chip M2M",
+      "• Fornecimento de rastreador homologado ANATEL e chip M2M inclusos",
       "• Chip M2M multi-operadora dedicado com conexao estavel",
     ],
   ];
@@ -278,8 +278,8 @@ export async function emitirPropostaComercialPdf(
 
     corpoTabelaFrota.push([
       "Fornecimento do Hardware",
-      "Locacao de Equipamento Homologado ANATEL",
-      "Locacao de Equipamento Homologado ANATEL",
+      "Equipamento Homologado ANATEL Incluso no Plano",
+      "Equipamento Homologado ANATEL Incluso no Plano",
     ]);
 
     corpoTabelaFrota.push([
@@ -374,8 +374,8 @@ export async function emitirPropostaComercialPdf(
         ],
         [
           "Fornecimento do Equipamento",
-          "Locacao de Equipamento Homologado ANATEL",
-          "Locacao de Equipamento Homologado ANATEL",
+          "Equipamento Homologado ANATEL Incluso no Plano",
+          "Equipamento Homologado ANATEL Incluso no Plano",
         ],
         [
           "Prazo Contratual Minimo",
@@ -445,7 +445,7 @@ export async function emitirPropostaComercialPdf(
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 116, 139);
     doc.text(
-      `${APP_NOME.toUpperCase()} · Automonitoramento Veicular e Locacao de Equipamentos Telematicos · Portal: ${APP_PUBLIC_URL}`,
+      `${APP_NOME.toUpperCase()} · Seguranca Privada e Rastreamento Tatico Veicular e Patrimonial · Portal: ${APP_PUBLIC_URL}`,
       14,
       286.5,
     );
@@ -597,17 +597,13 @@ export async function emitirPropostaComercialPdf(
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(7.8);
   doc.setFont("helvetica", "bold");
-  doc.text(
-    "TRANSPARÊNCIA JURÍDICA E ENQUADRAMENTO LEGAL (CONTRATO GD RASTREAMENTO)",
-    20,
-    p2Y + 5.5,
-  );
+  doc.text("TRANSPARÊNCIA E TERMOS DO SERVIÇO (GD SEGURANÇA PRIVADA)", 20, p2Y + 5.5);
 
   doc.setTextColor(71, 85, 105);
   doc.setFontSize(6.7);
   doc.setFont("helvetica", "normal");
   const textoTransparencia =
-    "A presente proposta restringe-se a locação onerosa de equipamento telemático homologado ANATEL e chip SIM M2M (arts. 565 a 578 do Código Civil c/c Súmula Vinculante 31 do STF). A plataforma GD Rastreamento é disponibilizada gratuitamente aos locatários para automonitoramento direto pelo próprio usuário. A contratação não presta serviços de segurança privada (Lei nº 14.967/2024), não possui central humana de vigilância 24h, não despacha viaturas e não constitui seguro patrimonial.";
+    "A presente proposta contempla a prestação de serviços de rastreamento veicular, telemetria e gestão tática patrimonial pela GD Segurança Privada, com disponibilização de equipamentos eletrônicos homologados ANATEL e acesso total à plataforma de monitoramento web e mobile para acompanhamento em tempo real.";
   const linhasTransparencia = doc.splitTextToSize(textoTransparencia, 172);
   doc.text(linhasTransparencia, 20, p2Y + 10);
 

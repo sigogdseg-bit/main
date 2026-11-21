@@ -44,6 +44,13 @@ export interface EstadoMovimentoVeiculo {
   packetReceivedAtMs: number;
   coordChangedAtMs: number;
   settled: boolean;
+  // Dinâmica de Curvas Suaves e Concordância Viária
+  curvaInicioLat?: number;
+  curvaInicioLng?: number;
+  curvaControleLat?: number;
+  curvaControleLng?: number;
+  curvaProgresso?: number;
+  curvaDuracaoSeg?: number;
 }
 
 export interface ChaveVisualMarcadorParams {
@@ -129,6 +136,80 @@ export function coordenadaValidaMapa(lat?: number | null, lng?: number | null): 
     Number.isFinite(lng) &&
     (lat !== 0 || lng !== 0)
   );
+}
+
+/**
+ * Calcula o azimute em graus (0 a 360) entre duas coordenadas geográficas
+ */
+export function calcularAzimuteGraus(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number,
+): number {
+  if (
+    !Number.isFinite(lat1) ||
+    !Number.isFinite(lon1) ||
+    !Number.isFinite(lat2) ||
+    !Number.isFinite(lon2)
+  ) {
+    return 0;
+  }
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const lat1Rad = (lat1 * Math.PI) / 180;
+  const lat2Rad = (lat2 * Math.PI) / 180;
+
+  const y = Math.sin(dLon) * Math.cos(lat2Rad);
+  const x =
+    Math.cos(lat1Rad) * Math.sin(lat2Rad) - Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
+
+  const brng = (Math.atan2(y, x) * 180) / Math.PI;
+  return Math.round((brng + 360) % 360);
+}
+
+/**
+ * Calcula o ponto de controle intermediário de Bézier para concordância tangencial de vias em curvas
+ */
+export function calcularPontoControleCurva(
+  lat0: number,
+  lng0: number,
+  rumo0: number,
+  lat1: number,
+  lng1: number,
+  rumo1: number,
+): [number, number] {
+  const dist = haversineMetros(lat0, lng0, lat1, lng1);
+  if (dist < 2.5 || dist > 1500) {
+    return [(lat0 + lat1) / 2, (lng0 + lng1) / 2];
+  }
+
+  // Braço de alavanca proporcional ao vão entre pacotes (máximo 45% do vão, teto 50m)
+  const dArm = Math.min(dist * 0.45, 50);
+  const [t0Lat, t0Lng] = projetarCoordenadaPorRumo(lat0, lng0, rumo0, dArm);
+  const [t1Lat, t1Lng] = projetarCoordenadaPorRumo(
+    lat1,
+    lng1,
+    normalizarGrausCanonicamente(rumo1 + 180),
+    dArm,
+  );
+
+  return [(t0Lat + t1Lat) / 2, (t0Lng + t1Lng) / 2];
+}
+
+/**
+ * Avalia a posição [lat, lng] sobre curva quadrática de Bézier com concordância tangencial
+ */
+export function avaliarBezierQuadratica(
+  p0: [number, number],
+  c: [number, number],
+  p1: [number, number],
+  t: number,
+): [number, number] {
+  const clampedT = Math.max(0, Math.min(1, t));
+  const u = 1 - clampedT;
+  const lat = u * u * p0[0] + 2 * u * clampedT * c[0] + clampedT * clampedT * p1[0];
+  const lng = u * u * p0[1] + 2 * u * clampedT * c[1] + clampedT * clampedT * p1[1];
+  return [lat, lng];
 }
 
 export function prefereMovimentoReduzido(): boolean {
@@ -284,6 +365,36 @@ export class ControladorMovimentoSuave {
     );
 
     if (coordMudou || timestampMudou) {
+      if (coordMudou) {
+        const distEntrePontos = haversineMetros(
+          existente.visualLat,
+          existente.visualLng,
+          input.latitude,
+          input.longitude,
+        );
+
+        // Se houver novo pacote GPS e o veículo estiver em trânsito dentro da malha viária (<800m)
+        if (distEntrePontos > 2.0 && distEntrePontos <= 800 && !reduzido) {
+          existente.curvaInicioLat = existente.visualLat;
+          existente.curvaInicioLng = existente.visualLng;
+          const [cLat, cLng] = calcularPontoControleCurva(
+            existente.visualLat,
+            existente.visualLng,
+            existente.visualHeading,
+            input.latitude,
+            input.longitude,
+            rumoNormalizado,
+          );
+          existente.curvaControleLat = cLat;
+          existente.curvaControleLng = cLng;
+          existente.curvaProgresso = 0;
+          const velEfetivaMs = Math.max(5, input.velocidadeKmh / 3.6 || 8);
+          existente.curvaDuracaoSeg = Math.max(0.8, distEntrePontos / velEfetivaMs);
+        } else {
+          existente.curvaProgresso = 1;
+        }
+      }
+
       existente.targetLat = input.latitude;
       existente.targetLng = input.longitude;
       if (input.ultimaAtualizacaoIso) {
@@ -316,6 +427,7 @@ export class ControladorMovimentoSuave {
       existente.visualLat = input.latitude;
       existente.visualLng = input.longitude;
       existente.visualHeading = existente.headingContinuous;
+      existente.curvaProgresso = 1;
     }
 
     const emMovimentoReal = this.podeDeslocarVisualmente(existente, reduzido, agoraMs);
@@ -332,6 +444,7 @@ export class ControladorMovimentoSuave {
       existente.visualLat = existente.targetLat;
       existente.visualLng = existente.targetLng;
       existente.visualHeading = existente.headingContinuous;
+      existente.curvaProgresso = 1;
     }
 
     return existente;
@@ -368,6 +481,56 @@ export class ControladorMovimentoSuave {
     let possuiAtivos = false;
 
     for (const estado of this.estados.values()) {
+      // 0. Se houver curva viária em andamento (transição suave com concordância tangencial em curvas)
+      if (
+        !reduzido &&
+        estado.curvaProgresso !== undefined &&
+        estado.curvaProgresso < 1 &&
+        estado.curvaInicioLat !== undefined &&
+        estado.curvaInicioLng !== undefined &&
+        estado.curvaControleLat !== undefined &&
+        estado.curvaControleLng !== undefined &&
+        estado.curvaDuracaoSeg &&
+        estado.curvaDuracaoSeg > 0
+      ) {
+        const stepProgresso = dtSec / estado.curvaDuracaoSeg;
+        estado.curvaProgresso = Math.min(1, estado.curvaProgresso + stepProgresso);
+
+        let [pLat, pLng] = avaliarBezierQuadratica(
+          [estado.curvaInicioLat, estado.curvaInicioLng],
+          [estado.curvaControleLat, estado.curvaControleLng],
+          [estado.targetLat, estado.targetLng],
+          estado.curvaProgresso,
+        );
+
+        // Anti-Salto Físico na curva: limita o passo por frame à velocidade física do veículo
+        const maxVelCurvaMs = Math.max(14, (estado.velocidadeKmh / 3.6) * 1.35);
+        const maxStepCurvaM = maxVelCurvaMs * dtSec;
+        const distStepCurvaM = haversineMetros(estado.visualLat, estado.visualLng, pLat, pLng);
+        if (distStepCurvaM > maxStepCurvaM && distStepCurvaM > 0) {
+          const sc = maxStepCurvaM / distStepCurvaM;
+          pLat = estado.visualLat + (pLat - estado.visualLat) * sc;
+          pLng = estado.visualLng + (pLng - estado.visualLng) * sc;
+        }
+
+        // Heading instantâneo tangente à curva para virar o veículo com suavidade natural
+        const dLatCurva = pLat - estado.visualLat;
+        const dLngCurva = pLng - estado.visualLng;
+        if (Math.hypot(dLatCurva, dLngCurva) > 0.000005) {
+          const azimuteInst = calcularPassoAnguloCurto(
+            estado.visualHeading,
+            calcularAzimuteGraus(estado.visualLat, estado.visualLng, pLat, pLng),
+          );
+          const alphaH = 1 - Math.exp(-dtSec / 0.18);
+          estado.visualHeading += (azimuteInst - estado.visualHeading) * alphaH;
+        }
+
+        estado.visualLat = pLat;
+        estado.visualLng = pLng;
+        possuiAtivos = true;
+        continue;
+      }
+
       // 1. Suavização angular pelo caminho mais curto
       const diffRumo = estado.headingContinuous - estado.visualHeading;
       if (reduzido || Math.abs(diffRumo) < 0.15) {
@@ -413,8 +576,27 @@ export class ControladorMovimentoSuave {
         // Quando freado/estacionado, assenta com precisão sub-metro em ~0.85s.
         const tauSeg = !emMovimentoAtivo ? 0.28 : distGapM > 35 ? 0.5 : 0.65;
         const alphaPos = dtSec > 0 ? 1 - Math.exp(-dtSec / tauSeg) : 0;
-        estado.visualLat += (guideLat - estado.visualLat) * alphaPos;
-        estado.visualLng += (guideLng - estado.visualLng) * alphaPos;
+        let dLat = (guideLat - estado.visualLat) * alphaPos;
+        let dLng = (guideLng - estado.visualLng) * alphaPos;
+
+        // Anti-Salto Físico: limita a velocidade máxima visual para nunca disparar a 200+ km/h
+        const maxVelMs = !emMovimentoAtivo ? 12 : Math.max(16, (estado.velocidadeKmh / 3.6) * 1.35);
+        const maxStepM = maxVelMs * dtSec;
+        const stepDistM = haversineMetros(
+          estado.visualLat,
+          estado.visualLng,
+          estado.visualLat + dLat,
+          estado.visualLng + dLng,
+        );
+
+        if (stepDistM > maxStepM && stepDistM > 0) {
+          const scale = maxStepM / stepDistM;
+          dLat *= scale;
+          dLng *= scale;
+        }
+
+        estado.visualLat += dLat;
+        estado.visualLng += dLng;
       }
 
       const gapFinal = haversineMetros(estado.visualLat, estado.visualLng, guideLat, guideLng);

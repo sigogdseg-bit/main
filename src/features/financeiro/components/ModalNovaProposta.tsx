@@ -424,7 +424,7 @@ export function ModalNovaProposta({
                   )}
                 </div>
                 <p className="text-[11px] text-slate-600 dark:text-slate-400">
-                  Selecione Individual ou Frota (4 faixas). Locação de Equipamentos e aviso técnico
+                  Selecione Individual ou Frota (4 faixas). Equipamentos homologados e aviso técnico
                   LIN/CAN inclusos.
                 </p>
               </div>
@@ -645,7 +645,7 @@ export function ModalNovaProposta({
                           Plano COM Fidelidade
                         </span>
                         <span className="block text-[10px] text-orange-600/90 dark:text-orange-400/90 font-medium">
-                          Locação de Equipamento inclusa
+                          Rastreador e Chip Inclusos
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-[11px]">
@@ -756,7 +756,7 @@ export function ModalNovaProposta({
                           Plano SEM Fidelidade
                         </span>
                         <span className="block text-[10px] text-slate-500 font-medium">
-                          Locação de Equipamento inclusa
+                          Rastreador e Chip Inclusos
                         </span>
                       </div>
                       <span className="text-[10px] text-slate-500 italic">Cancelamento Livre</span>
@@ -858,7 +858,7 @@ export function ModalNovaProposta({
                     <span>3. Tabela de Preços por Quantidade de Veículos (Frota)</span>
                   </div>
                   <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">
-                    Equipamentos em Locação
+                    Equipamentos e Chips Inclusos
                   </span>
                 </div>
 

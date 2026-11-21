@@ -7,10 +7,10 @@
 // D = Correções / Refinamentos
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const APP_VERSION_NUMERO = "1.0.1.14";
-export const APP_BUILD_DATE = "19/11/2026";
+export const APP_VERSION_NUMERO = "1.0.1.15";
+export const APP_BUILD_DATE = "20/11/2026";
 export const APP_NOME = "GD Segurança";
-export const APP_SLOGAN = "Locação de Rastreadores e Automonitoramento Veicular";
+export const APP_SLOGAN = "Segurança Privada e Rastreamento Tático Veicular e Patrimonial";
 export const APP_PUBLIC_URL = "https://gd.oficial.tec.br";
 export const APP_DOMINIO = "gd.oficial.tec.br";
 export const APP_CHAVE_PIX_PADRAO = "pix@oficial.tec.br";

@@ -335,4 +335,68 @@ describe("Hunter — Deslocamento Fluido 60 FPS no Mapa (Anti-Congelamento e Ant
     assert.ok(compartilharCode.includes("ControladorMovimentoSuave"));
     assert.ok(playbackCode.includes("animarMarcadorPlaybackSuave"));
   });
+
+  test("7. Transição viária tangencial em curvas e blindagem anti-salto a 200 km/h", () => {
+    const controlador = new ControladorMovimentoSuave();
+    const lat0 = -22.4958;
+    const lng0 = -44.0933;
+
+    // Veículo trafegando para o Sul (180°) a 28 km/h
+    controlador.atualizarDestino(
+      {
+        id: "v-curva",
+        latitude: lat0,
+        longitude: lng0,
+        rumo: 180,
+        velocidadeKmh: 28,
+        ignicao: true,
+        bloqueado: false,
+        online: true,
+      },
+      0,
+      false,
+    );
+
+    // Faz a curva para o Oeste (270°) a 40 metros de distância
+    const lat1 = -22.4962;
+    const lng1 = -44.0937;
+    controlador.atualizarDestino(
+      {
+        id: "v-curva",
+        latitude: lat1,
+        longitude: lng1,
+        rumo: 270,
+        velocidadeKmh: 28,
+        ignicao: true,
+        bloqueado: false,
+        online: true,
+      },
+      1000,
+      false,
+    );
+
+    // Inicializa o controlador no instante 1000ms para manter delta de 16ms contínuo
+    controlador.avancarParaInstante(1000, false);
+    const st1000 = controlador.obterEstado("v-curva")!;
+
+    // Avança quadros e afere que a velocidade visual máxima por segundo respeita o limite físico da via (< 60 km/h)
+    let maxVelAferidaKmh = 0;
+    let prevLat = st1000.visualLat;
+    let prevLng = st1000.visualLng;
+
+    for (let ms = 1016; ms <= 3000; ms += 16) {
+      controlador.avancarParaInstante(ms, false);
+      const st = controlador.obterEstado("v-curva")!;
+      const passoM = haversineMetros(prevLat, prevLng, st.visualLat, st.visualLng);
+      const velPassoKmh = (passoM / 0.016) * 3.6;
+      maxVelAferidaKmh = Math.max(maxVelAferidaKmh, velPassoKmh);
+      prevLat = st.visualLat;
+      prevLng = st.visualLng;
+    }
+
+    assert.ok(
+      maxVelAferidaKmh < 70,
+      `Velocidade visual máxima deve ser suavemente limitada (aferido: ${maxVelAferidaKmh.toFixed(1)} km/h, nunca 200+ km/h)`,
+    );
+  });
 });

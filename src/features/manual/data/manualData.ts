@@ -1072,15 +1072,15 @@ export const MANUAIS_MODULOS: ModuloManual[] = [
           },
           {
             ordem: 2,
-            acao: "Compartilhar Proposta de Locação via WhatsApp",
+            acao: "Compartilhar Proposta de Rastreamento via WhatsApp",
             detalhe:
-              "No card do parceiro, utilize o botão de compartilhamento rápido para enviar propostas de locação para clientes no WhatsApp com o código do parceiro já embutido.",
+              "No card do parceiro, utilize o botão de compartilhamento rápido para enviar propostas de rastreamento para clientes no WhatsApp com o código do parceiro já embutido.",
           },
           {
             ordem: 3,
             acao: "Proteção de Margem Mínima (R$ 15,00)",
             detalhe:
-              "A plataforma aplica compulsoriamente a sugestão de no mínimo R$ 15,00 sobre o custo base da locação, bloqueando vendas abaixo do piso para assegurar rentabilidade sustentável ao parceiro.",
+              "A plataforma aplica compulsoriamente a sugestão de no mínimo R$ 15,00 sobre o custo base do rastreamento, bloqueando vendas abaixo do piso para assegurar rentabilidade sustentável ao parceiro.",
           },
         ],
       },
@@ -1093,7 +1093,7 @@ export const MANUAIS_MODULOS: ModuloManual[] = [
             ordem: 1,
             acao: "Abrir Demonstrativo de Resultados (DRE)",
             detalhe:
-              "Acesse o botão 'Mostrar DRE' na listagem ou no cockpit de vendas para inspecionar clientes ativos, receita mensal bruta, custos de locação de rastreadores e comissão líquida apurada.",
+              "Acesse o botão 'Mostrar DRE' na listagem ou no cockpit de vendas para inspecionar clientes ativos, receita mensal bruta, custos operacionais de rastreadores e comissão líquida apurada.",
           },
           {
             ordem: 2,
@@ -1113,30 +1113,30 @@ export const MANUAIS_MODULOS: ModuloManual[] = [
   },
   {
     id: "contratos-assinatura",
-    titulo: "Contratos de Locação e Assinatura Digital",
+    titulo: "Contratos de Prestação de Serviços e Assinatura Digital",
     rota: "/clientes",
     tag: "Jurídico",
     icone: FileCheck,
     resumo:
-      "Emissão de contratos oficiais de locação de rastreadores para auto-monitoramento, assinatura biométrica na tela, selo de autenticidade SGD, QR Code forense e hash SHA-256.",
+      "Emissão de contratos oficiais de prestação de serviços de rastreamento veicular e segurança patrimonial, assinatura biométrica na tela, selo de autenticidade SGD, QR Code forense e hash SHA-256.",
     podeAcessar: (s) => Boolean(s && (!s.isInstalador || s.isAdmin || s.isSuperAdmin)),
     secoes: [
       {
         id: "emissao-contrato",
-        titulo: "Emissão do Contrato de Locação de Rastreadores",
+        titulo: "Emissão do Contrato de Rastreamento e Segurança",
         subtitulo: "Geração de minuta contratual com veículos, valor mensal e plano escolhido",
         passos: [
           {
             ordem: 1,
             acao: "Acessar Contratos do Cliente",
             detalhe:
-              "Na ficha do cliente titular ou ao aprovar uma proposta, clique em 'Contrato de Locação' para abrir a central de documentos.",
+              "Na ficha do cliente titular ou ao aprovar uma proposta, clique em 'Contrato de Prestação de Serviços' para abrir a central de documentos.",
           },
           {
             ordem: 2,
             acao: "Conferência de Dados e Veículos",
             detalhe:
-              "O contrato preenche automaticamente os dados do cliente titular, placas, modelos e equipamentos em locação para auto-monitoramento.",
+              "O contrato preenche automaticamente os dados do cliente titular, placas, modelos e equipamentos vinculados ao rastreamento e segurança.",
           },
           {
             ordem: 3,
@@ -1180,20 +1180,21 @@ export const MANUAIS_MODULOS: ModuloManual[] = [
     tag: "Automação",
     icone: Bot,
     resumo:
-      "Atendimento automático ao público em geral, explicação da locação de rastreadores para auto-monitoramento, cadastro de degustação 24h pelo comando TESTE e reativação segura.",
+      "Atendimento automático ao público em geral, apresentação dos serviços de rastreamento veicular e segurança, cadastro de degustação 24h pelo comando TESTE e reativação segura.",
     podeAcessar: (s) =>
       Boolean(s && (s.isAdmin || s.isSuperAdmin || s.isOperador || s.role === "revendedor")),
     secoes: [
       {
         id: "atendimento-degustacao",
         titulo: "Atendimento ao Visitante e Solicitação de Degustação",
-        subtitulo: "Fluxo inteligente de autoatendimento para interessados em locação veicular",
+        subtitulo:
+          "Fluxo inteligente de autoatendimento para interessados em rastreamento veicular",
         passos: [
           {
             ordem: 1,
             acao: "Primeiro Contato pelo WhatsApp",
             detalhe:
-              "O visitante recebe o menu do Assistente GD com explicação clara de que o serviço consiste na locação de rastreador homologado para auto-monitoramento pelo celular, sem vínculos de central terceirizada.",
+              "O visitante recebe o menu do Assistente GD com explicação clara dos serviços de rastreamento e segurança pelo celular.",
           },
           {
             ordem: 2,

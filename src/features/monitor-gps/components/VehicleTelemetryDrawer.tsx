@@ -764,10 +764,21 @@ export function VehicleTelemetryDrawer({
                 <span className="font-bold text-xs text-slate-900 dark:text-slate-100 truncate">
                   {veiculo.marca_modelo}
                 </span>
-                <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
-                  {obterRotuloTipoVeiculo(veiculo.tipo_veiculo)}
-                </span>
-                {suspeitaJammer.suspeita ? (
+                {isPropriedade ? (
+                  <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shrink-0">
+                    PROPRIEDADE FIXA
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.2 rounded-md text-[9px] font-black uppercase tracking-wider bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 shrink-0">
+                    {obterRotuloTipoVeiculo(veiculo.tipo_veiculo)}
+                  </span>
+                )}
+                {isPropriedade ? (
+                  <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1 shrink-0">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    PERÍMETRO MONITORADO
+                  </span>
+                ) : suspeitaJammer.suspeita ? (
                   <span
                     className="px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider bg-rose-600 text-white animate-pulse border border-rose-400 flex items-center gap-1 shrink-0"
                     title={`Ausência de telemetria há ${suspeitaJammer.minutosSemSinal} min em trânsito`}
@@ -791,30 +802,37 @@ export function VehicleTelemetryDrawer({
                     IMPACTO
                   </span>
                 )}
-                {podeVerCondicaoOperacional && (
-                  <>
-                    {isBloqueado ? (
-                      <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
-                        Bloqueado
-                      </span>
-                    ) : isEmRota ? (
-                      <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 shrink-0">
-                        Em Rota
-                      </span>
-                    ) : isParadoLigado ? (
-                      <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
-                        Ligado
-                      </span>
-                    ) : (
-                      <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
-                        Estacionado
-                      </span>
-                    )}
-                  </>
+                {isPropriedade ? (
+                  <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/30 shrink-0">
+                    BASE FIXA
+                  </span>
+                ) : (
+                  podeVerCondicaoOperacional && (
+                    <>
+                      {isBloqueado ? (
+                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-rose-500/15 text-rose-600 dark:text-rose-400 border border-rose-500/30 shrink-0">
+                          Bloqueado
+                        </span>
+                      ) : isEmRota ? (
+                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 shrink-0">
+                          Em Rota
+                        </span>
+                      ) : isParadoLigado ? (
+                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shrink-0">
+                          Ligado
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+                          Estacionado
+                        </span>
+                      )}
+                    </>
+                  )
                 )}
 
-                {/* Indicador de Tipo de Bloqueador - Restrito a Administradores e Operadores */}
-                {podeVerTipoBloqueador &&
+                {/* Indicador de Tipo de Bloqueador - Restrito a Veículos de Frota com Relé */}
+                {!isPropriedade &&
+                  podeVerTipoBloqueador &&
                   (!temBloqueador ? (
                     <span
                       className="px-1.5 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-500 border border-slate-300 dark:border-slate-700 shrink-0"
@@ -983,82 +1001,88 @@ export function VehicleTelemetryDrawer({
                   <span>{isPropriedade ? "Monitor 3D" : "Cockpit 3D"}</span>
                 </button>
 
-                {/* 2. Botão Rápido: Refazer Trajeto */}
+                {/* 2. Botão Rápido: Refazer Trajeto / Checkpoints */}
                 <button
                   onClick={() => onAbrirPlayback(veiculo)}
                   className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition hover:bg-orange-500/25 flex items-center gap-1 active:scale-95 cursor-pointer"
-                  title="Refazer Trajeto do Dia"
-                >
-                  <Play className="h-4 w-4 fill-current" />
-                  <span className="hidden sm:inline">Trajeto</span>
-                </button>
-
-                {/* 3. Botão Crítico: Modo Segurança (Cadeado Digital Anti-Furto) */}
-                <button
-                  onClick={() => {
-                    if (!temBloqueador) {
-                      toast.error(
-                        `O veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)} não possui bloqueador instalado. Operação de bloqueio indisponível por segurança.`,
-                      );
-                      return;
-                    }
-                    if (session?.isAuditor || session?.isSuperAdminAuditor || session?.isReadOnly) {
-                      toast.error(
-                        "Ação bloqueada: Perfil S.adm Auditor possui acesso 100% READ-ONLY. Não pode realizar bloqueio.",
-                      );
-                      return;
-                    }
-                    if (session?.isAuditor || session?.isSuperAdminAuditor || session?.isReadOnly) {
-                      toast.error(
-                        "Ação bloqueada: Perfil S.adm Auditor possui acesso 100% READ-ONLY. Não pode realizar bloqueio.",
-                      );
-                      return;
-                    }
-                    if (isBloqueado) {
-                      if (
-                        window.confirm(
-                          `Confirma desativar o Modo Segurança e liberar a partida do veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}?`,
-                        )
-                      ) {
-                        onBloquearToggle(veiculo.id, false);
-                      }
-                    } else {
-                      setModalBloqueioSeguroAberto(true);
-                    }
-                  }}
-                  disabled={!temBloqueador}
-                  className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 flex items-center gap-1.5 ${
-                    !temBloqueador
-                      ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50"
-                      : isBloqueado
-                        ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40 hover:bg-rose-500/30 animate-pulse cursor-pointer"
-                        : "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/25 cursor-pointer"
-                  }`}
                   title={
-                    !temBloqueador
-                      ? "Veículo sem bloqueador instalado: operação indisponível por segurança"
-                      : isBloqueado
-                        ? "Modo Segurança Armado: Partida Bloqueada (Clique para Desativar)"
-                        : "Armar Modo de Segurança com Protocolo de Cautela e Parada"
+                    isPropriedade
+                      ? "Planejamento de Rota de Ronda e Checkpoints"
+                      : "Refazer Trajeto do Dia"
                   }
                 >
-                  <Lock
-                    className={`h-4 w-4 ${
-                      !temBloqueador
-                        ? "text-slate-400"
-                        : isBloqueado
-                          ? "text-rose-500"
-                          : "text-orange-500"
-                    }`}
-                  />
+                  <Play className="h-4 w-4 fill-current" />
                   <span className="hidden sm:inline">
-                    {!temBloqueador
-                      ? "Sem Bloqueador"
-                      : isBloqueado
-                        ? "Cadeado Ativo"
-                        : "Modo Segurança"}
+                    {isPropriedade ? "Checkpoints" : "Trajeto"}
                   </span>
                 </button>
+
+                {/* 3. Botão Crítico: Modo Segurança (Cadeado Digital Anti-Furto) - Apenas veículos */}
+                {!isPropriedade && (
+                  <button
+                    onClick={() => {
+                      if (!temBloqueador) {
+                        toast.error(
+                          `O veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)} não possui bloqueador instalado. Operação de bloqueio indisponível por segurança.`,
+                        );
+                        return;
+                      }
+                      if (
+                        session?.isAuditor ||
+                        session?.isSuperAdminAuditor ||
+                        session?.isReadOnly
+                      ) {
+                        toast.error(
+                          "Ação bloqueada: Perfil S.adm Auditor possui acesso 100% READ-ONLY. Não pode realizar bloqueio.",
+                        );
+                        return;
+                      }
+                      if (isBloqueado) {
+                        if (
+                          window.confirm(
+                            `Confirma desativar o Modo Segurança e liberar a partida do veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}?`,
+                          )
+                        ) {
+                          onBloquearToggle(veiculo.id, false);
+                        }
+                      } else {
+                        setModalBloqueioSeguroAberto(true);
+                      }
+                    }}
+                    disabled={!temBloqueador}
+                    className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 flex items-center gap-1.5 ${
+                      !temBloqueador
+                        ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50"
+                        : isBloqueado
+                          ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40 hover:bg-rose-500/30 animate-pulse cursor-pointer"
+                          : "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/25 cursor-pointer"
+                    }`}
+                    title={
+                      !temBloqueador
+                        ? "Veículo sem bloqueador instalado: operação indisponível por segurança"
+                        : isBloqueado
+                          ? "Modo Segurança Armado: Partida Bloqueada (Clique para Desativar)"
+                          : "Armar Modo de Segurança com Protocolo de Cautela e Parada"
+                    }
+                  >
+                    <Lock
+                      className={`h-4 w-4 ${
+                        !temBloqueador
+                          ? "text-slate-400"
+                          : isBloqueado
+                            ? "text-rose-500"
+                            : "text-orange-500"
+                      }`}
+                    />
+                    <span className="hidden sm:inline">
+                      {!temBloqueador
+                        ? "Sem Bloqueador"
+                        : isBloqueado
+                          ? "Cadeado Ativo"
+                          : "Modo Segurança"}
+                    </span>
+                  </button>
+                )}
 
                 {/* 3.1 Compartilhamento com Contagem de Links Ativos */}
                 <button

@@ -66,7 +66,7 @@ test("HUNTER — Cobrança Recorrente Preventiva via WhatsApp com PIX", async (t
           payloadCapturado.message,
           /fatura de NOV\/2026 com vencimento em 10\/11\/2026 no valor de R\$ 60\.97/,
         );
-        assert.match(payloadCapturado.message, /Locação para Auto-Monitoramento/);
+        assert.match(payloadCapturado.message, /Segurança Privada e Rastreamento Tático/);
       } finally {
         globalThis.fetch = originalFetch;
       }

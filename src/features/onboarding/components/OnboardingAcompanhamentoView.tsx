@@ -344,7 +344,7 @@ export function OnboardingAcompanhamentoView() {
       subtitulo: "Validade Jurídica SGD",
       descricao: etapas?.contrato_assinado
         ? "Contrato assinado eletronicamente com selo forense de autenticidade SGD."
-        : "Aguardando a sua assinatura digital no termo de adesão e locação veicular.",
+        : "Aguardando a sua assinatura digital no contrato de rastreamento e segurança.",
       icone: FileCheck,
       concluida: Boolean(etapas?.contrato_assinado) || etapaAtual > 5,
       ativa: etapaAtual === 5,

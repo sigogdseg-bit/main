@@ -1524,6 +1524,7 @@ async function processarPacote(socket: net.Socket, buf: Buffer) {
         latitude,
         longitude,
         velocidade,
+        rumo: heading,
         sinalGsm: gsmSignal,
         releStatus,
         origem: alarmCode !== 0x00 ? "alarme_0x16" : "telemetria_0x16",
@@ -2075,13 +2076,17 @@ async function salvarPosicaoNoHunter(dados: {
       );
     }
 
-    // 2. Notifica em realtime
+    // 2. Notifica em realtime com vetor de rumo, satélites e sinal GSM
     await notificarAtualizacaoRealtime({
       veiculoId: dados.veiculoId,
       latitude: dados.latitude,
       longitude: dados.longitude,
       ignicao: dados.ignicao,
       velocidade: dados.velocidade,
+      rumo: dados.rumo,
+      satelites: dados.satelites,
+      sinalGsm: dados.sinalGsm,
+      dataHoraGps: dados.dataHoraGps,
       origem: "gps_posicao",
     });
 

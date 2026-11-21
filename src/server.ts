@@ -9348,7 +9348,7 @@ async function despacharWhatsappAlertaServer(
       tituloFormatado = tituloFormatado.replace(regexPlacaDupla, ` — ${params.placa}`);
     }
 
-    const txtMsg = `🚨 *${tituloFormatado}*\n\n${corpoFinal}\n\n_GD Rastreamento — Locação para Auto-Monitoramento_`;
+    const txtMsg = `🚨 *${tituloFormatado}*\n\n${corpoFinal}\n\n_GD Segurança Privada — Rastreamento e Gestão Tática_`;
 
     const isAlertaArea = params.tipo === "saida_area" || params.tipo === "entrada_area";
     const isAlertaRota = params.tipo === "desvio_rota" || params.tipo === "rota_monitorada";

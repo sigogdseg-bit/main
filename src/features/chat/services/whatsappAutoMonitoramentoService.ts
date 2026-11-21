@@ -1148,11 +1148,11 @@ export function obterMenuPublicoDevBot(nome?: string): string {
   const saudacaoNome =
     nome && nome.trim().length >= 2 ? `Olá, *${nome.trim().split(" ")[0]}*! ` : "Olá! ";
   return (
-    `${saudacaoNome}Sou o *Assistente GD*, assistente virtual do GD Rastreamento. 🛡️\n\n` +
-    "Somos especialistas em *Locação de Rastreadores para Auto-Monitoramento com Disponibilização do Sistema* completo pelo aplicativo.\n\n" +
+    `${saudacaoNome}Sou o *Assistente GD*, assistente virtual da GD Segurança Privada e GD Rastreamento. 🛡️\n\n` +
+    "Somos especialistas em *Rastreamento Veicular, Segurança Tática e Gestão Patrimonial* com disponibilização do sistema completo pelo aplicativo.\n\n" +
     "Como posso te ajudar hoje?\n\n" +
     "• *1* - Conhecer Planos e Benefícios\n" +
-    "• *2* - Como Funciona o Auto-Monitoramento\n" +
+    "• *2* - Como Funciona o Sistema de Rastreamento\n" +
     "• *3* - Consultar Vendedor Credenciado\n" +
     "• *4* - Falar com Atendente Humano\n\n" +
     "_(Digite o número da opção desejada ou envie *AJUDA* / *MENU* para rever estas opções)_"
@@ -1164,13 +1164,13 @@ export function obterMenuPublicoDevBot(nome?: string): string {
  */
 export function obterRespostaPlanosDevBot(): string {
   return (
-    "🛡️ *GD Rastreamento — Locação para Auto-Monitoramento Veicular*\n\n" +
-    "Disponibilizamos rastreadores 4G homologados ANATEL e acesso total ao sistema pelo celular. Não somos central de rastreamento: você tem a autonomia do auto-monitoramento em tempo real.\n\n" +
+    "🛡️ *GD Segurança Privada — Rastreamento e Gestão Tática*\n\n" +
+    "Disponibilizamos rastreadores 4G homologados ANATEL e acesso total ao sistema pelo celular, com telemetria e segurança em tempo real.\n\n" +
     "• *Plano Básico:* Localização em tempo real, status de ignição e bloqueio veicular seguro pelo aplicativo.\n" +
     "• *Plano Pro:* Todos os recursos do Básico + histórico de rotas de 30 dias e cercas virtuais.\n" +
     "• *Plano Master:* Telemetria completa, odômetro, controle de manutenções e gestão de frotas.\n\n" +
     "💼 *Valores e Condições Comerciais:*\n" +
-    "Os valores de locação e instalação são fornecidos exclusivamente por nossos *Vendedores e Consultores Credenciados*.\n\n" +
+    "Os valores de contratação e instalação são fornecidos exclusivamente por nossos *Vendedores e Consultores Credenciados*.\n\n" +
     "Por favor, informe a sua *Cidade / Bairro* para localizarmos o vendedor mais próximo, ou digite *4* para falar com um atendente."
   );
 }
@@ -1180,12 +1180,12 @@ export function obterRespostaPlanosDevBot(): string {
  */
 export function obterRespostaComoFuncionaDevBot(): string {
   return (
-    "🚗 *Como Funciona a Locação e o Auto-Monitoramento:*\n\n" +
-    "• *Locação com Homologação:* Rastreador 4G homologado instalado em local oculto e seguro no seu veículo.\n" +
-    "• *Auto-Monitoramento no App:* Você acompanha posição, rotas e velocidade na palma da mão 24 horas por dia.\n" +
+    "🚗 *Como Funciona o Rastreamento e Segurança GD:*\n\n" +
+    "• *Equipamento Homologado:* Rastreador 4G homologado instalado em local oculto e seguro no seu veículo.\n" +
+    "• *Monitoramento no App:* Você acompanha posição, rotas e velocidade na palma da mão 24 horas por dia.\n" +
     "• *Autonomia e Bloqueio:* Em caso de emergência ou roubo, você mesmo aciona o bloqueio veicular com segurança.\n" +
     "• *Alertas no WhatsApp:* Notificações em tempo real de ignição, excesso de velocidade e bateria.\n\n" +
-    "💡 Para saber os valores e condições de locação, informe sua *Cidade/Bairro* para indicarmos o vendedor credenciado mais próximo ou digite *4* para falar com um atendente."
+    "💡 Para saber os valores e condições, informe sua *Cidade/Bairro* para indicarmos o vendedor credenciado mais próximo ou digite *4* para falar com um atendente."
   );
 }
 
@@ -1269,12 +1269,12 @@ export async function encaminharLeadParaVendedorOuSuperAdm(
   // 3. Se encontrou vendedor/parceiro da região
   if (vendedorEncontrado) {
     const msgParaVendedor =
-      "🚨 *GD Rastreamento — Novo Lead de Auto-Monitoramento Veicular*\n\n" +
+      "🚨 *GD Segurança Privada — Novo Lead de Rastreamento Veicular*\n\n" +
       `Olá, *${vendedorEncontrado.nome}*! Temos um novo interessado na sua região:\n\n` +
       `• *Nome do Contato:* ${dados.nome || "Interessado WhatsApp"}\n` +
       `• *WhatsApp:* ${dados.telefone}\n` +
       `• *Região Informada:* ${localizacaoLimpa}\n` +
-      `• *Interesse:* Valores e condições de locação de rastreador para auto-monitoramento.\n\n` +
+      `• *Interesse:* Valores e condições de rastreamento veicular e segurança.\n\n` +
       "Por favor, entre em contato com o cliente para apresentar os planos e emitir uma proposta! 🚀";
 
     try {
@@ -1290,20 +1290,20 @@ export async function encaminharLeadParaVendedorOuSuperAdm(
       `Identificamos nosso consultor credenciado para a região de *${localizacaoLimpa}*:\n\n` +
       `• *Consultor:* ${vendedorEncontrado.nome}\n` +
       `• *WhatsApp:* ${formatarTelefoneWhatsapp(vendedorEncontrado.telefone)}\n\n` +
-      "Já notificamos o consultor sobre o seu interesse e ele entrará em contato em instantes para te apresentar os planos, valores e condições especiais de locação para auto-monitoramento! 🤝"
+      "Já notificamos o consultor sobre o seu interesse e ele entrará em contato em instantes para te apresentar os planos, valores e condições especiais de rastreamento e segurança! 🤝"
     );
   }
 
   // 4. Caso não haja vendedor específico daquela cidade: notifica o SuperADM solicitando a indicação
   const dataHoraAtual = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const msgSuperAdmIndicacao =
-    "🚨 *GD Rastreamento — Solicitação de Indicação de Vendedor (WhatsApp)*\n\n" +
+    "🚨 *GD Segurança Privada — Solicitação de Indicação de Vendedor (WhatsApp)*\n\n" +
     `• *Interessado(a):* ${dados.nome || "Visitante WhatsApp"}\n` +
     `• *WhatsApp:* ${dados.telefone}\n` +
     `• *Região / Localização Informada:* ${localizacaoLimpa}\n` +
     `• *Mensagem:* "${dados.mensagemOriginal || localizacaoLimpa}"\n` +
     `• *Data e Hora:* ${dataHoraAtual}\n\n` +
-    "O visitante solicitou valores e condições de locação de equipamento para auto-monitoramento. Não há vendedor direto mapeado para este termo. Por favor, indique e encaminhe um vendedor para realizar o atendimento!";
+    "O visitante solicitou valores e condições de equipamento para rastreamento veicular. Não há vendedor direto mapeado para este termo. Por favor, indique e encaminhe um vendedor para realizar o atendimento!";
 
   await despacharAlertaEquipeBot(supabase, "atendimento_humano_bot", {
     gatewayUrl,
@@ -1317,7 +1317,7 @@ export async function encaminharLeadParaVendedorOuSuperAdm(
   return (
     "📍 *Localização Registrada com Sucesso!*\n\n" +
     `Anotamos sua região (*${localizacaoLimpa}*). Nossa equipe já solicitou ao nosso supervisor a indicação do vendedor credenciado mais próximo para o seu endereço.\n\n` +
-    "Um consultor entrará em contato por este WhatsApp em instantes para apresentar os valores de locação e as opções de auto-monitoramento pelo sistema. Obrigado pelo contato! 🛡️"
+    "Um consultor entrará em contato por este WhatsApp em instantes para apresentar os valores e as opções de rastreamento e segurança pelo sistema. Obrigado pelo contato! 🛡️"
   );
 }
 
@@ -5407,7 +5407,7 @@ export async function processarMensagemWhatsappRecebida(
         destinatario: remetenteLimpo,
         acaoExecutada: "veiculo_info_recebido",
         resposta:
-          "5️⃣ Qual o valor da mensalidade da locação do equipamento com automonitoramento?\n\n" +
+          "5️⃣ Qual o valor da mensalidade do rastreamento com monitoramento e aplicativo?\n\n" +
           "⚠️ *Regra de Repasse Vigente:*\n" +
           `• Base mínima permitida: *R$ ${baseRepasse.toFixed(2).replace(".", ",")}*\n` +
           `• Sugestão comercial (+ R$ 15,00): *R$ ${sugestaoComercial.toFixed(2).replace(".", ",")}*\n\n` +
@@ -5724,7 +5724,7 @@ export async function processarMensagemWhatsappRecebida(
         const taxaInstalacaoVal = Number(dados.taxa_instalacao) || 0;
         const textoTaxaCliente =
           taxaInstalacaoVal === 0
-            ? "Isenta / Equipamento em Locação Incluso"
+            ? "Isenta / Rastreador e Chip Inclusos"
             : `R$ ${taxaInstalacaoVal.toFixed(2).replace(".", ",")}`;
 
         // Monta texto oficial para o Cliente: amigável, com valor promocional e chamada ao PDF

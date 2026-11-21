@@ -1048,7 +1048,7 @@ export async function dispararLembretePreventivoMensalidadeWhatsApp(
     `Olá, ${primeiroNome}. Sua fatura de ${competencia}${sufixoParcela} com vencimento em ${dataVencFormatada} no valor de R$ ${valorFormatado} já está disponível para pagamento via PIX.`,
     `🕒 Horário: ${horarioAtual}`,
     ``,
-    `_${APP_NOME} — Locação para Auto-Monitoramento_`,
+    `_${APP_NOME} — Segurança Privada e Rastreamento Tático_`,
   ].join("\n");
 
   try {

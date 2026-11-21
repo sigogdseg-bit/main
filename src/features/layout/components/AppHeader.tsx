@@ -129,7 +129,7 @@ export function AppHeader() {
                     v{APP_VERSION_NUMERO}
                   </span>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400 hidden lg:inline truncate">
-                    Locação de Rastreadores
+                    Segurança e Rastreamento
                   </span>
                 </div>
               </div>

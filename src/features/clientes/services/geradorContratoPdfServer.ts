@@ -99,12 +99,12 @@ export function gerarContratoPdfBufferServer(dados: DadosContratoPdfServer): Uin
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(13);
-  doc.text("GD RASTREAMENTO — CONTRATO OFICIAL DE LOCAÇÃO", 18, y + 8);
+  doc.text("GD SEGURANÇA PRIVADA — CONTRATO DE PRESTAÇÃO DE SERVIÇOS", 18, y + 8);
 
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(148, 163, 184); // slate-400
-  doc.text("Rastreamento Veicular e Cortesia de Automonitoramento", 18, y + 14);
+  doc.text("Segurança Privada e Rastreamento Tático Veicular e Patrimonial", 18, y + 14);
 
   doc.setFont("helvetica", "bold");
   doc.setTextColor(52, 211, 153); // emerald-400
@@ -119,7 +119,7 @@ export function gerarContratoPdfBufferServer(dados: DadosContratoPdfServer): Uin
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(51, 65, 85);
-  const preambulo = `Pelo presente instrumento particular, as partes qualificadas têm entre si justo e acordado o presente CONTRATO DE LOCAÇÃO DE EQUIPAMENTO ELETRÔNICO PARA RASTREAMENTO VEICULAR E AUTOMONITORAMENTO, em conformidade com o Código Civil Brasileiro (Lei nº 10.406/2002 — arts. 565 a 578), a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), a Lei do Software (Lei nº 9.609/1998) e o Código de Defesa do Consumidor (Lei nº 8.078/1990), regendo-se pelas cláusulas a seguir sob os princípios da probidade e da boa-fé objetiva (art. 422 do CC).`;
+  const preambulo = `Pelo presente instrumento particular, as partes qualificadas têm entre si justo e acordado o presente CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE SEGURANÇA PRIVADA, RASTREAMENTO TÁTICO E MONITORAMENTO VEICULAR, em conformidade com o Código Civil Brasileiro (Lei nº 10.406/2002), a Lei Geral de Proteção de Dados (Lei nº 13.709/2018), a Lei do Software (Lei nº 9.609/1998) e o Código de Defesa do Consumidor (Lei nº 8.078/1990), regendo-se pelas cláusulas a seguir sob os princípios da probidade e da boa-fé objetiva (art. 422 do CC).`;
   const splitPreambulo = doc.splitTextToSize(preambulo, 182);
   doc.text(splitPreambulo, 14, y);
   y += splitPreambulo.length * 3.8 + 5;
@@ -137,15 +137,15 @@ export function gerarContratoPdfBufferServer(dados: DadosContratoPdfServer): Uin
   doc.setFont("helvetica", "normal");
   doc.setTextColor(51, 65, 85);
 
-  const locadoraTexto = `LOCADORA: DARIO DE NOVAES GONÇALVES JÚNIOR - MEI, CNPJ nº 26.581.175/0001-23, com sede na Rua Dom Antônio Cabral, nº 225, Bairro São Luiz, Volta Redonda/RJ, CEP 27286-210, detentora da plataforma digital GD Rastreamento (https://gd.oficial.tec.br).`;
-  const splitLocadora = doc.splitTextToSize(locadoraTexto, 182);
-  doc.text(splitLocadora, 14, y);
-  y += splitLocadora.length * 3.6 + 3;
+  const contratadaTexto = `CONTRATADA: DARIO DE NOVAES GONÇALVES JÚNIOR - MEI, CNPJ nº 26.581.175/0001-23, com sede na Rua Dom Antônio Cabral, nº 225, Bairro São Luiz, Volta Redonda/RJ, CEP 27286-210, detentora da plataforma digital GD Segurança Privada (https://gd.oficial.tec.br).`;
+  const splitContratada = doc.splitTextToSize(contratadaTexto, 182);
+  doc.text(splitContratada, 14, y);
+  y += splitContratada.length * 3.6 + 3;
 
-  const locatarioTexto = `LOCATÁRIO: ${cliente?.nome_razao_social || "Cliente"}, inscrito(a) no CPF/CNPJ sob o nº ${formatarDocumento(cliente?.documento)}, Telefone/WhatsApp: ${formatarTelefone(cliente?.telefone)}, residente/sediado no endereço informado no cadastro da plataforma.`;
-  const splitLocatario = doc.splitTextToSize(locatarioTexto, 182);
-  doc.text(splitLocatario, 14, y);
-  y += splitLocatario.length * 3.6 + 5;
+  const contratanteTexto = `CONTRATANTE: ${cliente?.nome_razao_social || "Cliente"}, inscrito(a) no CPF/CNPJ sob o nº ${formatarDocumento(cliente?.documento)}, Telefone/WhatsApp: ${formatarTelefone(cliente?.telefone)}, residente/sediado no endereço informado no cadastro da plataforma.`;
+  const splitContratante = doc.splitTextToSize(contratanteTexto, 182);
+  doc.text(splitContratante, 14, y);
+  y += splitContratante.length * 3.6 + 5;
 
   // 2. Do Objeto
   doc.setFillColor(241, 245, 249);
@@ -162,7 +162,7 @@ export function gerarContratoPdfBufferServer(dados: DadosContratoPdfServer): Uin
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(51, 65, 85);
-  const objetoTexto = `Constitui objeto deste instrumento a locação onerosa de equipamento eletrônico de rastreamento veicular telemático GPS/GNSS devidamente HOMOLOGADO PELA ANATEL, acompanhado de chip SIM Card M2M/LTE dedicado para transmissão de dados (bens móveis infungíveis de propriedade da LOCADORA). A plataforma web e mobile GD Rastreamento é disponibilizada A TÍTULO GRATUITO E CORTESIA ao LOCATÁRIO para que este realize diretamente seu automonitoramento veicular no ${defPlano.rotulo} (${defPlano.nome}), sem taxa adicional de software (SaaS). Funcionalidades contempladas: ${obterDescritivoFuncionalidadesContrato(cliente?.plano)} Histórico de trajetos: ${diasVisiveisFinal} dias visíveis no aplicativo.`;
+  const objetoTexto = `Constitui objeto deste instrumento a prestação de serviços especializados de segurança privada, rastreamento tático veicular e proteção patrimonial, com a cessão em regime de comodato de equipamento eletrônico de rastreamento telemático GPS/GNSS devidamente HOMOLOGADO PELA ANATEL, acompanhado de chip SIM Card M2M/LTE dedicado para transmissão de dados. A plataforma web e mobile GD Segurança é disponibilizada ao CONTRATANTE para acompanhamento tático em tempo real no ${defPlano.rotulo} (${defPlano.nome}). Funcionalidades contempladas: ${obterDescritivoFuncionalidadesContrato(cliente?.plano)} Histórico de trajetos: ${diasVisiveisFinal} dias visíveis no aplicativo.`;
   const splitObjeto = doc.splitTextToSize(objetoTexto, 182);
   doc.text(splitObjeto, 14, y);
   y += splitObjeto.length * 3.6 + 5;
@@ -173,7 +173,7 @@ export function gerarContratoPdfBufferServer(dados: DadosContratoPdfServer): Uin
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text("3. VEÍCULOS VINCULADOS E ESPECIFICAÇÕES DOS BENS LOCADOS", 16, y + 4.5);
+  doc.text("3. VEÍCULOS VINCULADOS E ESPECIFICAÇÕES DOS EQUIPAMENTOS EM COMODATO", 16, y + 4.5);
   y += 8;
 
   if (veiculos && veiculos.length > 0) {
@@ -215,12 +215,12 @@ export function gerarContratoPdfBufferServer(dados: DadosContratoPdfServer): Uin
   y += 8;
 
   const clausulas = [
-    "CLÁUSULA 1ª - DA NÃO INCIDÊNCIA DE SEGURANÇA PRIVADA: A presente contratação restringe-se exclusivamente à LOCAÇÃO DE BEM MÓVEL. A LOCADORA NÃO PRESTA SERVIÇOS DE SEGURANÇA PRIVADA, vigilância armada, pronta resposta ou escolta armada, não se enquadrando nas atividades da Lei nº 14.967/2024 e não estando sujeita a registro ou fiscalização pela Polícia Federal.",
-    "CLÁUSULA 2ª - DA AUSÊNCIA DE SEGURO PATRIMONIAL: Este contrato NÃO CONSTITUI SEGURO OU PROTEÇÃO VEICULAR e não garante a recuperação do veículo em caso de furto, roubo ou sinistro. O sistema é uma ferramenta de auxílio ao automonitoramento pelo próprio contratante.",
-    "CLÁUSULA 3ª - DO AUTOMONITORAMENTO, REPOUSO PROGRAMADO E ÁREAS DE SILÊNCIO ELETROMAGNÉTICO: O funcionamento do equipamento depende de cobertura satelital (GPS) e sinais de telefonia celular móvel (LTE/4G). O serviço está sujeito a interferências técnicas alheias à LOCADORA, tais como áreas de sombra celular, zonas rurais, subsolos, garagens enclausuradas, túneis, galpões metálicos ou uso criminoso de bloqueadores (jammers). Com o veículo estacionado, o equipamento opera em ciclos programados de conservação. Em caso de corte de fiação, violação, remoção do aparelho ou deslocamento do veículo em locais desprovidos de cobertura de telefonia móvel, a plataforma exibirá estritamente as coordenadas do último ponto de comunicação válida com as antenas celulares, ficando a LOCADORA isenta de qualquer responsabilidade caso o veículo seja deslocado desprovido do rastreador ou sob zonas de silêncio eletromagnético.",
+    "CLÁUSULA 1ª - DOS SERVIÇOS DE SEGURANÇA E RASTREAMENTO TÁTICO: A CONTRATADA presta serviços especializados de segurança privada, rastreamento tático veicular e proteção patrimonial, com disponibilização da plataforma digital para acompanhamento em tempo real.",
+    "CLÁUSULA 2ª - DA PROTEÇÃO E GESTÃO PATRIMONIAL: O presente contrato tem por escopo o rastreamento tático, monitoramento e gestão patrimonial preventiva. Havendo sinistro, furto ou roubo, a CONTRATADA prestará apoio técnico de telemetria e o CONTRATANTE acionará as autoridades públicas competentes.",
+    "CLÁUSULA 3ª - DO MONITORAMENTO, CONECTIVIDADE E ÁREAS DE SILÊNCIO ELETROMAGNÉTICO: O funcionamento do equipamento depende de cobertura satelital (GPS) e sinais de telefonia celular móvel (LTE/4G). O serviço está sujeito a interferências técnicas alheias à CONTRATADA, tais como áreas de sombra celular, zonas rurais, subsolos, garagens enclausuradas, túneis, galpões metálicos ou uso criminoso de bloqueadores (jammers). Com o veículo estacionado, o equipamento opera em ciclos programados de conservação. Em caso de corte de fiação, violação, remoção do aparelho ou deslocamento do veículo em locais desprovidos de cobertura de telefonia móvel, a plataforma exibirá estritamente as coordenadas do último ponto de comunicação válida com as antenas celulares, ficando a CONTRATADA isenta de responsabilidade caso o veículo seja deslocado desprovido do rastreador ou sob zonas de silêncio eletromagnético.",
     "CLÁUSULA 4ª - DA VIGÊNCIA E RESCISÃO: O contrato possui vigência inicial de 12 meses, prorrogável automaticamente por iguais períodos, salvo manifestação em contrário com antecedência de 30 dias. O encerramento imotivado antes do prazo inicial sujeita à multa compensatória de 20% do saldo restante.",
-    "CLÁUSULA 5ª - DO REGIME DE LOCAÇÃO E DEVOLUÇÃO: Os rastreadores e chips M2M permanecem como propriedade exclusiva da LOCADORA. Encerrado o contrato por qualquer motivo, o LOCATÁRIO compromete-se a devolver os equipamentos no prazo de 10 dias úteis, sob pena de indenização de R$ 450,00 por rastreador e R$ 50,00 por chip.",
-    "CLÁUSULA 6ª - DA PROTEÇÃO DE DADOS (LGPD): Em conformidade com a Lei nº 13.709/2018, os dados de posicionamento são tratados exclusivamente para a execução do contrato de automonitoramento, sendo mantidos sob rígidos controles de segurança cibernética e sigilo.",
+    "CLÁUSULA 5ª - DO REGIME DE COMODATO E DEVOLUÇÃO: Os rastreadores e chips M2M são cedidos em regime de comodato enquanto perdurar a contratação. Encerrado o contrato por qualquer motivo, o CONTRATANTE compromete-se a devolver os equipamentos no prazo de 10 dias úteis, sob pena de indenização de R$ 450,00 por rastreador e R$ 50,00 por chip.",
+    "CLÁUSULA 6ª - DA PROTEÇÃO DE DADOS (LGPD): Em conformidade com a Lei nº 13.709/2018, os dados de posicionamento são tratados exclusivamente para a execução do contrato de segurança e rastreamento, sendo mantidos sob rígidos controles de segurança cibernética e sigilo.",
     "CLÁUSULA 7ª - DA ASSINATURA ELETRÔNICA E FORÇA EXECUTIVA: As partes reconhecem a plena validade jurídica, integridade e eficácia executiva do presente instrumento assinado eletronicamente por meio digital (Art. 10, § 2º da MP nº 2.200-2/2001 e Art. 784, III do CPC).",
     "CLÁUSULA 8ª - DO FORO DE ELEIÇÃO: Fica eleito o Foro da Comarca de Volta Redonda/RJ para dirimir eventuais dúvidas ou controvérsias decorrentes deste contrato, com renúncia de qualquer outro.",
   ];

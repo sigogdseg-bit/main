@@ -126,7 +126,7 @@ describe("SKILL dev-bot — Atendimento ao Público em Geral via WhatsApp", () =
     assert.match(res.resposta, /Rodrigo/);
     assert.match(res.resposta, /Assistente GD/);
     assert.match(res.resposta, /1.*Conhecer Planos e Benefícios/);
-    assert.match(res.resposta, /2.*Como Funciona o Auto-Monitoramento/);
+    assert.match(res.resposta, /2.*Como Funciona o Sistema de Rastreamento/);
     assert.match(res.resposta, /3.*Consultar Vendedor Credenciado/);
     assert.match(res.resposta, /4.*Falar com Atendente Humano/);
 
@@ -167,7 +167,7 @@ describe("SKILL dev-bot — Atendimento ao Público em Geral via WhatsApp", () =
     assert.doesNotMatch(res.resposta, /R\$ 65,00/);
   });
 
-  it("3. Visitante escolhe Opção 2 e recebe explicação de como funciona a locação para auto-monitoramento", async () => {
+  it("3. Visitante escolhe Opção 2 e recebe explicação de como funciona o rastreamento e segurança", async () => {
     const supabase = criarMockSupabaseParaDevBot({
       sessoes: [
         {
@@ -189,8 +189,8 @@ describe("SKILL dev-bot — Atendimento ao Público em Geral via WhatsApp", () =
 
     assert.equal(res.sucesso, true);
     assert.equal(res.acaoExecutada, "atendimento_publico_como_funciona");
-    assert.match(res.resposta, /Como Funciona a Locação e o Auto-Monitoramento/);
-    assert.match(res.resposta, /Auto-Monitoramento no App/);
+    assert.match(res.resposta, /Como Funciona o Rastreamento e Segurança GD/);
+    assert.match(res.resposta, /Monitoramento no App/);
     assert.match(res.resposta, /Autonomia e Bloqueio/);
   });
 
@@ -454,8 +454,8 @@ describe("SKILL dev-bot — Atendimento ao Público em Geral via WhatsApp", () =
     assert.doesNotMatch(planos, /R\$ 45,00/);
 
     const comoFunciona = obterRespostaComoFuncionaDevBot();
-    assert.match(comoFunciona, /Locação com Homologação/);
-    assert.match(comoFunciona, /Auto-Monitoramento no App/);
+    assert.match(comoFunciona, /Equipamento Homologado/);
+    assert.match(comoFunciona, /Monitoramento no App/);
     assert.match(comoFunciona, /Autonomia e Bloqueio/);
   });
 

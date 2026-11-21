@@ -155,6 +155,9 @@ export function obterModulosPadraoPorPerfil(role: HunterRole): string[] {
   if (role === "financeiro") {
     return [...MODULOS_PADRAO_FINANCEIRO];
   }
+  if (role === "vigilante") {
+    return ["vigilantes"];
+  }
   if (role === "instalador") {
     return ["instalacao"];
   }

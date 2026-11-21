@@ -10,6 +10,11 @@ import type {
   RondaCheckpoint,
   TurnoVigilancia,
   RegistroRonda,
+  CicloRondaExecucao,
+  CheckpointExecutado,
+  StatusCheckinRonda,
+  TransmissaoPosicaoVigilante,
+  AlertaRondaVigilante,
 } from "../types";
 
 function gerarId(): string {
@@ -64,6 +69,8 @@ export async function salvarVigilante(vigilante: Partial<Vigilante>): Promise<Vi
           cpf: vigilante.cpf || null,
           matricula: vigilante.matricula || null,
           telefone: vigilante.telefone || null,
+          email: vigilante.email || null,
+          usuario_id: vigilante.usuario_id || null,
           turno_padrao: vigilante.turno_padrao || "12x36",
           ativo: vigilante.ativo ?? true,
           observacoes: vigilante.observacoes || null,
@@ -81,6 +88,8 @@ export async function salvarVigilante(vigilante: Partial<Vigilante>): Promise<Vi
           cpf: vigilante.cpf || null,
           matricula: vigilante.matricula || null,
           telefone: vigilante.telefone || null,
+          email: vigilante.email || null,
+          usuario_id: vigilante.usuario_id || null,
           turno_padrao: vigilante.turno_padrao || "12x36",
           ativo: vigilante.ativo ?? true,
           observacoes: vigilante.observacoes || null,
@@ -111,6 +120,8 @@ export async function salvarVigilante(vigilante: Partial<Vigilante>): Promise<Vi
         cpf: vigilante.cpf || null,
         matricula: vigilante.matricula || null,
         telefone: vigilante.telefone || null,
+        email: vigilante.email || null,
+        usuario_id: vigilante.usuario_id || null,
         turno_padrao: vigilante.turno_padrao || "12x36",
         ativo: vigilante.ativo ?? true,
         observacoes: vigilante.observacoes || null,
@@ -477,11 +488,15 @@ export async function carregarCheckpoints(postoId: string): Promise<RondaCheckpo
 }
 
 /**
- * Salva ou atualiza um checkpoint com horário e tolerância estrita de 3 minutos
+ * Salva ou atualiza um checkpoint com suporte a tempo de deslocamento relativo e tolerância de 3 minutos
  */
 export async function salvarCheckpoint(
   checkpoint: Partial<RondaCheckpoint>,
 ): Promise<RondaCheckpoint | null> {
+  const horarioPrevistoFinal = checkpoint.horario_previsto || "00:00:00";
+  const toleranciaFinal = checkpoint.tolerancia_minutos ?? 3;
+  const raioFinal = checkpoint.raio_captura_metros ?? 15;
+
   try {
     if (checkpoint.id) {
       const { data, error } = await supabase
@@ -491,10 +506,12 @@ export async function salvarCheckpoint(
           latitude: checkpoint.latitude,
           longitude: checkpoint.longitude,
           ordem: checkpoint.ordem ?? 1,
-          horario_previsto: checkpoint.horario_previsto,
-          tolerancia_minutos: checkpoint.tolerancia_minutos ?? 3,
-          raio_captura_metros: checkpoint.raio_captura_metros ?? 5,
+          horario_previsto: horarioPrevistoFinal,
+          tolerancia_minutos: toleranciaFinal,
+          raio_captura_metros: raioFinal,
           cor_marcador: checkpoint.cor_marcador || "#2563eb",
+          tempo_deslocamento_minutos: checkpoint.tempo_deslocamento_minutos ?? null,
+          distancia_metros: checkpoint.distancia_metros ?? null,
           ativo: checkpoint.ativo ?? true,
         })
         .eq("id", checkpoint.id)
@@ -510,10 +527,12 @@ export async function salvarCheckpoint(
           latitude: checkpoint.latitude!,
           longitude: checkpoint.longitude!,
           ordem: checkpoint.ordem ?? 1,
-          horario_previsto: checkpoint.horario_previsto!,
-          tolerancia_minutos: checkpoint.tolerancia_minutos ?? 3,
-          raio_captura_metros: checkpoint.raio_captura_metros ?? 5,
+          horario_previsto: horarioPrevistoFinal,
+          tolerancia_minutos: toleranciaFinal,
+          raio_captura_metros: raioFinal,
           cor_marcador: checkpoint.cor_marcador || "#2563eb",
+          tempo_deslocamento_minutos: checkpoint.tempo_deslocamento_minutos ?? null,
+          distancia_metros: checkpoint.distancia_metros ?? null,
           ativo: checkpoint.ativo ?? true,
         })
         .select()
@@ -530,24 +549,30 @@ export async function salvarCheckpoint(
     const raw = localStorage.getItem(`gd_checkpoints_${postoId}`);
     const lista: RondaCheckpoint[] = raw ? JSON.parse(raw) : [];
 
-    if (checkpoint.id) {
-      const idx = lista.findIndex((c) => c.id === checkpoint.id);
-      if (idx >= 0) {
-        lista[idx] = { ...lista[idx], ...checkpoint } as RondaCheckpoint;
-        localStorage.setItem(`gd_checkpoints_${postoId}`, JSON.stringify(lista));
-        return lista[idx];
-      }
+    const idx = checkpoint.id ? lista.findIndex((c) => c.id === checkpoint.id) : -1;
+    if (idx >= 0) {
+      lista[idx] = {
+        ...lista[idx],
+        ...checkpoint,
+        tolerancia_minutos: toleranciaFinal,
+        raio_captura_metros: raioFinal,
+        horario_previsto: horarioPrevistoFinal,
+      } as RondaCheckpoint;
+      localStorage.setItem(`gd_checkpoints_${postoId}`, JSON.stringify(lista));
+      return lista[idx];
     } else {
       const novo: RondaCheckpoint = {
-        id: gerarId(),
+        id: checkpoint.id || gerarId(),
         posto_id: postoId,
         nome: checkpoint.nome!,
         latitude: checkpoint.latitude!,
         longitude: checkpoint.longitude!,
         ordem: checkpoint.ordem ?? lista.length + 1,
-        horario_previsto: checkpoint.horario_previsto!,
-        tolerancia_minutos: checkpoint.tolerancia_minutos ?? 3,
-        raio_captura_metros: checkpoint.raio_captura_metros ?? 5,
+        horario_previsto: horarioPrevistoFinal,
+        tempo_deslocamento_minutos: checkpoint.tempo_deslocamento_minutos ?? 5,
+        distancia_metros: checkpoint.distancia_metros ?? 100,
+        tolerancia_minutos: toleranciaFinal,
+        raio_captura_metros: raioFinal,
         cor_marcador: checkpoint.cor_marcador || "#2563eb",
         ativo: true,
         created_at: new Date().toISOString(),
@@ -560,6 +585,390 @@ export async function salvarCheckpoint(
     /* ignore */
   }
   return null;
+}
+
+/**
+ * Calcula automaticamente a rota sequencial circular e o tempo de deslocamento entre os checkpoints do posto
+ * com margem de tolerância padrão de ±3 minutos (ajustável).
+ * Velocidade média tática a pé/patrulha estimada em ~4.5 km/h (~75 metros por minuto).
+ */
+export async function calcularTemposDeslocamentoCheckpoints(
+  postoId: string,
+  checkpoints: RondaCheckpoint[],
+): Promise<RondaCheckpoint[]> {
+  if (!checkpoints || checkpoints.length === 0) return [];
+
+  // Ordena os checkpoints por sequência estrita
+  const ordenados = [...checkpoints].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  const atualizados: RondaCheckpoint[] = [];
+
+  for (let i = 0; i < ordenados.length; i++) {
+    const cpAtual = ordenados[i];
+    // Ponto de referência anterior: no primeiro ponto (i = 0), a referência é o último ponto (circuito circular de ronda)
+    const cpAnterior = i === 0 ? ordenados[ordenados.length - 1] : ordenados[i - 1];
+
+    let distanciaMetros = 0;
+    let minutosEstimados = 5; // Padrão seguro para ronda em posto
+
+    if (
+      cpAnterior &&
+      (cpAnterior.latitude !== cpAtual.latitude || cpAnterior.longitude !== cpAtual.longitude)
+    ) {
+      distanciaMetros = Math.round(
+        calcularDistanciaMetros(
+          cpAnterior.latitude,
+          cpAnterior.longitude,
+          cpAtual.latitude,
+          cpAtual.longitude,
+        ),
+      );
+
+      // Velocidade estimada de patrulha a pé/perimetral: 75 m/min (~4.5 km/h)
+      // Mínimo 2 minutos se houver distância; caso contrário, proporcional
+      minutosEstimados = Math.max(2, Math.ceil(distanciaMetros / 75));
+    }
+
+    const checkpointAtualizado: RondaCheckpoint = {
+      ...cpAtual,
+      ordem: i + 1,
+      distancia_metros: distanciaMetros,
+      tempo_deslocamento_minutos: cpAtual.tempo_deslocamento_minutos ?? minutosEstimados,
+      tolerancia_minutos: cpAtual.tolerancia_minutos ?? 3,
+      raio_captura_metros: cpAtual.raio_captura_metros ?? 15,
+    };
+
+    // Persiste atualização
+    await salvarCheckpoint(checkpointAtualizado);
+    atualizados.push(checkpointAtualizado);
+  }
+
+  try {
+    localStorage.setItem(`gd_checkpoints_${postoId}`, JSON.stringify(atualizados));
+  } catch {}
+
+  return atualizados;
+}
+
+/**
+ * Inicia um ciclo dinâmico de ronda 24h contínua no posto.
+ * O relógio parte do momento exato do primeiro ponto; os horários dos pontos subsequentes
+ * são projetados dinamicamente somando o tempo de deslocamento estipulado.
+ */
+export async function iniciarCicloRonda(
+  postoId: string,
+  vigilanteId: string,
+  turnoId?: string | null,
+  pontoPartidaOrdem: number = 1,
+): Promise<CicloRondaExecucao> {
+  const checkpoints = await carregarCheckpoints(postoId);
+  const ordenados = [...checkpoints].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+
+  // Reordena circularmente caso o vigilante comece a partir de um ponto intermediário
+  let listaReordenada = ordenados;
+  const idxInicio = ordenados.findIndex((c) => c.ordem === pontoPartidaOrdem);
+  if (idxInicio > 0) {
+    listaReordenada = [...ordenados.slice(idxInicio), ...ordenados.slice(0, idxInicio)];
+  }
+
+  const agora = new Date();
+  let minutosAcumulados = 0;
+
+  const checkpointsExecutados: CheckpointExecutado[] = listaReordenada.map((cp, idx) => {
+    if (idx > 0) {
+      minutosAcumulados += cp.tempo_deslocamento_minutos ?? 5;
+    }
+    const horaPrevista = new Date(agora.getTime() + minutosAcumulados * 60000).toISOString();
+
+    return {
+      checkpoint_id: cp.id,
+      ordem: idx + 1,
+      nome: cp.nome,
+      hora_prevista: horaPrevista,
+      status: "pendente",
+    };
+  });
+
+  // Determina número do ciclo
+  let numeroCiclo = 1;
+  try {
+    const raw = localStorage.getItem(`gd_ciclos_ronda_${postoId}`);
+    if (raw) {
+      const ciclos: CicloRondaExecucao[] = JSON.parse(raw);
+      if (Array.isArray(ciclos) && ciclos.length > 0) {
+        numeroCiclo = ciclos.length + 1;
+      }
+    }
+  } catch {}
+
+  const novoCiclo: CicloRondaExecucao = {
+    id: gerarId(),
+    posto_id: postoId,
+    vigilante_id: vigilanteId,
+    turno_id: turnoId || null,
+    ciclo_numero: numeroCiclo,
+    ponto_partida_ordem: pontoPartidaOrdem,
+    data_inicio: agora.toISOString(),
+    status: "em_andamento",
+    checkpoints_executados: checkpointsExecutados,
+    created_at: agora.toISOString(),
+    updated_at: agora.toISOString(),
+  };
+
+  try {
+    const raw = localStorage.getItem(`gd_ciclos_ronda_${postoId}`);
+    const lista: CicloRondaExecucao[] = raw ? JSON.parse(raw) : [];
+    lista.unshift(novoCiclo);
+    localStorage.setItem(`gd_ciclos_ronda_${postoId}`, JSON.stringify(lista));
+  } catch {}
+
+  try {
+    await supabase.from("rondas_execucoes" as any).insert({
+      id: novoCiclo.id,
+      posto_id: novoCiclo.posto_id,
+      vigilante_id: novoCiclo.vigilante_id,
+      turno_id: novoCiclo.turno_id,
+      ciclo_numero: novoCiclo.ciclo_numero,
+      data_inicio: novoCiclo.data_inicio,
+      status: novoCiclo.status,
+      checkpoints_executados: novoCiclo.checkpoints_executados,
+    });
+  } catch {
+    /* Fallback local garantido */
+  }
+
+  return novoCiclo;
+}
+
+/**
+ * Validação com Presença Física e GPS Absoluto de Alta Precisão.
+ * Trava 1: Precisão do sensor GPS (rejeita accuracy > 25m).
+ * Trava 2: Raio de captura físico do checkpoint.
+ * Avaliação da janela de conformidade dinâmica com tolerância de ±3 minutos.
+ */
+export async function registrarCheckinGpsAbsoluto(
+  cicloId: string,
+  checkpointId: string,
+  latitude: number,
+  longitude: number,
+  precisaoGpsMetros: number,
+): Promise<{
+  sucesso: boolean;
+  mensagem: string;
+  status?: StatusCheckinRonda;
+  distanciaAferidaMetros?: number;
+  precisaoGpsMetros?: number;
+  cicloAtualizado?: CicloRondaExecucao;
+}> {
+  // TRAVA DE PRECISÃO ABSOLUTA DO SENSOR GNSS
+  if (!precisaoGpsMetros || precisaoGpsMetros > 25) {
+    return {
+      sucesso: false,
+      mensagem: `Precisão do GPS insuficiente (±${Math.round(precisaoGpsMetros || 99)}m). Aproxime-se de área a céu aberto para fixação precisa por satélite (tolerância máxima: ±25m).`,
+      precisaoGpsMetros: Math.round(precisaoGpsMetros || 99),
+    };
+  }
+
+  // Localiza o ciclo ativo
+  let ciclo: CicloRondaExecucao | null = null;
+  let postoId = "";
+
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("gd_ciclos_ronda_")) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const lista: CicloRondaExecucao[] = JSON.parse(raw);
+          const c = lista.find((item) => item.id === cicloId);
+          if (c) {
+            ciclo = c;
+            postoId = c.posto_id;
+            break;
+          }
+        }
+      }
+    }
+  } catch {}
+
+  if (!ciclo) {
+    return { sucesso: false, mensagem: "Ciclo de ronda não localizado ou expirado." };
+  }
+
+  const checkpointsPosto = await carregarCheckpoints(postoId);
+  const cpCadastro = checkpointsPosto.find((c) => c.id === checkpointId);
+  if (!cpCadastro) {
+    return { sucesso: false, mensagem: "Checkpoint não cadastrado no posto." };
+  }
+
+  const cpExecIndex = ciclo.checkpoints_executados.findIndex(
+    (c) => c.checkpoint_id === checkpointId && c.status === "pendente",
+  );
+
+  if (cpExecIndex < 0) {
+    return { sucesso: false, mensagem: "Este ponto já foi registrado ou não está pendente." };
+  }
+
+  // TRAVA GEODÉSICA DE PRESENÇA FÍSICA NO PONTO (HAVERSINE)
+  const distanciaMetros = calcularDistanciaMetros(
+    latitude,
+    longitude,
+    cpCadastro.latitude,
+    cpCadastro.longitude,
+  );
+
+  const raioPermitido = cpCadastro.raio_captura_metros ?? 15;
+  // Margem física: raio cadastrado + tolerância do sensor (máximo de 25m total)
+  const raioEfetivoMaximo = Math.max(raioPermitido, Math.min(25, precisaoGpsMetros + 5));
+
+  if (distanciaMetros > raioEfetivoMaximo) {
+    return {
+      sucesso: false,
+      mensagem: `Você está a ${Math.round(distanciaMetros)}m do ponto "${cpCadastro.nome}". Desloque-se até o local físico do checkpoint (raio permitido: ${raioPermitido}m).`,
+      distanciaAferidaMetros: Math.round(distanciaMetros),
+      precisaoGpsMetros: Math.round(precisaoGpsMetros),
+    };
+  }
+
+  // AVALIAÇÃO DA JANELA DE CONFORMIDADE COM TOLERÂNCIA DE ±3 MINUTOS
+  const agora = new Date();
+  const cpExec = ciclo.checkpoints_executados[cpExecIndex];
+  const horaPrevista = new Date(cpExec.hora_prevista);
+  const diferencaMinutos = (agora.getTime() - horaPrevista.getTime()) / 60000;
+  const tolerancia = cpCadastro.tolerancia_minutos ?? 3;
+
+  let statusCalculado: StatusCheckinRonda = "conforme";
+  if (diferencaMinutos > tolerancia) {
+    statusCalculado = "atrasado";
+  } else if (diferencaMinutos < -tolerancia) {
+    statusCalculado = "adiantado";
+  }
+
+  // Registra a passagem física auditada
+  ciclo.checkpoints_executados[cpExecIndex] = {
+    ...cpExec,
+    hora_realizada: agora.toISOString(),
+    latitude_aferida: latitude,
+    longitude_aferida: longitude,
+    precisao_gps_metros: Math.round(precisaoGpsMetros),
+    distancia_aferida_metros: Math.round(distanciaMetros),
+    status: statusCalculado,
+  };
+
+  // INÍCIO DINÂMICO PARA OS PONTOS SUBSEQUENTES
+  // Recalcula o horário previsto dos próximos pontos pendentes a partir deste instante de check-in
+  let acumuladorMinutos = 0;
+  for (let j = cpExecIndex + 1; j < ciclo.checkpoints_executados.length; j++) {
+    const cpPendente = ciclo.checkpoints_executados[j];
+    const cpRef = checkpointsPosto.find((c) => c.id === cpPendente.checkpoint_id);
+    acumuladorMinutos += cpRef?.tempo_deslocamento_minutos ?? 5;
+    cpPendente.hora_prevista = new Date(agora.getTime() + acumuladorMinutos * 60000).toISOString();
+  }
+
+  // Verifica se todos os pontos do ciclo foram concluídos
+  const restamPendentes = ciclo.checkpoints_executados.some((c) => c.status === "pendente");
+  if (!restamPendentes) {
+    ciclo.status = "concluido";
+    ciclo.data_fim = agora.toISOString();
+  }
+  ciclo.updated_at = agora.toISOString();
+
+  // Persiste atualização no localStorage
+  try {
+    const raw = localStorage.getItem(`gd_ciclos_ronda_${postoId}`);
+    if (raw) {
+      const lista: CicloRondaExecucao[] = JSON.parse(raw);
+      const idx = lista.findIndex((c) => c.id === ciclo!.id);
+      if (idx >= 0) {
+        lista[idx] = ciclo;
+        localStorage.setItem(`gd_ciclos_ronda_${postoId}`, JSON.stringify(lista));
+      }
+    }
+  } catch {}
+
+  try {
+    await supabase
+      .from("rondas_execucoes" as any)
+      .update({
+        status: ciclo.status,
+        data_fim: ciclo.data_fim || null,
+        checkpoints_executados: ciclo.checkpoints_executados,
+        updated_at: ciclo.updated_at,
+      })
+      .eq("id", ciclo.id);
+  } catch {}
+
+  const statusMsg =
+    statusCalculado === "conforme"
+      ? "Presença validada no horário com GPS absoluto!"
+      : statusCalculado === "atrasado"
+        ? `Presença registrada com atraso (+${Math.round(diferencaMinutos)}min além da janela tolerada).`
+        : `Presença registrada com antecedência (${Math.round(Math.abs(diferencaMinutos))}min antes).`;
+
+  return {
+    sucesso: true,
+    mensagem: `Ponto "${cpCadastro.nome}" registrado com sucesso! ${statusMsg}`,
+    status: statusCalculado,
+    distanciaAferidaMetros: Math.round(distanciaMetros),
+    precisaoGpsMetros: Math.round(precisaoGpsMetros),
+    cicloAtualizado: ciclo,
+  };
+}
+
+/**
+ * Carrega o ciclo ativo de ronda para um posto
+ */
+export async function carregarCicloAtivo(
+  postoId: string,
+  vigilanteId?: string,
+): Promise<CicloRondaExecucao | null> {
+  try {
+    const raw = localStorage.getItem(`gd_ciclos_ronda_${postoId}`);
+    if (raw) {
+      const lista: CicloRondaExecucao[] = JSON.parse(raw);
+      const ativo = lista.find(
+        (c) => c.status === "em_andamento" && (!vigilanteId || c.vigilante_id === vigilanteId),
+      );
+      if (ativo) return ativo;
+    }
+  } catch {}
+
+  try {
+    let query = supabase
+      .from("rondas_execucoes" as any)
+      .select("*")
+      .eq("posto_id", postoId)
+      .eq("status", "em_andamento")
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (vigilanteId) {
+      query = query.eq("vigilante_id", vigilanteId);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (!error && data) {
+      return data as unknown as CicloRondaExecucao;
+    }
+  } catch {}
+
+  return null;
+}
+
+/**
+ * Busca escalas agendadas ou ativas de um vigilante
+ */
+export async function carregarEscalasDoVigilante(
+  vigilanteId: string,
+  data?: string,
+): Promise<TurnoVigilancia[]> {
+  try {
+    const todosTurnos = await carregarTurnos();
+    return todosTurnos.filter(
+      (t) => t.vigilante_id === vigilanteId && (!data || t.data_turno === data),
+    );
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -848,4 +1257,289 @@ export function avaliarPosicaoVigilante(
     dentroDoPerimetro,
     checkpointMaisProximo: maisProximo,
   };
+}
+
+/**
+ * Calcula a menor distância em metros de um ponto (lat, lng) até o segmento de reta entre ponto A e ponto B
+ */
+export function calcularMenorDistanciaAteSegmentoMetros(
+  pontoLat: number,
+  pontoLng: number,
+  aLat: number,
+  aLng: number,
+  bLat: number,
+  bLng: number,
+): number {
+  const dx = bLng - aLng;
+  const dy = bLat - aLat;
+  const lenSq = dx * dx + dy * dy;
+
+  if (lenSq === 0) {
+    return calcularDistanciaMetros(pontoLat, pontoLng, aLat, aLng);
+  }
+
+  // Projeção escalar t limitada a [0, 1]
+  const t = Math.max(0, Math.min(1, ((pontoLng - aLng) * dx + (pontoLat - aLat) * dy) / lenSq));
+
+  const projLat = aLat + t * dy;
+  const projLng = aLng + t * dx;
+
+  return calcularDistanciaMetros(pontoLat, pontoLng, projLat, projLng);
+}
+
+/**
+ * Avalia se o vigilante está desviado da rota estipulada de ronda ou fora do perímetro
+ * Tolerância padrão de afastamento do trajeto da rota: 45 metros.
+ */
+export function verificarDesvioRotaVigilante(
+  posicao: { latitude: number; longitude: number },
+  posto: PostoVigilancia,
+  checkpoints: RondaCheckpoint[],
+  toleranciaAfastamentoMetros: number = 45,
+): { emDesvio: boolean; motivo: string; distanciaMetros: number } {
+  if (!posicao.latitude || !posicao.longitude) {
+    return { emDesvio: false, motivo: "Sem coordenadas válidas", distanciaMetros: 0 };
+  }
+
+  // 1. Verificação de Perímetro da Propriedade / Posto
+  if (posto.perimetro_poligono?.coordinates && posto.perimetro_poligono.coordinates.length >= 3) {
+    const dentroPoligono = pontoDentroDoPoligono(
+      [posicao.latitude, posicao.longitude],
+      posto.perimetro_poligono.coordinates,
+    );
+    if (!dentroPoligono) {
+      const distCentro = calcularDistanciaMetros(
+        posicao.latitude,
+        posicao.longitude,
+        posto.latitude,
+        posto.longitude,
+      );
+      return {
+        emDesvio: true,
+        motivo: `Vigilante fora do perímetro delimitado da propriedade (${Math.round(distCentro)}m do centro)`,
+        distanciaMetros: Math.round(distCentro),
+      };
+    }
+  } else if (posto.latitude && posto.longitude) {
+    const distPosto = calcularDistanciaMetros(
+      posicao.latitude,
+      posicao.longitude,
+      posto.latitude,
+      posto.longitude,
+    );
+    const raioMax = (posto.raio_metros || 100) + 25;
+    if (distPosto > raioMax) {
+      return {
+        emDesvio: true,
+        motivo: `Vigilante fora do raio do posto (${Math.round(distPosto)}m, limite: ${raioMax}m)`,
+        distanciaMetros: Math.round(distPosto),
+      };
+    }
+  }
+
+  // 2. Verificação de Afastamento da Rota entre Checkpoints
+  if (checkpoints && checkpoints.length >= 2) {
+    const pontosOrdenados = [...checkpoints].sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+    let menorDistanciaRota = Infinity;
+
+    for (let i = 0; i < pontosOrdenados.length; i++) {
+      const p1 = pontosOrdenados[i];
+      const p2 = pontosOrdenados[(i + 1) % pontosOrdenados.length];
+      const distSegmento = calcularMenorDistanciaAteSegmentoMetros(
+        posicao.latitude,
+        posicao.longitude,
+        p1.latitude,
+        p1.longitude,
+        p2.latitude,
+        p2.longitude,
+      );
+      if (distSegmento < menorDistanciaRota) {
+        menorDistanciaRota = distSegmento;
+      }
+    }
+
+    if (menorDistanciaRota > toleranciaAfastamentoMetros) {
+      return {
+        emDesvio: true,
+        motivo: `Afastamento de ${Math.round(menorDistanciaRota)}m do trajeto estipulado da rota (tolerância: ${toleranciaAfastamentoMetros}m)`,
+        distanciaMetros: Math.round(menorDistanciaRota),
+      };
+    }
+
+    return {
+      emDesvio: false,
+      motivo: "Vigilante no trajeto correto da rota",
+      distanciaMetros: Math.round(menorDistanciaRota),
+    };
+  }
+
+  return { emDesvio: false, motivo: "Dentro da área do posto", distanciaMetros: 0 };
+}
+
+/**
+ * Verifica se o próximo checkpoint do ciclo de ronda está com horário estipulado atrasado (+3 min)
+ */
+export function verificarAtrasoProximoPonto(
+  postoId: string,
+  ciclo: CicloRondaExecucao,
+  checkpoints: RondaCheckpoint[],
+  agora: Date = new Date(),
+): {
+  atrasado: boolean;
+  checkpoint?: RondaCheckpoint;
+  atrasoMinutos: number;
+  horaPrevista?: string;
+  mensagem?: string;
+} {
+  if (!ciclo || ciclo.status !== "em_andamento" || !ciclo.checkpoints_executados) {
+    return { atrasado: false, atrasoMinutos: 0 };
+  }
+
+  const execPendente = ciclo.checkpoints_executados.find((c) => c.status === "pendente");
+  if (!execPendente || !execPendente.hora_prevista) {
+    return { atrasado: false, atrasoMinutos: 0 };
+  }
+
+  const cpRef = checkpoints.find((c) => c.id === execPendente.checkpoint_id);
+  const horaPrev = new Date(execPendente.hora_prevista);
+  const diffMinutos = (agora.getTime() - horaPrev.getTime()) / 60000;
+  const tolerancia = cpRef?.tolerancia_minutos ?? 3;
+
+  if (diffMinutos > tolerancia) {
+    const atraso = Math.round(diffMinutos);
+    const nomePonto = cpRef?.nome || "Próximo Ponto";
+    const horaFmt = horaPrev.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    return {
+      atrasado: true,
+      checkpoint: cpRef,
+      atrasoMinutos: atraso,
+      horaPrevista: execPendente.hora_prevista,
+      mensagem: `Ponto de ronda não atingido no tempo estipulado! "${nomePonto}" deveria ter sido alcançado às ${horaFmt} (${atraso} min além da margem de ±${tolerancia} min).`,
+    };
+  }
+
+  return {
+    atrasado: false,
+    checkpoint: cpRef,
+    atrasoMinutos: 0,
+    horaPrevista: execPendente.hora_prevista,
+  };
+}
+
+// Cache em memória para anti-spam de alertas (90s)
+const ultimosAlertasDisparados = new Map<string, number>();
+
+/**
+ * Transmite a posição ao vivo do vigilante para a Central de Monitoramento via Realtime e Broadcast
+ */
+export async function transmitirPosicaoVigilanteAoVivo(
+  dados: TransmissaoPosicaoVigilante,
+): Promise<void> {
+  const payload = {
+    ...dados,
+    timestamp: dados.timestamp || new Date().toISOString(),
+  };
+
+  // 1. Grava no cache de localStorage
+  try {
+    localStorage.setItem(`gd_posicao_live_${dados.postoId}`, JSON.stringify(payload));
+    localStorage.setItem("gd_ultima_posicao_vigilante_global", JSON.stringify(payload));
+  } catch {}
+
+  // 2. Dispara evento local no navegador (para tabs e janelas locais responderem em 0ms)
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("hunter:posicao_vigilante_live", { detail: payload }));
+  }
+
+  // 3. Broadcast no canal Realtime dedicado do posto
+  try {
+    const canal = supabase.channel(`hunter_ronda_live_${dados.postoId}`);
+    await canal.send({
+      type: "broadcast",
+      event: "posicao_vigilante",
+      payload,
+    });
+  } catch {}
+}
+
+/**
+ * Registra e despacha alerta de ronda tática (desvio de rota ou atraso em checkpoint)
+ */
+export async function dispararAlertaRonda(dados: {
+  postoId: string;
+  postoNome?: string;
+  vigilanteId?: string;
+  vigilanteNome?: string;
+  tipo: "desvio_rota_vigilante" | "ausencia_checkpoint_vigilante";
+  gravidade?: "alta" | "critica";
+  latitude: number;
+  longitude: number;
+  detalhes: string;
+}): Promise<boolean> {
+  const chaveSpam = `${dados.postoId}_${dados.tipo}`;
+  const agoraMs = Date.now();
+  const ultimoDisparo = ultimosAlertasDisparados.get(chaveSpam);
+
+  // Anti-Spam: evita disparar o mesmo alerta com intervalo menor que 90 segundos
+  if (ultimoDisparo && agoraMs - ultimoDisparo < 90000) {
+    return false;
+  }
+  ultimosAlertasDisparados.set(chaveSpam, agoraMs);
+
+  const alertaObj: AlertaRondaVigilante = {
+    id: gerarId(),
+    postoId: dados.postoId,
+    postoNome: dados.postoNome,
+    vigilanteId: dados.vigilanteId || "vigilante-plantonista",
+    vigilanteNome: dados.vigilanteNome,
+    tipo: dados.tipo,
+    gravidade: dados.gravidade || "alta",
+    latitude: dados.latitude,
+    longitude: dados.longitude,
+    detalhes: dados.detalhes,
+    created_at: new Date().toISOString(),
+    reconhecido: false,
+  };
+
+  // 1. Salva em localStorage de alertas de ronda
+  try {
+    const raw = localStorage.getItem(`gd_alertas_ronda_${dados.postoId}`);
+    const lista: AlertaRondaVigilante[] = raw ? JSON.parse(raw) : [];
+    lista.unshift(alertaObj);
+    localStorage.setItem(`gd_alertas_ronda_${dados.postoId}`, JSON.stringify(lista.slice(0, 50)));
+  } catch {}
+
+  // 2. Dispara evento local para notificação imediata
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("hunter:alerta_ronda", { detail: alertaObj }));
+  }
+
+  // 3. Tenta salvar na tabela canônica alertas_seguranca do Supabase
+  try {
+    await supabase.from("alertas_seguranca").insert({
+      veiculo_id: dados.postoId,
+      cliente_id: "cliente-gd-seguranca",
+      tipo: dados.tipo,
+      gravidade: dados.gravidade || "alta",
+      latitude: dados.latitude,
+      longitude: dados.longitude,
+      velocidade: 0,
+      vibracao_g: 0,
+      inclinacao_graus: 0,
+      detalhes: dados.detalhes,
+      reconhecido: false,
+    });
+  } catch {}
+
+  // 4. Envia broadcast no canal de ronda ao vivo
+  try {
+    const canal = supabase.channel(`hunter_ronda_live_${dados.postoId}`);
+    await canal.send({
+      type: "broadcast",
+      event: "novo_alerta_ronda",
+      payload: alertaObj,
+    });
+  } catch {}
+
+  return true;
 }
