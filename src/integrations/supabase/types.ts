@@ -4,6 +4,7 @@ export type HunterRole =
   | "superadmin"
   | "adm"
   | "operador"
+  | "supervisor"
   | "cliente"
   | "locatario"
   | "instalador"
@@ -48,6 +49,8 @@ export interface Database {
           degustacao_primeiro_acesso_em?: string | null;
           degustacao_expira_em?: string | null;
           degustacao_revalidada_em?: string | null;
+          tipo_supervisor?: string | null;
+          acesso_veiculos?: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -70,6 +73,8 @@ export interface Database {
           degustacao_primeiro_acesso_em?: string | null;
           degustacao_expira_em?: string | null;
           degustacao_revalidada_em?: string | null;
+          tipo_supervisor?: string | null;
+          acesso_veiculos?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -79,6 +84,7 @@ export interface Database {
           email?: string;
           role?: HunterRole;
           ativo?: boolean;
+          cliente_id?: string | null;
           valor_por_instalacao?: number | null;
           chave_pix?: string | null;
           endereco_instalacao?: string | null;
@@ -91,6 +97,8 @@ export interface Database {
           degustacao_primeiro_acesso_em?: string | null;
           degustacao_expira_em?: string | null;
           degustacao_revalidada_em?: string | null;
+          tipo_supervisor?: string | null;
+          acesso_veiculos?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };

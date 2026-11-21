@@ -7,7 +7,7 @@ import React, {
   useRef,
   useMemo,
 } from "react";
-import type { UserSession, ClienteEmulado } from "../types";
+import type { UserSession, ClienteEmulado, ModoPerfilEmulado } from "../types";
 import type { HunterRole, PlanoCliente } from "@/integrations/supabase/types";
 import {
   carregarSessaoUsuario,
@@ -18,8 +18,10 @@ import {
 } from "../services/authService";
 import { supabase } from "@/integrations/supabase/client";
 import { carregarPreferenciasDoBanco } from "@/shared/lib/userPreferencesService";
+import { obterModulosPadraoPorPerfil } from "@/features/seguranca/services/usuarioService";
 
 const STORAGE_KEY_CLIENTE_EMULADO = "hunter_cliente_emulado";
+const STORAGE_KEY_PERFIL_EMULADO = "hunter_perfil_emulado";
 
 interface AuthContextValue {
   session: UserSession | null;
@@ -30,6 +32,8 @@ interface AuthContextValue {
   clienteEmulado: ClienteEmulado | null;
   emularCliente: (cliente: ClienteEmulado) => void;
   desfazerEmulacao: () => void;
+  perfilEmulado: ModoPerfilEmulado | null;
+  emularModoPerfil: (modo: ModoPerfilEmulado, cliente?: ClienteEmulado) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -46,7 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [carregando, setCarregando] = useState<boolean>(() => !obterSessaoCacheada());
   const [, startTransition] = useTransition();
 
-  // Emulação de Cliente para Super Administrador
+  // Emulação de Perfis e Clientes para Super Administrador
   const [clienteEmulado, setClienteEmulado] = useState<ClienteEmulado | null>(() => {
     if (typeof window !== "undefined") {
       try {
@@ -59,9 +63,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return null;
   });
 
+  const [perfilEmulado, setPerfilEmulado] = useState<ModoPerfilEmulado | null>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const salvo = localStorage.getItem(STORAGE_KEY_PERFIL_EMULADO);
+        return (salvo as ModoPerfilEmulado) || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
   const emularCliente = (cliente: ClienteEmulado) => {
     try {
       localStorage.setItem(STORAGE_KEY_CLIENTE_EMULADO, JSON.stringify(cliente));
+      localStorage.setItem(STORAGE_KEY_PERFIL_EMULADO, "cliente");
       // Reseta filtros residuais de veículos e clientes para isolamento perfeito no perfil do cliente
       localStorage.removeItem("@hunter_filtro_veiculos_ids");
       localStorage.removeItem("@hunter_filtro_clientes_ids");
@@ -69,11 +86,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(new Event("hunter_filtro_clientes_alterado"));
     } catch {}
     setClienteEmulado(cliente);
+    setPerfilEmulado("cliente");
   };
 
   const desfazerEmulacao = () => {
     try {
       localStorage.removeItem(STORAGE_KEY_CLIENTE_EMULADO);
+      localStorage.removeItem(STORAGE_KEY_PERFIL_EMULADO);
       // Reseta filtros ao voltar para SuperADM para restaurar visão global de toda a frota
       localStorage.removeItem("@hunter_filtro_veiculos_ids");
       localStorage.removeItem("@hunter_filtro_clientes_ids");
@@ -81,38 +100,212 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       window.dispatchEvent(new Event("hunter_filtro_clientes_alterado"));
     } catch {}
     setClienteEmulado(null);
+    setPerfilEmulado(null);
   };
 
-  // Sessão Efetiva: quando emulação estiver ativa para SuperADM/Admin, comporta-se 100% como Cliente
+  const emularModoPerfil = (modo: ModoPerfilEmulado, cliente?: ClienteEmulado) => {
+    if (modo === "superadmin") {
+      desfazerEmulacao();
+      return;
+    }
+
+    try {
+      localStorage.setItem(STORAGE_KEY_PERFIL_EMULADO, modo);
+      if (modo === "cliente" && cliente) {
+        localStorage.setItem(STORAGE_KEY_CLIENTE_EMULADO, JSON.stringify(cliente));
+        setClienteEmulado(cliente);
+      } else if (modo !== "cliente") {
+        localStorage.removeItem(STORAGE_KEY_CLIENTE_EMULADO);
+        setClienteEmulado(null);
+      }
+      localStorage.removeItem("@hunter_filtro_veiculos_ids");
+      localStorage.removeItem("@hunter_filtro_clientes_ids");
+      window.dispatchEvent(new Event("hunter_filtro_veiculos_alterado"));
+      window.dispatchEvent(new Event("hunter_filtro_clientes_alterado"));
+    } catch {}
+    setPerfilEmulado(modo);
+  };
+
+  // Sessão Efetiva: quando emulação estiver ativa para SuperADM/Admin, comporta-se exatamente como o perfil escolhido
   const sessionEfetiva: UserSession | null = useMemo(() => {
     if (!session) return null;
-    if (!clienteEmulado) return session;
 
-    // Apenas SuperAdmin ou Admin tem permissão para emular clientes
+    // Apenas SuperAdmin ou Admin tem permissão para emular perfis
     if (!session.isSuperAdmin && !session.isAdmin) {
       return session;
     }
 
-    return {
+    if (!perfilEmulado && !clienteEmulado) {
+      return session;
+    }
+
+    const modo: ModoPerfilEmulado = perfilEmulado || (clienteEmulado ? "cliente" : "superadmin");
+    if (modo === "superadmin") {
+      return session;
+    }
+
+    const baseSession: UserSession = {
       ...session,
-      userId: clienteEmulado.userId || session.userId,
-      nome: clienteEmulado.nome,
-      role: "cliente" as HunterRole,
       isSuperAdmin: false,
       isAdmin: false,
       isOperador: false,
+      isSupervisor: false,
+      tipoSupervisor: undefined,
+      acessoVeiculos: undefined,
+      isCliente: false,
       isInstalador: false,
       isMotorista: false,
+      isFinanceiro: false,
       isRevendedor: false,
       isVendedor: false,
-      isCliente: true,
-      clienteId: clienteEmulado.id,
-      plano: (clienteEmulado.plano || session.plano || "basico") as PlanoCliente,
-      planoContratado: (clienteEmulado.plano ||
-        session.planoContratado ||
-        "basico") as PlanoCliente,
+      isVigilante: false,
+      isAuditor: false,
+      isSuperAdminAuditor: false,
+      isDegustacao: false,
+      isTrialMaster: false,
+      isReadOnly: false,
     };
-  }, [session, clienteEmulado]);
+
+    if (modo === "operador") {
+      return {
+        ...baseSession,
+        role: "operador",
+        isOperador: true,
+        modulos: obterModulosPadraoPorPerfil("operador"),
+      };
+    }
+
+    if (modo === "supervisor_geral") {
+      return {
+        ...baseSession,
+        role: "supervisor",
+        isSupervisor: true,
+        tipoSupervisor: "geral",
+        acessoVeiculos: true,
+        isOperador: true,
+        modulos: obterModulosPadraoPorPerfil("supervisor", "geral"),
+      };
+    }
+
+    if (modo === "supervisor_vigilante") {
+      return {
+        ...baseSession,
+        role: "supervisor",
+        isSupervisor: true,
+        tipoSupervisor: "vigilante",
+        acessoVeiculos: false,
+        isOperador: false,
+        modulos: obterModulosPadraoPorPerfil("supervisor", "vigilante"),
+      };
+    }
+
+    if (modo === "vigilante") {
+      return {
+        ...baseSession,
+        role: "vigilante",
+        isVigilante: true,
+        modulos: obterModulosPadraoPorPerfil("vigilante"),
+      };
+    }
+
+    if (modo === "instalador") {
+      return {
+        ...baseSession,
+        role: "instalador",
+        isInstalador: true,
+        modulos: obterModulosPadraoPorPerfil("instalador"),
+      };
+    }
+
+    if (modo === "motorista") {
+      return {
+        ...baseSession,
+        role: "motorista",
+        isMotorista: true,
+        acessoMapaMotorista: true,
+        modulos: obterModulosPadraoPorPerfil("motorista"),
+      };
+    }
+
+    if (modo === "financeiro") {
+      return {
+        ...baseSession,
+        role: "financeiro",
+        isFinanceiro: true,
+        modulos: obterModulosPadraoPorPerfil("financeiro"),
+      };
+    }
+
+    if (modo === "revendedor") {
+      return {
+        ...baseSession,
+        role: "revendedor",
+        isRevendedor: true,
+        modulos: [
+          "minha-franquia",
+          "minhas-vendas",
+          "propostas",
+          "atendimento",
+          "chat",
+          "configuracoes",
+          "temas",
+        ],
+      };
+    }
+
+    if (modo === "vendedor") {
+      return {
+        ...baseSession,
+        role: "vendedor",
+        isVendedor: true,
+        modulos: [
+          "minhas-vendas",
+          "propostas",
+          "atendimento",
+          "chat",
+          "configuracoes",
+          "temas",
+        ],
+      };
+    }
+
+    if (modo === "superadmin_auditor") {
+      return {
+        ...baseSession,
+        role: "superadmin_auditor",
+        isSuperAdminAuditor: true,
+        isAuditor: true,
+        isReadOnly: true,
+        modulos: obterModulosPadraoPorPerfil("superadmin_auditor"),
+      };
+    }
+
+    if (modo === "cliente_degustacao") {
+      return {
+        ...baseSession,
+        role: "cliente_degustacao",
+        isCliente: true,
+        isDegustacao: true,
+        isTrialMaster: true,
+        plano: "master" as PlanoCliente,
+        planoContratado: "master" as PlanoCliente,
+        modulos: obterModulosPadraoPorPerfil("cliente_degustacao"),
+      };
+    }
+
+    // modo === "cliente"
+    return {
+      ...baseSession,
+      userId: clienteEmulado?.userId || session.userId,
+      nome: clienteEmulado?.nome || session.nome,
+      role: "cliente" as HunterRole,
+      isCliente: true,
+      clienteId: clienteEmulado?.id,
+      plano: (clienteEmulado?.plano || session.plano || "master") as PlanoCliente,
+      planoContratado: (clienteEmulado?.plano || session.planoContratado || "master") as PlanoCliente,
+      modulos: obterModulosPadraoPorPerfil("cliente"),
+    };
+  }, [session, clienteEmulado, perfilEmulado]);
 
   // Flag que impede que o GoTrue-js desconecte o usuário por erros de rede/background.
   // Só é ativada quando o PRÓPRIO usuário clica em "Sair".
@@ -254,6 +447,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (typeof window !== "undefined") {
         localStorage.removeItem(STORAGE_KEY_CLIENTE_EMULADO);
+        localStorage.removeItem(STORAGE_KEY_PERFIL_EMULADO);
         localStorage.removeItem("hunter-auth-token-v1");
         localStorage.removeItem("hunter-cached-user-session-v1");
         localStorage.removeItem("hunter-supabase-token-backup-v1");
@@ -274,6 +468,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         clienteEmulado,
         emularCliente,
         desfazerEmulacao,
+        perfilEmulado,
+        emularModoPerfil,
       }}
     >
       {children}

@@ -13,6 +13,7 @@ import {
   RefreshCw,
   Link2,
   Phone,
+  Car,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { HunterRole, PlanoCliente } from "@/integrations/supabase/types";
@@ -61,6 +62,12 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
       (usuario?.valor_por_instalacao ? usuario.valor_por_instalacao + 30 : 90),
   );
   const [ativo, setAtivo] = useState(usuario ? usuario.ativo : true);
+  const [tipoSupervisor, setTipoSupervisor] = useState<"geral" | "vigilante">(
+    usuario?.tipo_supervisor || "geral",
+  );
+  const [acessoVeiculos, setAcessoVeiculos] = useState<boolean>(
+    usuario?.acesso_veiculos !== false,
+  );
   const [chavePix, setChavePix] = useState(usuario?.chave_pix || "");
   const [enderecoInstalacao, setEnderecoInstalacao] = useState(usuario?.endereco_instalacao || "");
   const [modulos, setModulos] = useState<string[]>(() => {
@@ -211,6 +218,8 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
               roleFinal === "instalador" ? Number(valorComBloqueador) : undefined,
             chavePix: roleFinal === "instalador" ? chavePix.trim() : undefined,
             enderecoInstalacao: roleFinal === "instalador" ? enderecoInstalacao.trim() : undefined,
+            tipoSupervisor: roleFinal === "supervisor" ? tipoSupervisor : undefined,
+            acessoVeiculos: roleFinal === "supervisor" ? acessoVeiculos : undefined,
             telefone: telefone.trim() || undefined,
           }),
           timeoutPromise,
@@ -238,6 +247,8 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
               roleFinal === "instalador" ? Number(valorComBloqueador) : undefined,
             chavePix: roleFinal === "instalador" ? chavePix.trim() : undefined,
             enderecoInstalacao: roleFinal === "instalador" ? enderecoInstalacao.trim() : undefined,
+            tipoSupervisor: roleFinal === "supervisor" ? tipoSupervisor : undefined,
+            acessoVeiculos: roleFinal === "supervisor" ? acessoVeiculos : undefined,
             telefone: telefone.trim() || undefined,
           }),
           timeoutPromise,
@@ -444,6 +455,11 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                         );
                       } else if (novaRole === "operador") {
                         toast.success("Perfil Operador: módulos pertinentes pré-selecionados.");
+                      } else if (novaRole === "supervisor") {
+                        toast.success(
+                          "Perfil Supervisor: defina se terá acesso a veículos ou exclusivamente a vigilantes.",
+                        );
+                        setModulos(obterModulosPadraoPorPerfil("supervisor", tipoSupervisor));
                       } else if (novaRole === "cliente") {
                         toast.success("Perfil Cliente Titular selecionado.");
                       }
@@ -455,6 +471,7 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                     ) : (
                       <>
                         <option value="operador">Operador de Monitoramento</option>
+                        <option value="supervisor">Supervisor Operacional</option>
                         <option value="vigilante">Vigilante (Rondas e Escala Tática)</option>
                         <option value="financeiro">
                           Financeiro (Gestão Financeira e Cobrança)
@@ -485,6 +502,76 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                     </span>
                   )}
                 </div>
+
+                {role === "supervisor" && (
+                  <div className="sm:col-span-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-4 w-4 text-orange-500" />
+                      <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Escopo de Acesso do Supervisor *
+                      </label>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Defina se o supervisor terá acesso amplo (veículos e vigilantes) ou se será dedicado exclusivamente à supervisão de postos fixos e vigilantes físicos.
+                    </p>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTipoSupervisor("geral");
+                          setAcessoVeiculos(true);
+                          setModulos(obterModulosPadraoPorPerfil("supervisor", "geral"));
+                          toast.info("Supervisor Geral selecionado: acesso liberado a Veículos e Vigilantes.");
+                        }}
+                        className={`p-3 rounded-xl border text-left transition flex flex-col gap-1.5 ${
+                          tipoSupervisor === "geral" && acessoVeiculos
+                            ? "bg-orange-500/10 border-orange-500 text-orange-600 dark:text-orange-400 font-bold shadow-sm"
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold flex items-center gap-1.5">
+                            🚗 Supervisor Geral (Com Veículos)
+                          </span>
+                          {tipoSupervisor === "geral" && acessoVeiculos && (
+                            <Check className="h-3.5 w-3.5 text-orange-500" />
+                          )}
+                        </div>
+                        <span className="text-[10px] opacity-80">
+                          Acesso completo: frota rastreada, mapa ao vivo, rotas, abastecimento, escalas e postos de vigilantes.
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTipoSupervisor("vigilante");
+                          setAcessoVeiculos(false);
+                          setModulos(obterModulosPadraoPorPerfil("supervisor", "vigilante"));
+                          toast.info("Supervisor de Vigilante selecionado: foco estrito em Postos Fixos e Rondas.");
+                        }}
+                        className={`p-3 rounded-xl border text-left transition flex flex-col gap-1.5 ${
+                          tipoSupervisor === "vigilante" || !acessoVeiculos
+                            ? "bg-blue-500/10 border-blue-500 text-blue-600 dark:text-blue-400 font-bold shadow-sm"
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold flex items-center gap-1.5">
+                            🛡️ Somente Supervisor de Vigilante
+                          </span>
+                          {(tipoSupervisor === "vigilante" || !acessoVeiculos) && (
+                            <Check className="h-3.5 w-3.5 text-blue-500" />
+                          )}
+                        </div>
+                        <span className="text-[10px] opacity-80">
+                          Sem acesso aos veículos. Acesso focado em postos fixos, mapeamento GPS de rondas, escalas e equipe de vigilantes.
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {role === "instalador" ? (
                   <>

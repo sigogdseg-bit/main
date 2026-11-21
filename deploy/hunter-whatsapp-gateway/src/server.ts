@@ -560,9 +560,9 @@ async function initWhatsApp() {
       msgRetryCounterCache,
       placeholderResendCache,
       logger,
-      browser: Browsers.ubuntu("Chrome"),
+      browser: Browsers.macOS("Chrome"),
       syncFullHistory: false,
-      fireInitQueries: true,
+      fireInitQueries: false,
       shouldSyncHistoryMessage: () => false,
       getMessage: async (key) => {
         console.log(

@@ -30,6 +30,8 @@ export interface UsuarioCompleto {
   cliente_id?: string | null;
   cliente_nome?: string | null;
   cargo?: string | null;
+  tipo_supervisor?: "geral" | "vigilante" | null;
+  acesso_veiculos?: boolean | null;
 }
 
 export const MODULOS_SISTEMA = [
@@ -132,12 +134,36 @@ export const MODULOS_CLIENTE_PLANO_MASTER = [
 /**
  * Retorna os módulos pré-selecionados para cada perfil ao cadastrar ou alterar perfil
  */
-export function obterModulosPadraoPorPerfil(role: HunterRole): string[] {
+export function obterModulosPadraoPorPerfil(
+  role: HunterRole,
+  tipoSupervisor?: "geral" | "vigilante",
+): string[] {
   if (role === "superadmin" || role === "adm" || role === "superadmin_auditor") {
     return MODULOS_SISTEMA.map((m) => m.id);
   }
   if (role === "cliente_degustacao") {
     return [...MODULOS_CLIENTE_PLANO_MASTER];
+  }
+  if (role === "supervisor") {
+    if (tipoSupervisor === "vigilante") {
+      return ["vigilantes", "atendimento", "chat", "configuracoes", "temas"];
+    }
+    return [
+      "atendimento",
+      "chat",
+      "clientes",
+      "configuracoes",
+      "estoque",
+      "financeiro",
+      "instalacao",
+      "monitor-gps",
+      "rotas",
+      "frota",
+      "abastecimento",
+      "mensalidades",
+      "temas",
+      "vigilantes",
+    ];
   }
   if (role === "operador") {
     return [
@@ -176,7 +202,7 @@ export async function carregarUsuarios(): Promise<UsuarioCompleto[]> {
     const { data: pComSessao, error: pError1 } = await supabase
       .from("profiles")
       .select(
-        "id, nome, email, role, ativo, created_at, theme_preference, map_theme_preference, valor_por_instalacao, chave_pix, endereco_instalacao, telefone, sessao_ativa, ultimo_login, ultimo_logout, cliente_id",
+        "id, nome, email, role, ativo, created_at, theme_preference, map_theme_preference, valor_por_instalacao, chave_pix, endereco_instalacao, telefone, sessao_ativa, ultimo_login, ultimo_logout, cliente_id, tipo_supervisor, acesso_veiculos",
       )
       .order("nome", { ascending: true });
 
@@ -463,6 +489,8 @@ export async function carregarUsuarios(): Promise<UsuarioCompleto[]> {
         cliente_id: clienteIdVinculado,
         cliente_nome: clienteNomeVinculado,
         cargo: cargoVinculado,
+        tipo_supervisor: (p.tipo_supervisor as "geral" | "vigilante") || null,
+        acesso_veiculos: p.acesso_veiculos !== false,
       };
     });
 
@@ -521,6 +549,8 @@ export async function cadastrarUsuarioAdmin(dados: {
   role: HunterRole;
   modulos: string[];
   plano?: PlanoCliente;
+  tipoSupervisor?: "geral" | "vigilante";
+  acessoVeiculos?: boolean;
   valorPorInstalacao?: number;
   valorInstalacaoSemBloqueador?: number;
   valorInstalacaoComBloqueador?: number;
@@ -657,6 +687,10 @@ export async function cadastrarUsuarioAdmin(dados: {
             if (dados.telefone !== undefined) {
               updates.telefone = dados.telefone ? dados.telefone.trim() : null;
             }
+            if (dados.role === "supervisor") {
+              updates.tipo_supervisor = dados.tipoSupervisor || "geral";
+              updates.acesso_veiculos = dados.acessoVeiculos !== false;
+            }
 
             const { error: pErr } = await supabase
               .from("profiles")
@@ -708,6 +742,8 @@ export async function atualizarUsuarioAdmin(dados: {
   ativo: boolean;
   modulos: string[];
   plano?: PlanoCliente;
+  tipoSupervisor?: "geral" | "vigilante";
+  acessoVeiculos?: boolean;
   valorPorInstalacao?: number;
   valorInstalacaoSemBloqueador?: number;
   valorInstalacaoComBloqueador?: number;
@@ -952,6 +988,10 @@ export async function atualizarUsuarioAdmin(dados: {
           }
           if (dados.telefone !== undefined) {
             updates.telefone = dados.telefone ? dados.telefone.trim() : null;
+          }
+          if (dados.role === "supervisor") {
+            updates.tipo_supervisor = dados.tipoSupervisor || "geral";
+            updates.acesso_veiculos = dados.acessoVeiculos !== false;
           }
 
           const { error: pErr } = await supabase

@@ -31,6 +31,9 @@ export interface UserSession {
   degustacaoRevalidadaEm?: string;
   isAdmin: boolean;
   isOperador: boolean;
+  isSupervisor?: boolean;
+  tipoSupervisor?: "geral" | "vigilante";
+  acessoVeiculos?: boolean;
   isCliente: boolean;
   isInstalador: boolean;
   isMotorista: boolean;
@@ -65,4 +68,26 @@ export interface LoginAuditPayload {
   role: string;
   status: "sucesso" | "falha";
   userAgent?: string;
+}
+
+export type ModoPerfilEmulado =
+  | "superadmin"
+  | "operador"
+  | "supervisor_geral"
+  | "supervisor_vigilante"
+  | "vigilante"
+  | "instalador"
+  | "motorista"
+  | "financeiro"
+  | "revendedor"
+  | "vendedor"
+  | "superadmin_auditor"
+  | "cliente"
+  | "cliente_degustacao";
+
+export interface ItemModoPerfil {
+  id: ModoPerfilEmulado;
+  rotulo: string;
+  descricao: string;
+  icone: string;
 }

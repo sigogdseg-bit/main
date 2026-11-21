@@ -18,6 +18,11 @@ import {
 import { toast } from "sonner";
 import { verificarExpiracaoDegustacao } from "@/features/demonstracao/services/degustacaoMasterService";
 import { useAuth } from "@/features/auth/context/AuthContext";
+import type { ModoPerfilEmulado } from "@/features/auth/types";
+import {
+  MODOS_PERFIS_DISPONIVEIS,
+  obterRotuloModoPerfil,
+} from "@/features/auth/constants/modosPerfis";
 import { APP_NOME, APP_VERSION_NUMERO } from "@/shared/lib/version";
 import { MobileDrawer } from "./MobileDrawer";
 import { ThemeToggle } from "@/features/theme/components/ThemeToggle";
@@ -26,7 +31,17 @@ import { ModalClienteSolicitarVeiculo } from "@/features/clientes/components/Mod
 import { ModalEnvioRapidoWhatsapp } from "@/features/chat/components/ModalEnvioRapidoWhatsapp";
 
 export function AppHeader() {
-  const { session, logout, clienteEmulado, desfazerEmulacao } = useAuth();
+  const {
+    session,
+    sessaoOriginal,
+    logout,
+    clienteEmulado,
+    perfilEmulado,
+    emularModoPerfil,
+    desfazerEmulacao,
+  } = useAuth();
+  const isSuperAdmReal = Boolean(sessaoOriginal?.isSuperAdmin || session?.isSuperAdmin);
+  const modoAtivo: ModoPerfilEmulado = perfilEmulado || (clienteEmulado ? "cliente" : "superadmin");
   const [menuMobileAberto, setMenuMobileAberto] = useState(false);
   const [modalManualAberto, setModalManualAberto] = useState(false);
   const [modalVeiculoAberto, setModalVeiculoAberto] = useState(false);
@@ -149,6 +164,40 @@ export function AppHeader() {
 
           {/* Lado Direito: Perfil + Chat + Tema + Senha + Logout */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Seletor Suspenso de Modos de Todos os Perfis para SuperADM */}
+            {isSuperAdmReal && (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 border border-orange-500/30 text-xs shadow-xs">
+                <ShieldCheck className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 hidden xl:inline">
+                  Visão:
+                </span>
+                <select
+                  value={modoAtivo}
+                  onChange={(e) => {
+                    const novoModo = e.target.value as ModoPerfilEmulado;
+                    emularModoPerfil(novoModo);
+                    if (novoModo === "superadmin") {
+                      toast.success("Visão SuperADM global restaurada.");
+                    } else {
+                      toast.success(`Modo ${obterRotuloModoPerfil(novoModo)} ativado.`);
+                    }
+                  }}
+                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer pr-1"
+                  title="Lista suspensa: alternar visão para qualquer perfil do sistema"
+                >
+                  {MODOS_PERFIS_DISPONIVEIS.map((m) => (
+                    <option
+                      key={m.id}
+                      value={m.id}
+                      className="bg-slate-900 text-slate-100 font-semibold py-1"
+                    >
+                      {m.rotulo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Badges de Perfil e Plano com Distinção Máxima (telas md:) */}
             <div className="hidden md:flex items-center gap-1.5">
               {session.isDegustacao || session.role === "superadmin_auditor" ? (
@@ -269,27 +318,59 @@ export function AppHeader() {
         </div>
       </header>
 
-      {/* Banner Tático de Emulação do Modo Cliente */}
-      {clienteEmulado && (
-        <div className="w-full bg-amber-100 dark:bg-[#1c180c] border-b border-amber-300 dark:border-amber-700/60 px-3 py-1.5 flex items-center justify-between gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200 sticky top-[calc(env(safe-area-inset-top,0px)+4.5rem)] z-40 shadow-xs">
+      {/* Banner Tático de Emulação do Modo (Todos os Perfis) */}
+      {(clienteEmulado || (isSuperAdmReal && modoAtivo !== "superadmin")) && (
+        <div className="w-full bg-amber-100 dark:bg-[#1c180c] border-b border-amber-300 dark:border-amber-700/60 px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-amber-900 dark:text-amber-200 sticky top-[calc(env(safe-area-inset-top,0px)+4.5rem)] z-40 shadow-xs">
           <div className="flex items-center gap-2 min-w-0">
             <span className="flex h-2 w-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
             <span className="font-extrabold uppercase tracking-wider text-[10px] bg-amber-500/25 px-1.5 py-0.5 rounded border border-amber-500/40 shrink-0">
-              Modo Cliente Ativo
+              Modo {obterRotuloModoPerfil(modoAtivo)} Ativo
             </span>
-            <span className="truncate text-xs">
-              Emulando: <strong className="font-black">{clienteEmulado.nome}</strong>
-            </span>
+            {clienteEmulado ? (
+              <span className="truncate text-xs">
+                Emulando Cliente: <strong className="font-black">{clienteEmulado.nome}</strong>
+              </span>
+            ) : (
+              <span className="truncate text-xs opacity-90 hidden sm:inline">
+                Visão restrita ao perfil emulado
+              </span>
+            )}
           </div>
-          <button
-            type="button"
-            onClick={desfazerEmulacao}
-            className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-[11px] shadow-xs transition flex items-center gap-1 cursor-pointer"
-            title="Voltar ao Modo Super Administrador"
-          >
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>Voltar para SuperADM</span>
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <select
+              value={modoAtivo}
+              onChange={(e) => {
+                const novoModo = e.target.value as ModoPerfilEmulado;
+                emularModoPerfil(novoModo);
+                if (novoModo === "superadmin") {
+                  toast.success("Visão SuperADM global restaurada.");
+                } else {
+                  toast.success(`Modo ${obterRotuloModoPerfil(novoModo)} ativado.`);
+                }
+              }}
+              className="text-[11px] font-bold px-2 py-1 rounded-lg border border-amber-500/40 bg-white/90 dark:bg-slate-900 text-amber-950 dark:text-amber-100 outline-none cursor-pointer shadow-2xs"
+              title="Trocar perfil emulado na lista suspensa"
+            >
+              {MODOS_PERFIS_DISPONIVEIS.map((m) => (
+                <option
+                  key={m.id}
+                  value={m.id}
+                  className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100"
+                >
+                  {m.rotulo}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={desfazerEmulacao}
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 active:scale-95 text-white font-bold text-[11px] shadow-xs transition flex items-center gap-1 cursor-pointer"
+              title="Voltar ao Modo Super Administrador"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" />
+              <span>Voltar para SuperADM</span>
+            </button>
+          </div>
         </div>
       )}
 

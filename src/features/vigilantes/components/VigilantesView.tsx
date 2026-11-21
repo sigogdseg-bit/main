@@ -16,6 +16,7 @@ import {
   XCircle,
   HelpCircle,
   Smartphone,
+  Navigation,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -45,6 +46,7 @@ import { ModalNovoPosto } from "./ModalNovoPosto";
 import { ModalNovoCheckpoint } from "./ModalNovoCheckpoint";
 import { ModalEscalaTurno } from "./ModalEscalaTurno";
 import { VisaoVigilanteOperacional } from "./VisaoVigilanteOperacional";
+import { ModalMapearPostoCelular } from "./ModalMapearPostoCelular";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { toast } from "sonner";
 
@@ -67,6 +69,7 @@ export function VigilantesView() {
   const [modalPostoAberto, setModalPostoAberto] = useState(false);
   const [modalTurnoAberto, setModalTurnoAberto] = useState(false);
   const [modalCheckpointAberto, setModalCheckpointAberto] = useState(false);
+  const [modalMapearPostoAberto, setModalMapearPostoAberto] = useState(false);
   const [coordsNovoCheckpoint, setCoordsNovoCheckpoint] = useState<
     { latitude: number; longitude: number } | undefined
   >(undefined);
@@ -386,6 +389,20 @@ export function VigilantesView() {
         {/* Botões Rápidos de Ação */}
         <div className="flex flex-wrap items-center gap-2">
           <button
+            onClick={() => {
+              if (!postoSelecionado) {
+                toast.error("Selecione um posto fixo para mapear a ronda.");
+                return;
+              }
+              setModalMapearPostoAberto(true);
+            }}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-orange-600 via-amber-600 to-orange-500 hover:from-orange-500 hover:to-amber-500 text-white shadow-md shadow-orange-500/25 active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Navigation className="h-3.5 w-3.5" />
+            <span>Mapear Posto com Celular</span>
+          </button>
+
+          <button
             onClick={() => setModoVisaoVigilante(true)}
             className="px-3 py-2 rounded-xl text-xs font-bold bg-blue-700 hover:bg-blue-600 text-white shadow-md shadow-blue-700/20 active:scale-95 transition flex items-center gap-1.5 cursor-pointer"
           >
@@ -566,18 +583,29 @@ export function VigilantesView() {
                   Checkpoints: {checkpoints.length} cadastrados
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => setModoMarcarPontoNoMapa(!modoMarcarPontoNoMapa)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-                  modoMarcarPontoNoMapa
-                    ? "bg-rose-600 text-white animate-pulse"
-                    : "bg-blue-600 text-white hover:bg-blue-500 shadow-sm"
-                }`}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>{modoMarcarPontoNoMapa ? "Clique no Mapa..." : "Checkpoint Azul"}</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setModalMapearPostoAberto(true)}
+                  className="px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer bg-gradient-to-r from-orange-600 to-amber-600 text-white shadow-sm hover:from-orange-500 hover:to-amber-500"
+                  title="Mapear posto em campo usando o GPS do celular"
+                >
+                  <Navigation className="h-3.5 w-3.5" />
+                  <span>Mapear Celular</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoMarcarPontoNoMapa(!modoMarcarPontoNoMapa)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                    modoMarcarPontoNoMapa
+                      ? "bg-rose-600 text-white animate-pulse"
+                      : "bg-blue-600 text-white hover:bg-blue-500 shadow-sm"
+                  }`}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{modoMarcarPontoNoMapa ? "Clique no Mapa..." : "Checkpoint Azul"}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -947,6 +975,16 @@ export function VigilantesView() {
             setModalCheckpointAberto(false);
             setCoordsNovoCheckpoint(undefined);
           }}
+          onSalvo={() => {
+            carregarPontosDoPosto(postoSelecionado.id);
+          }}
+        />
+      )}
+
+      {modalMapearPostoAberto && postoSelecionado && (
+        <ModalMapearPostoCelular
+          posto={postoSelecionado}
+          onFechar={() => setModalMapearPostoAberto(false)}
           onSalvo={() => {
             carregarPontosDoPosto(postoSelecionado.id);
           }}

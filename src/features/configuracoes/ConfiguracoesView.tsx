@@ -24,6 +24,11 @@ import {
   MapPin,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/context/AuthContext";
+import type { ModoPerfilEmulado } from "@/features/auth/types";
+import {
+  MODOS_PERFIS_DISPONIVEIS,
+  obterRotuloModoPerfil,
+} from "@/features/auth/constants/modosPerfis";
 import { useGpsRealtime } from "@/features/monitor-gps/hooks/useGpsRealtime";
 import { MudarMinhaSenhaModal } from "@/features/auth/components/MudarMinhaSenhaModal";
 import { AjusteOdometroModal } from "@/features/monitor-gps/components/AjusteOdometroModal";
@@ -66,7 +71,17 @@ export interface ClienteOpcao {
 }
 
 export function ConfiguracoesView() {
-  const { session, sessaoOriginal, clienteEmulado, emularCliente, desfazerEmulacao } = useAuth();
+  const {
+    session,
+    sessaoOriginal,
+    clienteEmulado,
+    perfilEmulado,
+    emularCliente,
+    emularModoPerfil,
+    desfazerEmulacao,
+  } = useAuth();
+  const modoAtivo: ModoPerfilEmulado =
+    perfilEmulado || (clienteEmulado ? "cliente" : "superadmin");
   const { veiculos, recarregar } = useGpsRealtime();
 
   const cardTheme = useCardTheme(session?.userId);
@@ -856,11 +871,13 @@ export function ConfiguracoesView() {
                 </div>
               </div>
 
-              {/* 2. Card: Modo de Operação do Sistema (SuperADM vs Modo Cliente) */}
+              {/* 2. Card: Modo de Operação do Sistema (Lista Suspensa de Todos os Perfis) */}
               {isSuperAdmReal && (
                 <div
                   className={`${cardMetricClass} flex flex-col gap-4 transition-all duration-300 ${
-                    clienteEmulado ? "border-2 border-amber-500/50 bg-amber-500/5 shadow-md" : ""
+                    modoAtivo !== "superadmin"
+                      ? "border-2 border-amber-500/50 bg-amber-500/5 shadow-md"
+                      : ""
                   }`}
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -870,23 +887,23 @@ export function ConfiguracoesView() {
                         <h3 className="font-extrabold text-sm sm:text-base">
                           Modo de Operação do Sistema
                         </h3>
-                        {clienteEmulado ? (
+                        {modoAtivo !== "superadmin" ? (
                           <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 animate-pulse">
-                            Modo Cliente Ativo
+                            Modo {obterRotuloModoPerfil(modoAtivo)} Ativo
                           </span>
                         ) : (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-700 dark:text-orange-300 border border-orange-500/25">
-                            SuperADM (Global)
+                            SuperADM (Global Irrestrito)
                           </span>
                         )}
                       </div>
                       <p className="text-[11px] opacity-70 mt-0.5">
                         Alterne entre o perfil irrestrito de Super Administrador e a visão idêntica
-                        à de um cliente específico.
+                        a qualquer um dos 13 perfis operacionais do sistema.
                       </p>
                     </div>
 
-                    {clienteEmulado && (
+                    {modoAtivo !== "superadmin" && (
                       <button
                         type="button"
                         onClick={() => {
@@ -903,95 +920,46 @@ export function ConfiguracoesView() {
                     )}
                   </div>
 
-                  {/* Seletor de Modo: SuperADM vs Modo Cliente */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (clienteEmulado) {
-                          desfazerEmulacao();
-                          toast.success("Modo SuperADM restaurado");
-                        }
-                        setModoOperacao("superadm");
-                      }}
-                      className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition cursor-pointer ${
-                        !clienteEmulado && modoOperacao === "superadm"
-                          ? isNeumorph
-                            ? "bg-[#9EBCEE]/25 dark:bg-orange-950/40 border-orange-500/70 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none"
-                            : "border-orange-500 bg-orange-500/10 shadow-xs"
-                          : isNeumorph
-                            ? "bg-[#eaf0f8] dark:bg-slate-900/60 border-slate-300/40 dark:border-slate-800 shadow-[inset_1px_1px_3px_#c8d4e4] opacity-70 hover:opacity-100"
-                            : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-70 hover:opacity-100"
-                      }`}
-                    >
-                      <div
-                        className={`p-2 rounded-xl shrink-0 ${
-                          !clienteEmulado && modoOperacao === "superadm"
-                            ? "bg-orange-500 text-white"
-                            : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                        }`}
+                  {/* Seletor em Lista Suspensa: 13 Modos de Perfis */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs font-black flex items-center justify-between">
+                      <span>Selecionar perfil para emulação tática:</span>
+                      <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">
+                        {MODOS_PERFIS_DISPONIVEIS.length} perfis disponíveis
+                      </span>
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={modoAtivo}
+                        onChange={(e) => {
+                          const novoModo = e.target.value as ModoPerfilEmulado;
+                          if (novoModo === "superadmin") {
+                            desfazerEmulacao();
+                            setModoOperacao("superadm");
+                            toast.success("Modo SuperADM restaurado");
+                          } else {
+                            if (novoModo === "cliente") {
+                              setModoOperacao("cliente");
+                            }
+                            emularModoPerfil(novoModo);
+                            toast.success(`Modo ${obterRotuloModoPerfil(novoModo)} ativado`);
+                          }
+                        }}
+                        className={`${inputInsetClass} font-bold cursor-pointer text-xs sm:text-sm`}
                       >
-                        <ShieldCheck className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-xs font-black">Modo SuperADM</span>
-                          {!clienteEmulado && modoOperacao === "superadm" && (
-                            <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">
-                              Ativo
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] opacity-70 mt-0.5 leading-snug">
-                          Acesso global irrestrito a todos os clientes, veículos, telemetria e
-                          relatórios.
-                        </p>
-                      </div>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setModoOperacao("cliente");
-                      }}
-                      className={`flex items-start gap-3 p-3 rounded-2xl border text-left transition cursor-pointer ${
-                        clienteEmulado || modoOperacao === "cliente"
-                          ? isNeumorph
-                            ? "bg-amber-500/15 dark:bg-amber-950/40 border-amber-500/70 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none"
-                            : "border-amber-500 bg-amber-500/10 shadow-xs"
-                          : isNeumorph
-                            ? "bg-[#eaf0f8] dark:bg-slate-900/60 border-slate-300/40 dark:border-slate-800 shadow-[inset_1px_1px_3px_#c8d4e4] opacity-70 hover:opacity-100"
-                            : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-70 hover:opacity-100"
-                      }`}
-                    >
-                      <div
-                        className={`p-2 rounded-xl shrink-0 ${
-                          clienteEmulado || modoOperacao === "cliente"
-                            ? "bg-amber-500 text-white"
-                            : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-400"
-                        }`}
-                      >
-                        <UserCheck className="w-5 h-5" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-1">
-                          <span className="text-xs font-black">Modo Cliente</span>
-                          {clienteEmulado && (
-                            <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400">
-                              Emulando
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] opacity-70 mt-0.5 leading-snug">
-                          O sistema passa a se comportar como perfil cliente, exibindo apenas os
-                          veículos do cliente escolhido.
-                        </p>
-                      </div>
-                    </button>
+                        {MODOS_PERFIS_DISPONIVEIS.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.rotulo} — {item.descricao}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   {/* Seção de Seleção de Cliente (quando em modo cliente) */}
-                  {(modoOperacao === "cliente" || Boolean(clienteEmulado)) && (
+                  {(modoOperacao === "cliente" ||
+                    modoAtivo === "cliente" ||
+                    Boolean(clienteEmulado)) && (
                     <div className="flex flex-col gap-3 pt-3 border-t border-slate-200/80 dark:border-slate-800/80">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-1.5">

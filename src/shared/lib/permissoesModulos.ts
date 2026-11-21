@@ -400,6 +400,31 @@ export function podeAcessarModulo(session: UserSession | null, moduloId: string)
     return modulosOperador.some((userMod) => aliases.includes(userMod));
   }
 
+  // Vigilante: exclusivamente módulo vigilante e utilitários de comunicação
+  if (session.role === "vigilante" || session.isVigilante) {
+    return ["vigilantes", "atendimento", "chat", "configuracoes", "temas"].includes(moduloId);
+  }
+
+  // Supervisor: acesso igual do operador, podendo ser supervisor geral (com veículos) ou exclusivo de vigilante
+  if (session.role === "supervisor" || session.isSupervisor) {
+    const isApenasVigilante = session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
+    if (isApenasVigilante) {
+      if (["monitor-gps", "rotas", "frota", "abastecimento", "motoristas", "motorista"].includes(moduloId)) {
+        return false;
+      }
+      return ["vigilantes", "atendimento", "chat", "configuracoes", "temas"].includes(moduloId);
+    }
+    const modulosSupervisor =
+      session.modulos && session.modulos.length > 0
+        ? session.modulos
+        : [...MODULOS_PADRAO_OPERADOR, "vigilantes"];
+    if (modulosSupervisor.includes("todos") || modulosSupervisor.includes("*")) {
+      return true;
+    }
+    const aliases = aliasesModulo(moduloId);
+    return modulosSupervisor.some((userMod) => aliases.includes(userMod));
+  }
+
   return false;
 }
 

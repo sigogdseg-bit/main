@@ -624,7 +624,14 @@ export async function carregarSessaoUsuario(): Promise<UserSession | null> {
       degustacaoExpiraEm,
       degustacaoRevalidadaEm,
       isAdmin: role === "superadmin" || role === "adm",
-      isOperador: role === "superadmin" || role === "adm" || role === "operador",
+      isOperador:
+        role === "superadmin" ||
+        role === "adm" ||
+        role === "operador" ||
+        (role === "supervisor" && profile?.acesso_veiculos !== false),
+      isSupervisor: role === "supervisor",
+      tipoSupervisor: (profile?.tipo_supervisor as "geral" | "vigilante") || "geral",
+      acessoVeiculos: profile?.acesso_veiculos !== false,
       isCliente: role === "cliente",
       isLocatario: role === "locatario",
       locatarioClienteId,
