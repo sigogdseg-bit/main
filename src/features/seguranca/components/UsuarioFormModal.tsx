@@ -65,9 +65,7 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
   const [tipoSupervisor, setTipoSupervisor] = useState<"geral" | "vigilante">(
     usuario?.tipo_supervisor || "geral",
   );
-  const [acessoVeiculos, setAcessoVeiculos] = useState<boolean>(
-    usuario?.acesso_veiculos !== false,
-  );
+  const [acessoVeiculos, setAcessoVeiculos] = useState<boolean>(usuario?.acesso_veiculos !== false);
   const [chavePix, setChavePix] = useState(usuario?.chave_pix || "");
   const [enderecoInstalacao, setEnderecoInstalacao] = useState(usuario?.endereco_instalacao || "");
   const [modulos, setModulos] = useState<string[]>(() => {
@@ -512,7 +510,8 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                       </label>
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Defina se o supervisor terá acesso amplo (veículos e vigilantes) ou se será dedicado exclusivamente à supervisão de postos fixos e vigilantes físicos.
+                      Defina se o supervisor terá acesso amplo (veículos e vigilantes) ou se será
+                      dedicado exclusivamente à supervisão de postos fixos e vigilantes físicos.
                     </p>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
@@ -522,7 +521,9 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                           setTipoSupervisor("geral");
                           setAcessoVeiculos(true);
                           setModulos(obterModulosPadraoPorPerfil("supervisor", "geral"));
-                          toast.info("Supervisor Geral selecionado: acesso liberado a Veículos e Vigilantes.");
+                          toast.info(
+                            "Supervisor Geral selecionado: acesso liberado a Veículos e Vigilantes.",
+                          );
                         }}
                         className={`p-3 rounded-xl border text-left transition flex flex-col gap-1.5 ${
                           tipoSupervisor === "geral" && acessoVeiculos
@@ -539,7 +540,8 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                           )}
                         </div>
                         <span className="text-[10px] opacity-80">
-                          Acesso completo: frota rastreada, mapa ao vivo, rotas, abastecimento, escalas e postos de vigilantes.
+                          Acesso completo: frota rastreada, mapa ao vivo, rotas, abastecimento,
+                          escalas e postos de vigilantes.
                         </span>
                       </button>
 
@@ -549,7 +551,9 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                           setTipoSupervisor("vigilante");
                           setAcessoVeiculos(false);
                           setModulos(obterModulosPadraoPorPerfil("supervisor", "vigilante"));
-                          toast.info("Supervisor de Vigilante selecionado: foco estrito em Postos Fixos e Rondas.");
+                          toast.info(
+                            "Supervisor de Vigilante selecionado: foco estrito em Postos Fixos e Rondas.",
+                          );
                         }}
                         className={`p-3 rounded-xl border text-left transition flex flex-col gap-1.5 ${
                           tipoSupervisor === "vigilante" || !acessoVeiculos
@@ -566,7 +570,8 @@ export function UsuarioFormModal({ usuario, onSalvo, onFechar }: UsuarioFormModa
                           )}
                         </div>
                         <span className="text-[10px] opacity-80">
-                          Sem acesso aos veículos. Acesso focado em postos fixos, mapeamento GPS de rondas, escalas e equipe de vigilantes.
+                          Sem acesso aos veículos. Acesso focado em postos fixos, mapeamento GPS de
+                          rondas, escalas e equipe de vigilantes.
                         </span>
                       </button>
                     </div>

@@ -22,6 +22,7 @@ import {
   atualizarRotacaoElementoMarcador,
 } from "../utils/interpolacaoMapaSuave";
 import { clusterizarVeiculos, gerarMarcadorClusterHtml } from "../utils/clusterVeiculos";
+import { VehicleMotionController } from "../../../services/vehicleMotionEngine";
 
 import type { PostoVigilancia } from "@/features/vigilantes/types";
 
@@ -84,6 +85,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       >
     >(new Map());
     const clusterMarkersRef = useRef<Map<string, L.Marker>>(new Map());
+    const vehicleMotionControllersRef = useRef<Map<string, VehicleMotionController>>(new Map());
     const [zoomAtual, setZoomAtual] = useState(14);
     const controladorMovimentoRef = useRef<ControladorMovimentoSuave>(
       new ControladorMovimentoSuave(),
@@ -101,8 +103,13 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
     useEffect(() => {
       const handlePreferencia = () => setVersaoPreferencia((p) => p + 1);
       window.addEventListener("hunter_preferencia_mapa_alterada", handlePreferencia);
-      return () =>
+      return () => {
         window.removeEventListener("hunter_preferencia_mapa_alterada", handlePreferencia);
+        for (const mc of vehicleMotionControllersRef.current.values()) {
+          mc.destroy();
+        }
+        vehicleMotionControllersRef.current.clear();
+      };
     }, []);
     const veiculosRef = useRef(veiculos);
     veiculosRef.current = veiculos;
@@ -328,6 +335,10 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
 
       return () => {
         controlador.limpar();
+        for (const mc of vehicleMotionControllersRef.current.values()) {
+          mc.destroy();
+        }
+        vehicleMotionControllersRef.current.clear();
         timers.forEach(clearTimeout);
         if (resizeObserver) {
           resizeObserver.disconnect();
@@ -600,6 +611,24 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
             veiculoAtual: v,
           });
         }
+
+        // Integração VehicleMotionController (rastreamento contínuo sobre vias com interpolação OSRM a 60fps)
+        let motionCtrl = vehicleMotionControllersRef.current.get(v.id);
+        if (!motionCtrl) {
+          motionCtrl = new VehicleMotionController(
+            { lat: v.latitude, lng: v.longitude },
+            (frameState) => {
+              const dados = markersMapRef.current.get(v.id);
+              if (dados?.marker) {
+                dados.marker.setLatLng([frameState.lat, frameState.lng]);
+                atualizarRotacaoElementoMarcador(dados.marker.getElement(), frameState.bearing);
+              }
+            },
+          );
+          vehicleMotionControllersRef.current.set(v.id, motionCtrl);
+        } else {
+          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude });
+        }
       });
 
       // Remove marcadores de veículos que não estão mais presentes ou que foram agrupados no cluster
@@ -607,6 +636,11 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         if (!idsVeiculosAtivos.has(id)) {
           markersGroup.removeLayer(dados.marker);
           markersMapRef.current.delete(id);
+          const mc = vehicleMotionControllersRef.current.get(id);
+          if (mc) {
+            mc.destroy();
+            vehicleMotionControllersRef.current.delete(id);
+          }
         }
       }
 

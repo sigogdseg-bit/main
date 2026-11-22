@@ -258,14 +258,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...baseSession,
         role: "vendedor",
         isVendedor: true,
-        modulos: [
-          "minhas-vendas",
-          "propostas",
-          "atendimento",
-          "chat",
-          "configuracoes",
-          "temas",
-        ],
+        modulos: ["minhas-vendas", "propostas", "atendimento", "chat", "configuracoes", "temas"],
       };
     }
 
@@ -302,7 +295,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isCliente: true,
       clienteId: clienteEmulado?.id,
       plano: (clienteEmulado?.plano || session.plano || "master") as PlanoCliente,
-      planoContratado: (clienteEmulado?.plano || session.planoContratado || "master") as PlanoCliente,
+      planoContratado: (clienteEmulado?.plano ||
+        session.planoContratado ||
+        "master") as PlanoCliente,
       modulos: obterModulosPadraoPorPerfil("cliente"),
     };
   }, [session, clienteEmulado, perfilEmulado]);

@@ -164,9 +164,14 @@ html.dark .leaflet-container {
   }
 }
 
+.leaflet-marker-icon {
+  transition: none !important;
+}
+
 .custom-hunter-marker {
   background: transparent !important;
   border: none !important;
+  transition: none !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

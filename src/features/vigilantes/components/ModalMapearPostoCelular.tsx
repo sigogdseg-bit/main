@@ -178,7 +178,9 @@ export function ModalMapearPostoCelular({
     setTempoDecorridoSegundos(0);
     setPontosMapeados([]);
     setResumoFinal(null);
-    toast.success("Mapeamento iniciado! Caminhe pelo posto e acione o botão para marcar os pontos.");
+    toast.success(
+      "Mapeamento iniciado! Caminhe pelo posto e acione o botão para marcar os pontos.",
+    );
   };
 
   // Abrir tela para nomear ponto atual
@@ -192,9 +194,7 @@ export function ModalMapearPostoCelular({
     }
     setCoordsPontoMarcado(coordsAtuais);
     const sugestaoPadrao =
-      pontosMapeados.length === 0
-        ? "Portaria Principal"
-        : `Ponto ${pontosMapeados.length + 1}`;
+      pontosMapeados.length === 0 ? "Portaria Principal" : `Ponto ${pontosMapeados.length + 1}`;
     setNomePontoAtual(sugestaoPadrao);
     setModalNomeAberto(true);
   };
@@ -263,10 +263,7 @@ export function ModalMapearPostoCelular({
 
     setSalvando(true);
     try {
-      const tempoTotalMinutosCalculado = Math.max(
-        1,
-        Math.ceil(tempoDecorridoSegundos / 60),
-      );
+      const tempoTotalMinutosCalculado = Math.max(1, Math.ceil(tempoDecorridoSegundos / 60));
 
       // Salva cada ponto sequencialmente na tabela de rondas_checkpoints
       const listaSalva: RondaCheckpoint[] = [];
@@ -371,9 +368,7 @@ export function ModalMapearPostoCelular({
                           : "text-red-600 dark:text-red-400"
                       }
                     >
-                      {coordsAtuais
-                        ? `Precisão ±${coordsAtuais.precisao}m`
-                        : "Buscando sinal..."}
+                      {coordsAtuais ? `Precisão ±${coordsAtuais.precisao}m` : "Buscando sinal..."}
                     </span>
                   </div>
                   {coordsAtuais ? (
@@ -423,7 +418,8 @@ export function ModalMapearPostoCelular({
                 <span>Marcar Ponto Aqui (GPS)</span>
               </button>
               <p className="text-[10px] text-center text-slate-500 dark:text-slate-400">
-                Caminhe até o local físico no posto e toque no botão para registrar as coordenadas do ponto.
+                Caminhe até o local físico no posto e toque no botão para registrar as coordenadas
+                do ponto.
               </p>
             </div>
 
@@ -434,9 +430,7 @@ export function ModalMapearPostoCelular({
                   Sequência da Ronda ({pontosMapeados.length})
                 </span>
                 {pontosMapeados.length > 0 && (
-                  <span className="text-[11px] text-slate-400">
-                    Circuito circular do posto
-                  </span>
+                  <span className="text-[11px] text-slate-400">Circuito circular do posto</span>
                 )}
               </div>
 
@@ -466,7 +460,8 @@ export function ModalMapearPostoCelular({
                             {pt.nome}
                           </div>
                           <div className="text-[10px] text-slate-400 font-mono">
-                            {pt.latitude.toFixed(5)}, {pt.longitude.toFixed(5)} • ±{pt.precisaoMetros}m
+                            {pt.latitude.toFixed(5)}, {pt.longitude.toFixed(5)} • ±
+                            {pt.precisaoMetros}m
                           </div>
                         </div>
                       </div>

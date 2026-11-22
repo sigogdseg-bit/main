@@ -484,7 +484,8 @@ export function MobileDrawer({
       },
     ];
   } else if (session.isSupervisor || session.role === "supervisor") {
-    const isApenasVigilante = session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
+    const isApenasVigilante =
+      session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
     if (isApenasVigilante) {
       secoesMenu = [
         {

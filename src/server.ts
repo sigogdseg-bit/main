@@ -11486,8 +11486,8 @@ async function handleApiWhatsapp(
     (typeof process !== "undefined" &&
       (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
     (env && ((env as any).GD_WHATSAPP_GATEWAY_URL || (env as any).WHATSAPP_GATEWAY_URL)) ||
-    "https://gd-whatsapp-gateway.fly.dev"
-  ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Fly.io gd-whatsapp-gateway.fly.dev / hunter-whatsapp-gateway.fly.dev, 100% isolado do SIGO Guardião)
+    "https://gps.oficial.tec.br/gd/whatsapp"
+  ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Oracle Cloud gps.oficial.tec.br/gd/whatsapp, 100% isolado do SIGO Guardião)
     .replace(/\/$/, "");
 
   // 1. GET / HEAD /api/whatsapp/status
@@ -11613,19 +11613,7 @@ async function handleApiWhatsapp(
 
   // 3. GET /api/whatsapp/qrcode
   if (url.pathname === "/api/whatsapp/qrcode" && request.method === "GET") {
-    try {
-      const res = await fetch(`${gatewayUrl}/qrcode`);
-      const html = await res.text();
-      return new Response(html, {
-        status: res.status,
-        headers: { "Content-Type": "text/html; charset=utf-8", ...SECURITY_HEADERS },
-      });
-    } catch (err: any) {
-      return new Response(`<h1>Erro ao carregar QR Code: ${err?.message || err}</h1>`, {
-        status: 502,
-        headers: { "Content-Type": "text/html; charset=utf-8", ...SECURITY_HEADERS },
-      });
-    }
+    return Response.redirect("https://gps.oficial.tec.br/gd/whatsapp?token=gd2026", 302);
   }
 
   // 3b. POST /api/whatsapp/disconnect (Desconectar linha GD para sincronizar novo número)

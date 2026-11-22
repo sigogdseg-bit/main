@@ -82,13 +82,13 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
   // Regra de Isolamento: Apenas perfis com permissão explícita de rastreamento veicular podem ver veículos
   const podeVerVeiculos = Boolean(
     podeAcessarModulo(session, "monitor-gps") &&
-      session?.acessoVeiculos !== false &&
-      session?.tipoSupervisor !== "vigilante" &&
-      !session?.isVendedor &&
-      !session?.isFinanceiro &&
-      !session?.isRevendedor &&
-      !session?.isInstalador &&
-      !session?.isVigilante,
+    session?.acessoVeiculos !== false &&
+    session?.tipoSupervisor !== "vigilante" &&
+    !session?.isVendedor &&
+    !session?.isFinanceiro &&
+    !session?.isRevendedor &&
+    !session?.isInstalador &&
+    !session?.isVigilante,
   );
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteFiltroSelecionado, setClienteFiltroSelecionado] = useState<string>("todos");
@@ -601,272 +601,272 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         <>
           {/* 3. Barra de Título e Ferramentas: Meus Veículos, Busca e Alternador de Visão */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-            Meus veículos
-          </h2>
-          <span className="text-xs font-bold text-orange-600 dark:text-orange-400 px-2.5 py-0.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 font-mono font-tabular">
-            {veiculosFiltrados.length}
-            {(filtroStatus !== "todos" || locatarioFiltroSelecionado !== "todos") &&
-              ` de ${totalVeiculos}`}
-          </span>
-          {filtroStatus !== "todos" && (
-            <button
-              type="button"
-              onClick={() => setFiltroStatus("todos")}
-              className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
-              title="Limpar filtro de status"
-            >
-              (Limpar filtro: {filtroStatus})
-            </button>
-          )}
-          {locatarioFiltroSelecionado !== "todos" && (
-            <button
-              type="button"
-              onClick={() => setLocatarioFiltroSelecionado("todos")}
-              className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
-              title="Limpar filtro de usuário"
-            >
-              (Usuário: {locatarios.find((l) => l.id === locatarioFiltroSelecionado)?.nome} - Ver
-              Todos)
-            </button>
-          )}
-          {isOperadorOuAdmin && clienteFiltroSelecionado !== "todos" && (
-            <button
-              type="button"
-              onClick={() => setClienteFiltroSelecionado("todos")}
-              className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
-              title="Limpar filtro de cliente"
-            >
-              (Cliente:{" "}
-              {clientes.find((c) => c.id === clienteFiltroSelecionado)?.nome_razao_social ||
-                "Selecionado"}{" "}
-              - Ver Todos)
-            </button>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          {/* Dropdown de Clientes para Perfil Administrador e Operador (Padrão: Todos) */}
-          {isOperadorOuAdmin && clientes.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-2.5 py-1.5 shadow-xs shrink-0">
-              <Building2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-              <select
-                value={clienteFiltroSelecionado}
-                onChange={(e) => setClienteFiltroSelecionado(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
-                title="Filtrar veículos por cliente (Padrão: Todos os Clientes)"
-              >
-                <option value="todos">Todos os Clientes ({clientes.length})</option>
-                {clientes.map((cli) => (
-                  <option key={cli.id} value={cli.id}>
-                    {cli.nome_razao_social}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
+                Meus veículos
+              </h2>
+              <span className="text-xs font-bold text-orange-600 dark:text-orange-400 px-2.5 py-0.5 rounded-full bg-orange-500/10 dark:bg-orange-500/20 border border-orange-500/20 font-mono font-tabular">
+                {veiculosFiltrados.length}
+                {(filtroStatus !== "todos" || locatarioFiltroSelecionado !== "todos") &&
+                  ` de ${totalVeiculos}`}
+              </span>
+              {filtroStatus !== "todos" && (
+                <button
+                  type="button"
+                  onClick={() => setFiltroStatus("todos")}
+                  className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Limpar filtro de status"
+                >
+                  (Limpar filtro: {filtroStatus})
+                </button>
+              )}
+              {locatarioFiltroSelecionado !== "todos" && (
+                <button
+                  type="button"
+                  onClick={() => setLocatarioFiltroSelecionado("todos")}
+                  className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Limpar filtro de usuário"
+                >
+                  (Usuário: {locatarios.find((l) => l.id === locatarioFiltroSelecionado)?.nome} -
+                  Ver Todos)
+                </button>
+              )}
+              {isOperadorOuAdmin && clienteFiltroSelecionado !== "todos" && (
+                <button
+                  type="button"
+                  onClick={() => setClienteFiltroSelecionado("todos")}
+                  className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Limpar filtro de cliente"
+                >
+                  (Cliente:{" "}
+                  {clientes.find((c) => c.id === clienteFiltroSelecionado)?.nome_razao_social ||
+                    "Selecionado"}{" "}
+                  - Ver Todos)
+                </button>
+              )}
             </div>
-          )}
 
-          {/* Dropdown de Usuários para o Cliente Locador (Padrão: Todos) */}
-          {locatarios.length > 0 && !isLocatario && (
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-2.5 py-1.5 shadow-xs shrink-0">
-              <Users className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-              <select
-                value={locatarioFiltroSelecionado}
-                onChange={(e) => setLocatarioFiltroSelecionado(e.target.value)}
-                className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
-                title="Filtrar veículos por usuário"
-              >
-                <option value="todos">Todos os Usuários ({locatarios.length})</option>
-                {locatarios.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.nome} ({loc.veiculos_permitidos?.length || 0} veíc.)
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Gestão de Usuários para Clientes Locadores / ADM / Operador */}
-          {!isLocatario && (
-            <button
-              type="button"
-              onClick={() => setModalLocatariosAberto(true)}
-              className="flex items-center gap-1.5 py-2 px-3 rounded-2xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 shadow-xs"
-              title="Cadastrar e gerenciar usuários subordinados aos seus veículos"
-            >
-              <Users className="w-4 h-4" />
-              <span className="hidden sm:inline">Gerenciar Usuários</span>
-              <span className="sm:hidden">Usuários</span>
-            </button>
-          )}
-
-          {/* Campo de Busca Rápida */}
-          <div className="relative flex-1 sm:w-64">
-            <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar placa ou modelo..."
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-orange-500 shadow-xs transition"
-            />
-          </div>
-
-          {/* Alternador de Visualização (Grade / Lista) */}
-          <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shrink-0">
-            <button
-              type="button"
-              onClick={() => setModoVisualizacao("grid")}
-              className={`p-1.5 rounded-xl transition cursor-pointer ${
-                modoVisualizacao === "grid"
-                  ? "bg-white dark:bg-slate-900 text-orange-600 shadow-xs"
-                  : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              }`}
-              title="Visualização em Grade de Cards"
-            >
-              <LayoutGrid className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setModoVisualizacao("lista")}
-              className={`p-1.5 rounded-xl transition cursor-pointer ${
-                modoVisualizacao === "lista"
-                  ? "bg-white dark:bg-slate-900 text-orange-600 shadow-xs"
-                  : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-              }`}
-              title="Visualização em Lista Compacta"
-            >
-              <List className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. Lista dos Veículos do Cliente */}
-      {carregandoVeiculos ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 animate-pulse">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="h-80 rounded-3xl bg-slate-200/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800"
-            />
-          ))}
-        </div>
-      ) : veiculosFiltrados.length === 0 ? (
-        <div className="rounded-3xl p-8 sm:p-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
-          <div className="w-14 h-14 mx-auto rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-500">
-            <Car className="w-7 h-7" />
-          </div>
-          <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
-            Nenhum veículo encontrado
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-            {busca
-              ? `Não localizamos nenhum veículo correspondente ao termo "${busca}".`
-              : filtroStatus !== "todos"
-                ? `Nenhum veículo com status "${filtroStatus}" no momento.`
-                : "Nenhum veículo ativo está vinculado à sua conta no momento."}
-          </p>
-          {(filtroStatus !== "todos" || busca) && (
-            <button
-              type="button"
-              onClick={() => {
-                setFiltroStatus("todos");
-                setBusca("");
-              }}
-              className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold shadow-md transition active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
-            >
-              <span>Ver todos os veículos</span>
-            </button>
-          )}
-        </div>
-      ) : modoVisualizacao === "grid" ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
-          {veiculosFiltrados.map((v) => (
-            <HunterVehicleCard
-              key={v.id}
-              veiculo={v}
-              enderecoTexto={enderecosMap[v.id]}
-              onVerNoMapa={handleVerNoMapa}
-              onAbrirCockpit={handleAbrirCockpit}
-              onConfigurarMetrica={(veic) => setVeiculoParaMetrica(veic)}
-            />
-          ))}
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {veiculosFiltrados.map((v) => {
-            const statusCom = avaliarStatusComunicacao(v.ultima_atualizacao);
-            return (
-              <div
-                key={v.id}
-                onClick={() => handleVerNoMapa(v)}
-                className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-orange-500/50 shadow-xs hover:shadow-md transition-all flex items-center justify-between cursor-pointer group"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0">
-                    <Car className="w-5 h-5" />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-black text-sm text-slate-900 dark:text-slate-100">
-                        {v.placa}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                        {v.marca_modelo}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-xs">
-                      <span
-                        className={`inline-flex items-center gap-1 font-bold ${
-                          statusCom.ativo
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : "text-slate-400"
-                        }`}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            statusCom.ativo ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
-                          }`}
-                        />
-                        {v.velocidade > 3 ? "Em Rota" : v.ignicao ? "Ligado" : "Estacionado"}
-                      </span>
-                      <span className="text-slate-300 dark:text-slate-700">·</span>
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setVeiculoParaMetrica(v);
-                        }}
-                        className="font-mono font-tabular text-slate-700 dark:text-slate-300 font-bold hover:text-orange-500 cursor-pointer"
-                        title={
-                          v.tipo_medicao === "horimetro"
-                            ? "Horímetro em horas. Clique para alterar métrica."
-                            : "Velocidade em km/h. Clique para alterar métrica."
-                        }
-                      >
-                        {v.tipo_medicao === "horimetro"
-                          ? `${Number(v.horimetro_horas ?? v.horimetro ?? 0).toFixed(1)} h`
-                          : `${v.velocidade} km/h`}
-                      </span>
-                      {enderecosMap[v.id] && (
-                        <>
-                          <span className="text-slate-300 dark:text-slate-700">·</span>
-                          <span className="text-slate-500 dark:text-slate-400 truncate max-w-[180px] sm:max-w-[280px]">
-                            {enderecosMap[v.id]}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  </div>
+            <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+              {/* Dropdown de Clientes para Perfil Administrador e Operador (Padrão: Todos) */}
+              {isOperadorOuAdmin && clientes.length > 0 && (
+                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-2.5 py-1.5 shadow-xs shrink-0">
+                  <Building2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                  <select
+                    value={clienteFiltroSelecionado}
+                    onChange={(e) => setClienteFiltroSelecionado(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                    title="Filtrar veículos por cliente (Padrão: Todos os Clientes)"
+                  >
+                    <option value="todos">Todos os Clientes ({clientes.length})</option>
+                    {clientes.map((cli) => (
+                      <option key={cli.id} value={cli.id}>
+                        {cli.nome_razao_social}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+              )}
 
-                <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
+              {/* Dropdown de Usuários para o Cliente Locador (Padrão: Todos) */}
+              {locatarios.length > 0 && !isLocatario && (
+                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-2.5 py-1.5 shadow-xs shrink-0">
+                  <Users className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                  <select
+                    value={locatarioFiltroSelecionado}
+                    onChange={(e) => setLocatarioFiltroSelecionado(e.target.value)}
+                    className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer pr-1"
+                    title="Filtrar veículos por usuário"
+                  >
+                    <option value="todos">Todos os Usuários ({locatarios.length})</option>
+                    {locatarios.map((loc) => (
+                      <option key={loc.id} value={loc.id}>
+                        {loc.nome} ({loc.veiculos_permitidos?.length || 0} veíc.)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Gestão de Usuários para Clientes Locadores / ADM / Operador */}
+              {!isLocatario && (
+                <button
+                  type="button"
+                  onClick={() => setModalLocatariosAberto(true)}
+                  className="flex items-center gap-1.5 py-2 px-3 rounded-2xl bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30 text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 shadow-xs"
+                  title="Cadastrar e gerenciar usuários subordinados aos seus veículos"
+                >
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">Gerenciar Usuários</span>
+                  <span className="sm:hidden">Usuários</span>
+                </button>
+              )}
+
+              {/* Campo de Busca Rápida */}
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar placa ou modelo..."
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-orange-500 shadow-xs transition"
+                />
               </div>
-            );
-          })}
-        </div>
-      )}
+
+              {/* Alternador de Visualização (Grade / Lista) */}
+              <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setModoVisualizacao("grid")}
+                  className={`p-1.5 rounded-xl transition cursor-pointer ${
+                    modoVisualizacao === "grid"
+                      ? "bg-white dark:bg-slate-900 text-orange-600 shadow-xs"
+                      : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  }`}
+                  title="Visualização em Grade de Cards"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModoVisualizacao("lista")}
+                  className={`p-1.5 rounded-xl transition cursor-pointer ${
+                    modoVisualizacao === "lista"
+                      ? "bg-white dark:bg-slate-900 text-orange-600 shadow-xs"
+                      : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  }`}
+                  title="Visualização em Lista Compacta"
+                >
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Lista dos Veículos do Cliente */}
+          {carregandoVeiculos ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6 animate-pulse">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-80 rounded-3xl bg-slate-200/70 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800"
+                />
+              ))}
+            </div>
+          ) : veiculosFiltrados.length === 0 ? (
+            <div className="rounded-3xl p-8 sm:p-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-500">
+                <Car className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Nenhum veículo encontrado
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                {busca
+                  ? `Não localizamos nenhum veículo correspondente ao termo "${busca}".`
+                  : filtroStatus !== "todos"
+                    ? `Nenhum veículo com status "${filtroStatus}" no momento.`
+                    : "Nenhum veículo ativo está vinculado à sua conta no momento."}
+              </p>
+              {(filtroStatus !== "todos" || busca) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFiltroStatus("todos");
+                    setBusca("");
+                  }}
+                  className="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold shadow-md transition active:scale-95 cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <span>Ver todos os veículos</span>
+                </button>
+              )}
+            </div>
+          ) : modoVisualizacao === "grid" ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-6">
+              {veiculosFiltrados.map((v) => (
+                <HunterVehicleCard
+                  key={v.id}
+                  veiculo={v}
+                  enderecoTexto={enderecosMap[v.id]}
+                  onVerNoMapa={handleVerNoMapa}
+                  onAbrirCockpit={handleAbrirCockpit}
+                  onConfigurarMetrica={(veic) => setVeiculoParaMetrica(veic)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {veiculosFiltrados.map((v) => {
+                const statusCom = avaliarStatusComunicacao(v.ultima_atualizacao);
+                return (
+                  <div
+                    key={v.id}
+                    onClick={() => handleVerNoMapa(v)}
+                    className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 hover:border-orange-500/50 shadow-xs hover:shadow-md transition-all flex items-center justify-between cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl bg-orange-500/10 text-orange-600 flex items-center justify-center shrink-0">
+                        <Car className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-sm text-slate-900 dark:text-slate-100">
+                            {v.placa}
+                          </span>
+                          <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                            {v.marca_modelo}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs">
+                          <span
+                            className={`inline-flex items-center gap-1 font-bold ${
+                              statusCom.ativo
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-slate-400"
+                            }`}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                statusCom.ativo ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                              }`}
+                            />
+                            {v.velocidade > 3 ? "Em Rota" : v.ignicao ? "Ligado" : "Estacionado"}
+                          </span>
+                          <span className="text-slate-300 dark:text-slate-700">·</span>
+                          <span
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setVeiculoParaMetrica(v);
+                            }}
+                            className="font-mono font-tabular text-slate-700 dark:text-slate-300 font-bold hover:text-orange-500 cursor-pointer"
+                            title={
+                              v.tipo_medicao === "horimetro"
+                                ? "Horímetro em horas. Clique para alterar métrica."
+                                : "Velocidade em km/h. Clique para alterar métrica."
+                            }
+                          >
+                            {v.tipo_medicao === "horimetro"
+                              ? `${Number(v.horimetro_horas ?? v.horimetro ?? 0).toFixed(1)} h`
+                              : `${v.velocidade} km/h`}
+                          </span>
+                          {enderecosMap[v.id] && (
+                            <>
+                              <span className="text-slate-300 dark:text-slate-700">·</span>
+                              <span className="text-slate-500 dark:text-slate-400 truncate max-w-[180px] sm:max-w-[280px]">
+                                {enderecosMap[v.id]}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </>
       )}
 

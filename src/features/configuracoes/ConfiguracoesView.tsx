@@ -81,8 +81,7 @@ export function ConfiguracoesView() {
     emularModoPerfil,
     desfazerEmulacao,
   } = useAuth();
-  const modoAtivo: ModoPerfilEmulado =
-    perfilEmulado || (clienteEmulado ? "cliente" : "superadmin");
+  const modoAtivo: ModoPerfilEmulado = perfilEmulado || (clienteEmulado ? "cliente" : "superadmin");
   const { veiculos, recarregar } = useGpsRealtime();
 
   const cardTheme = useCardTheme(session?.userId);

@@ -21,6 +21,7 @@ import {
   atualizarRotacaoElementoMarcador,
 } from "../utils/interpolacaoMapaSuave";
 import { clusterizarVeiculos, gerarMarcadorClusterHtml } from "../utils/clusterVeiculos";
+import { VehicleMotionController } from "../../../services/vehicleMotionEngine";
 
 export interface MapLibre3DEngineHandle {
   fitBounds: (veiculosAlvo?: VeiculoGps[]) => void;
@@ -61,6 +62,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
       };
     }>({});
     const clusterMarkersRef = useRef<{ [id: string]: any }>({});
+    const vehicleMotionControllersRef = useRef<Map<string, VehicleMotionController>>(new Map());
     const [zoomAtual, setZoomAtual] = useState(15);
     const controladorMovimentoRef = useRef<ControladorMovimentoSuave>(
       new ControladorMovimentoSuave(),
@@ -81,8 +83,13 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
     useEffect(() => {
       const handlePreferencia = () => setVersaoPreferencia((p) => p + 1);
       window.addEventListener("hunter_preferencia_mapa_alterada", handlePreferencia);
-      return () =>
+      return () => {
         window.removeEventListener("hunter_preferencia_mapa_alterada", handlePreferencia);
+        for (const mc of vehicleMotionControllersRef.current.values()) {
+          mc.destroy();
+        }
+        vehicleMotionControllersRef.current.clear();
+      };
     }, []);
 
     // Geração do estilo MapLibre baseado no tema ativo
@@ -424,6 +431,10 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
 
       return () => {
         controlador.limpar();
+        for (const mc of vehicleMotionControllersRef.current.values()) {
+          mc.destroy();
+        }
+        vehicleMotionControllersRef.current.clear();
         timers.forEach(clearTimeout);
         if (resizeObserver) {
           resizeObserver.disconnect();
@@ -567,6 +578,27 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         const entry = markersRef.current[v.id];
         const tipoEsperado: "generico" | "modelo" = isGenerico ? "generico" : "modelo";
 
+        // Integração VehicleMotionController (MapLibre 6.10.0 [lng, lat] em onFrame)
+        let motionCtrl = vehicleMotionControllersRef.current.get(v.id);
+        if (!motionCtrl) {
+          motionCtrl = new VehicleMotionController(
+            { lat: v.latitude, lng: v.longitude },
+            (frameState) => {
+              const entryAtual = markersRef.current[v.id];
+              if (entryAtual?.marker) {
+                entryAtual.marker.setLngLat([frameState.lng, frameState.lat]);
+                atualizarRotacaoElementoMarcador(
+                  entryAtual.marker.getElement(),
+                  frameState.bearing,
+                );
+              }
+            },
+          );
+          vehicleMotionControllersRef.current.set(v.id, motionCtrl);
+        } else {
+          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude });
+        }
+
         if (entry && entry.tipo === tipoEsperado && entry.marker) {
           entry.veiculoAtual = v;
           entry.marker.setLngLat([estado.visualLng, estado.visualLat]);
@@ -646,6 +678,11 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
           const entry = markersRef.current[id];
           if (entry?.marker) entry.marker.remove();
           delete markersRef.current[id];
+          const mc = vehicleMotionControllersRef.current.get(id);
+          if (mc) {
+            mc.destroy();
+            vehicleMotionControllersRef.current.delete(id);
+          }
         }
       });
 

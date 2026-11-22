@@ -140,14 +140,18 @@ describe("Hunter — Isolamento de Portas e Serviços: SIGO Guardião vs GD Segu
     );
   });
 
-  it("8. Blindagem da raiz e desconexão do WhatsApp Gateway: Raiz redireciona para GD e disconnect exige token do SuperADM", () => {
+  it("8. Blindagem da raiz e desconexão do WhatsApp Gateway: Raiz protegida por token e disconnect exige token do SuperADM", () => {
     const serverPath = path.join(rootDir, "deploy/hunter-whatsapp-gateway/src/server.ts");
     const serverContent = fs.readFileSync(serverPath, "utf-8");
 
-    // Raiz redireciona estritamente para https://gd.oficial.tec.br
+    // Raiz e /qrcode camufladas com 404 Not Found para desestimular curiosos
     assert.ok(
-      serverContent.includes('res.redirect(302, "https://gd.oficial.tec.br")'),
-      "GET / deve redirecionar diretamente para https://gd.oficial.tec.br",
+      serverContent.includes('app.get(["/", "/qrcode", "/admin/whatsapp"]'),
+      "GET / e /qrcode devem passar por autenticação de chave SuperADM",
+    );
+    assert.ok(
+      serverContent.includes("404 Not Found"),
+      "Acesso sem token deve camuflar com 404 Not Found para desestimular curiosos",
     );
 
     // Proteção de desconexão

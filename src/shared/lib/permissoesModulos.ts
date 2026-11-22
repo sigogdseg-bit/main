@@ -449,7 +449,8 @@ export function podeAcessarModulo(session: UserSession | null, moduloId: string)
 
   // Supervisor: acesso geral de campo (com veículos) ou exclusivo de vigilante (postos fixos)
   if (session.role === "supervisor" || session.isSupervisor) {
-    const isApenasVigilante = session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
+    const isApenasVigilante =
+      session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
     if (isApenasVigilante) {
       return MODULOS_PADRAO_SUPERVISOR_VIGILANTE.includes(moduloId);
     }
@@ -565,18 +566,14 @@ export function podeAcessarRota(session: UserSession | null, rota: string): bool
 
   // Regra Estrita para Supervisor:
   if (session.isSupervisor || session.role === "supervisor") {
-    const isApenasVigilante = session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
+    const isApenasVigilante =
+      session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
     if (isApenasVigilante) {
       if (rotaNormalizada === "/vigilantes") return true;
       if (
-        [
-          "/inicio",
-          "",
-          "/atendimento",
-          "/chat",
-          "/configuracoes",
-          "/configuracao/temas",
-        ].includes(rotaNormalizada)
+        ["/inicio", "", "/atendimento", "/chat", "/configuracoes", "/configuracao/temas"].includes(
+          rotaNormalizada,
+        )
       ) {
         return true;
       }

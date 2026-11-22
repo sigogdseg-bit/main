@@ -46,8 +46,14 @@ describe("Hunter — Emulação Tática de Modos de Perfis pelo SuperADM", () =>
   test("2. Deve retornar o rotulo amigavel correto para cada modo de perfil", () => {
     assert.equal(obterRotuloModoPerfil("superadmin"), "SuperADM (Visão Global Irrestrita)");
     assert.equal(obterRotuloModoPerfil("operador"), "Operador de Monitoramento");
-    assert.equal(obterRotuloModoPerfil("supervisor_geral"), "Supervisor Geral (Veículos e Vigilantes)");
-    assert.equal(obterRotuloModoPerfil("supervisor_vigilante"), "Supervisor de Vigilante (Postos Fixos)");
+    assert.equal(
+      obterRotuloModoPerfil("supervisor_geral"),
+      "Supervisor Geral (Veículos e Vigilantes)",
+    );
+    assert.equal(
+      obterRotuloModoPerfil("supervisor_vigilante"),
+      "Supervisor de Vigilante (Postos Fixos)",
+    );
     assert.equal(obterRotuloModoPerfil("vigilante"), "Vigilante (Rondas e Escala Tática)");
     assert.equal(obterRotuloModoPerfil("instalador"), "Instalador Técnico");
     assert.equal(obterRotuloModoPerfil("motorista"), "Motorista");
@@ -56,7 +62,10 @@ describe("Hunter — Emulação Tática de Modos de Perfis pelo SuperADM", () =>
     assert.equal(obterRotuloModoPerfil("vendedor"), "Vendedor Autorizado");
     assert.equal(obterRotuloModoPerfil("superadmin_auditor"), "S.adm Auditor (Consulta Read-Only)");
     assert.equal(obterRotuloModoPerfil("cliente"), "Cliente (Titular Plano Master)");
-    assert.equal(obterRotuloModoPerfil("cliente_degustacao"), "Cliente Degustação (Trial Master 24h)");
+    assert.equal(
+      obterRotuloModoPerfil("cliente_degustacao"),
+      "Cliente Degustação (Trial Master 24h)",
+    );
   });
 
   test("3. Cada perfil emulado deve possuir mapeamento de modulos compativel no sistema", () => {
@@ -115,9 +124,15 @@ describe("Hunter — Emulação Tática de Modos de Perfis pelo SuperADM", () =>
     assert.ok(modulosSupervisorGeral.includes("abastecimento"));
     assert.ok(modulosSupervisorGeral.includes("manutencao"));
     // Supervisor Geral NÃO deve ter acesso a instalacao, clientes, financeiro ou estoque
-    assert.ok(!modulosSupervisorGeral.includes("instalacao"), "Supervisor Geral nao acessa instalacao");
+    assert.ok(
+      !modulosSupervisorGeral.includes("instalacao"),
+      "Supervisor Geral nao acessa instalacao",
+    );
     assert.ok(!modulosSupervisorGeral.includes("clientes"), "Supervisor Geral nao acessa clientes");
-    assert.ok(!modulosSupervisorGeral.includes("financeiro"), "Supervisor Geral nao acessa financeiro");
+    assert.ok(
+      !modulosSupervisorGeral.includes("financeiro"),
+      "Supervisor Geral nao acessa financeiro",
+    );
     assert.ok(!modulosSupervisorGeral.includes("estoque"), "Supervisor Geral nao acessa estoque");
 
     const modulosFinanceiro = obterModulosPadraoPorPerfil("financeiro");
@@ -129,15 +144,24 @@ describe("Hunter — Emulação Tática de Modos de Perfis pelo SuperADM", () =>
     assert.ok(modulosFinanceiro.includes("instalacao"));
     assert.ok(modulosFinanceiro.includes("estoque"));
     // Financeiro da GD NÃO acessa abastecimento ou manutencao da frota dos clientes
-    assert.ok(!modulosFinanceiro.includes("abastecimento"), "Financeiro nao acessa abastecimento do cliente");
-    assert.ok(!modulosFinanceiro.includes("manutencao"), "Financeiro nao acessa manutencao do cliente");
+    assert.ok(
+      !modulosFinanceiro.includes("abastecimento"),
+      "Financeiro nao acessa abastecimento do cliente",
+    );
+    assert.ok(
+      !modulosFinanceiro.includes("manutencao"),
+      "Financeiro nao acessa manutencao do cliente",
+    );
     assert.ok(!modulosFinanceiro.includes("monitor-gps"), "Financeiro nao acessa monitor-gps");
 
     const modulosOperador = obterModulosPadraoPorPerfil("operador");
     assert.ok(modulosOperador.includes("monitor-gps"));
     assert.ok(modulosOperador.includes("vigilantes"), "Operador deve ter acesso a vigilantes");
     assert.ok(modulosOperador.includes("propostas"), "Operador deve ter acesso a propostas");
-    assert.ok(!modulosOperador.includes("mensalidades"), "Operador nao acessa mensalidades/cobranca");
+    assert.ok(
+      !modulosOperador.includes("mensalidades"),
+      "Operador nao acessa mensalidades/cobranca",
+    );
     assert.ok(!modulosOperador.includes("financeiro"), "Operador nao acessa financeiro");
   });
 });

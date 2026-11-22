@@ -333,13 +333,13 @@ export function InicioHubView() {
   // são direcionados diretamente ao Hub de Módulos Operacionais do seu perfil, sem ver veículos indevidamente.
   const perfilOperaVeiculos = Boolean(
     session?.isSuperAdmin ||
-      session?.isAdmin ||
-      session?.isOperador ||
-      (session?.isSupervisor &&
-        session?.tipoSupervisor !== "vigilante" &&
-        session?.acessoVeiculos !== false) ||
-      session?.isCliente ||
-      session?.isDegustacao,
+    session?.isAdmin ||
+    session?.isOperador ||
+    (session?.isSupervisor &&
+      session?.tipoSupervisor !== "vigilante" &&
+      session?.acessoVeiculos !== false) ||
+    session?.isCliente ||
+    session?.isDegustacao,
   );
 
   // Se o perfil opera veículos e a visão de Meus Veículos estiver ativa, renderiza a experiência de alta fidelidade
