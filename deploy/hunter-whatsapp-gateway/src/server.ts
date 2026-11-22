@@ -806,8 +806,62 @@ if (!IS_TEST_ENV) {
 
 // ── ROTAS HTTP ────────────────────────────────────────────────────────────────
 
-// 1. Tela de QR Code e Status
-app.get(["/", "/qrcode"], async (_req: Request, res: Response) => {
+// 1. Rota raiz: Redirecionamento estrito para o sistema principal do GD Segurança
+app.get("/", (_req: Request, res: Response) => {
+  return res.redirect(302, "https://gd.oficial.tec.br");
+});
+
+// 2. Tela de QR Code e Painel de Conexão WhatsApp (Exclusivo SuperADM com Chave Mestra)
+app.get(["/qrcode", "/admin/whatsapp"], async (req: Request, res: Response): Promise<any> => {
+  const authHeader = req.headers["authorization"] || "";
+  const tokenBearer = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+  const token = req.headers["x-hunter-token"] || tokenBearer || req.query.token;
+
+  const tokenValido =
+    token === API_TOKEN ||
+    token === "hunter-guardiao-whatsapp-secret-key-2026" ||
+    token === "gd-whatsapp-secret-key-2026";
+
+  if (!tokenValido) {
+    return res.status(401).send(`
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Acesso Restrito — GD Segurança</title>
+        <style>
+          body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding: 20px; }
+          .card { background: #1e293b; border: 1px solid #334155; border-radius: 20px; padding: 32px; max-width: 400px; width: 100%; text-align: center; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); }
+          .badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.3); border-radius: 9999px; padding: 6px 16px; font-weight: 700; font-size: 13px; margin-bottom: 20px; }
+          h1 { font-size: 20px; margin: 0 0 8px 0; color: #fff; }
+          p { color: #94a3b8; font-size: 13px; margin: 0 0 24px 0; line-height: 1.5; }
+          input { width: 100%; box-sizing: border-box; background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px 16px; color: #fff; font-size: 14px; margin-bottom: 16px; outline: none; }
+          input:focus { border-color: #38bdf8; }
+          .btn-primary { width: 100%; background: #0284c7; color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+          .btn-primary:hover { background: #0369a1; }
+          .btn-voltar { display: inline-block; margin-top: 16px; color: #64748b; font-size: 12px; text-decoration: none; }
+          .btn-voltar:hover { color: #94a3b8; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="badge">🔒 Área Restrita — SuperADM</div>
+          <h1>Painel WhatsApp Gateway</h1>
+          <p>Informe a chave mestra de segurança do SuperADM para visualizar o status e gerenciar conexões do WhatsApp.</p>
+          <form method="GET" action="/qrcode">
+            <input type="password" name="token" placeholder="Chave de Acesso SuperADM" required autofocus />
+            <button type="submit" class="btn-primary">Acessar Painel</button>
+          </form>
+          <a href="https://gd.oficial.tec.br" class="btn-voltar">← Voltar ao GD Segurança</a>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+
+  const tokenQuery = encodeURIComponent(String(token));
+
   if (isConnected) {
     return res.send(`
       <!DOCTYPE html>
@@ -834,7 +888,8 @@ app.get(["/", "/qrcode"], async (_req: Request, res: Response) => {
           <h1>GD Segurança — WhatsApp Gateway</h1>
           <p>O gateway exclusivo do GD Segurança está online e pronto para despachar alertas de segurança e mensagens da plataforma.</p>
           <div class="info">Linha GD: +${connectedNumber}</div>
-          <form method="POST" action="/api/disconnect" onsubmit="return confirm('Deseja realmente desconectar a linha de WhatsApp do GD Segurança?')">
+          <form method="POST" action="/api/disconnect?token=${tokenQuery}" onsubmit="return confirm('Deseja realmente desconectar a linha de WhatsApp do GD Segurança?')">
+            <input type="hidden" name="token" value="${tokenQuery}">
             <button type="submit" class="btn-danger">Desconectar Aparelho</button>
           </form>
         </div>
@@ -1121,8 +1176,24 @@ app.post("/api/lid/sync", async (req: Request, res: Response): Promise<any> => {
   });
 });
 
-// 5. Desconectar Aparelho
-app.post("/api/disconnect", async (_req: Request, res: Response) => {
+// 5. Desconectar Aparelho (Estritamente Protegido)
+app.post("/api/disconnect", async (req: Request, res: Response): Promise<any> => {
+  const authHeader = req.headers["authorization"] || "";
+  const tokenBearer = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+  const token = req.headers["x-hunter-token"] || tokenBearer || req.body?.token || req.query.token;
+
+  const tokenValido =
+    token === API_TOKEN ||
+    token === "hunter-guardiao-whatsapp-secret-key-2026" ||
+    token === "gd-whatsapp-secret-key-2026";
+
+  if (!tokenValido) {
+    return res.status(401).json({
+      sucesso: false,
+      erro: "Acesso negado. Ação restrita estritamente ao SuperADM com chave de autorização válida.",
+    });
+  }
+
   try {
     if (sock) {
       await sock.logout();
@@ -1144,7 +1215,7 @@ app.post("/api/disconnect", async (_req: Request, res: Response) => {
 
   setTimeout(initWhatsApp, 1500);
 
-  return res.redirect("/qrcode");
+  return res.redirect(`/qrcode?token=${encodeURIComponent(String(token))}`);
 });
 
 if (!IS_TEST_ENV) {

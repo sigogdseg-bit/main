@@ -151,6 +151,11 @@ html.dark .leaflet-container {
   }
 }
 
+.hunter-pin-shadow-fixed {
+  transform: scale(1);
+  opacity: 0.55;
+}
+
 .vehicle-via-aligned,
 .hunter-generico-seta {
   will-change: transform;

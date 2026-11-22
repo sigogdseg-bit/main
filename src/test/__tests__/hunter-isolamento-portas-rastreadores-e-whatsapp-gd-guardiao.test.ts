@@ -139,4 +139,25 @@ describe("Hunter — Isolamento de Portas e Serviços: SIGO Guardião vs GD Segu
       "CONTAS-E-SERVICOS.md deve listar porta 8081 (Guardião) e 8082 (GD Segurança)",
     );
   });
+
+  it("8. Blindagem da raiz e desconexão do WhatsApp Gateway: Raiz redireciona para GD e disconnect exige token do SuperADM", () => {
+    const serverPath = path.join(rootDir, "deploy/hunter-whatsapp-gateway/src/server.ts");
+    const serverContent = fs.readFileSync(serverPath, "utf-8");
+
+    // Raiz redireciona estritamente para https://gd.oficial.tec.br
+    assert.ok(
+      serverContent.includes('res.redirect(302, "https://gd.oficial.tec.br")'),
+      "GET / deve redirecionar diretamente para https://gd.oficial.tec.br",
+    );
+
+    // Proteção de desconexão
+    assert.ok(
+      serverContent.includes('app.post("/api/disconnect"'),
+      "Deve possuir rota POST /api/disconnect",
+    );
+    assert.ok(
+      serverContent.includes("Acesso negado. Ação restrita estritamente ao SuperADM"),
+      "POST /api/disconnect deve validar token e rejeitar acesso não autorizado",
+    );
+  });
 });

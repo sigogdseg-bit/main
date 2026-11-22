@@ -492,7 +492,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
 
         const isSelected = veiculoSelecionado?.id === v.id;
         const isBloqueado = v.bloqueado;
-        const isEmRota = v.status_operacional === "em_rota";
+        const isEmRota = v.status_operacional === "em_rota" || (v.velocidade ?? 0) > 3;
         const isParadoLigado = v.status_operacional === "parado_ligado";
         const temAlerta = v.alerta_acidente;
         const statusCom = avaliarStatusComunicacao(v.ultima_atualizacao);

@@ -1185,8 +1185,8 @@ export function gerarMarcador3DHtml(params: {
             : ""
         }
 
-        <!-- 2. Pino 3D Glossy em pé (100% RETO E VERTICAL) com animação suave de levitação -->
-        <div class="hunter-3d-pin-standing hunter-pin-floating" style="
+        <!-- 2. Pino 3D Glossy em pé (100% RETO E VERTICAL) com animação suave de levitação apenas quando parado/estacionado -->
+        <div class="hunter-3d-pin-standing ${!isEmRota ? "hunter-pin-floating" : ""}" style="
           position: relative;
           width: 44px;
           height: 48px;
@@ -1200,7 +1200,7 @@ export function gerarMarcador3DHtml(params: {
         </div>
 
         <!-- 3. Sombra de contato no solo exatamente sob a ponta do pino -->
-        <div class="hunter-pin-shadow" style="
+        <div class="${!isEmRota ? "hunter-pin-shadow" : "hunter-pin-shadow-fixed"}" style="
           width: 14px;
           height: 4px;
           background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 75%);
@@ -1267,8 +1267,8 @@ export function gerarMarcador3DHtml(params: {
           : ""
       }
 
-      <!-- 2. Pino 3D Glossy com Veículo no Interior em pé na via -->
-      <div class="hunter-3d-pin-standing hunter-pin-floating vehicle-3d-symbol" style="
+      <!-- 2. Pino 3D Glossy com Veículo no Interior em pé na via (flutua apenas quando parado/estacionado) -->
+      <div class="hunter-3d-pin-standing ${!isEmRota ? "hunter-pin-floating" : ""} vehicle-3d-symbol" style="
         position: relative;
         width: 50px;
         height: 52px;
@@ -1282,7 +1282,7 @@ export function gerarMarcador3DHtml(params: {
       </div>
 
       <!-- 3. Sombra de contato no solo exatamente sob a ponta do pino -->
-      <div class="hunter-pin-shadow" style="
+      <div class="${!isEmRota ? "hunter-pin-shadow" : "hunter-pin-shadow-fixed"}" style="
         width: 16px;
         height: 4px;
         background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 75%);

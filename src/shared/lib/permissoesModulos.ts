@@ -97,7 +97,6 @@ export const MODULOS_PADRAO_OPERADOR: string[] = [
   "clientes",
   "configuracoes",
   "estoque",
-  "financeiro",
   "frota",
   "instalacao",
   "logs",
@@ -106,7 +105,6 @@ export const MODULOS_PADRAO_OPERADOR: string[] = [
   "motoristas",
   "monitor-gps",
   "vigilantes",
-  "mensalidades",
   "propostas",
   "temas",
   "demonstracao",
@@ -418,6 +416,22 @@ export function podeAcessarModulo(session: UserSession | null, moduloId: string)
   // Operador: acessa ESTRITAMENTE os módulos atribuídos ou, se não houver registros
   // customizados no banco de dados, utiliza os módulos padrão autorizados para o operador
   if (session.role === "operador") {
+    // Proibição estrita de acesso a mensalidade/cobrança e finanças da GD
+    if (
+      [
+        "mensalidades",
+        "financeiro",
+        "usuarios",
+        "central-seguranca",
+        "dispositivos",
+        "rastreadores",
+        "revendedores",
+        "minha-franquia",
+        "minhas-vendas",
+      ].includes(moduloId)
+    ) {
+      return false;
+    }
     const modulosOperador =
       session.modulos && session.modulos.length > 0 ? session.modulos : MODULOS_PADRAO_OPERADOR;
 

@@ -24,10 +24,10 @@ describe("Hunter — Permissões de Módulos por Perfil e Limitação de Operado
     assert.ok(modulosOp.includes("atendimento"), "deve incluir atendimento");
     assert.ok(modulosOp.includes("clientes"), "deve incluir clientes");
     assert.ok(modulosOp.includes("estoque"), "deve incluir estoque");
-    assert.ok(modulosOp.includes("financeiro"), "deve incluir financeiro");
+    assert.ok(!modulosOp.includes("financeiro"), "nao deve incluir financeiro");
     assert.ok(modulosOp.includes("instalacao"), "deve incluir instalacao");
     assert.ok(modulosOp.includes("monitor-gps"), "deve incluir monitor-gps");
-    assert.ok(modulosOp.includes("mensalidades"), "deve incluir mensalidades");
+    assert.ok(!modulosOp.includes("mensalidades"), "nao deve incluir mensalidades");
     assert.ok(modulosOp.includes("temas"), "deve incluir temas");
     assert.ok(modulosOp.includes("configuracoes"), "deve incluir configuracoes");
 
@@ -104,10 +104,10 @@ describe("Hunter — Permissões de Módulos por Perfil e Limitação de Operado
     assert.equal(podeAcessarModulo(sessaoOpPadrao, "atendimento"), true);
     assert.equal(podeAcessarModulo(sessaoOpPadrao, "clientes"), true);
     assert.equal(podeAcessarModulo(sessaoOpPadrao, "estoque"), true);
-    assert.equal(podeAcessarModulo(sessaoOpPadrao, "financeiro"), true);
+    assert.equal(podeAcessarModulo(sessaoOpPadrao, "financeiro"), false);
     assert.equal(podeAcessarModulo(sessaoOpPadrao, "instalacao"), true);
     assert.equal(podeAcessarModulo(sessaoOpPadrao, "monitor-gps"), true);
-    assert.equal(podeAcessarModulo(sessaoOpPadrao, "mensalidades"), true);
+    assert.equal(podeAcessarModulo(sessaoOpPadrao, "mensalidades"), false);
     assert.equal(podeAcessarModulo(sessaoOpPadrao, "temas"), true);
     assert.equal(podeAcessarModulo(sessaoOpPadrao, "logs"), true);
     assert.equal(podeAcessarRota(sessaoOpPadrao, "/configuracao/logs"), true);
@@ -154,7 +154,8 @@ describe("Hunter — Permissões de Módulos por Perfil e Limitação de Operado
 
     // Módulos operacionais liberados
     assert.equal(podeAcessarModulo(sessaoOpComModulos, "estoque"), true);
-    assert.equal(podeAcessarModulo(sessaoOpComModulos, "financeiro"), true);
+    assert.equal(podeAcessarModulo(sessaoOpComModulos, "financeiro"), false);
+    assert.equal(podeAcessarModulo(sessaoOpComModulos, "mensalidades"), false);
     assert.equal(podeAcessarModulo(sessaoOpComModulos, "monitor-gps"), true);
 
     // Módulos de governança administrativa permanecem estritamente bloqueados

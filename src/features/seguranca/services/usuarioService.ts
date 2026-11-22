@@ -172,8 +172,6 @@ export function obterModulosPadraoPorPerfil(
       "instalacao",
       "clientes",
       "motoristas",
-      "financeiro",
-      "mensalidades",
       "estoque",
       "propostas",
       "demonstracao",

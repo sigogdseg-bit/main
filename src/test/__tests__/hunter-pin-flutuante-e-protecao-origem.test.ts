@@ -52,6 +52,25 @@ describe("Hunter — Pino 3D Flutuante Reto e Proteção no Local de Origem (DJR
       htmlSemPlaca.includes("hunter-pin-floating"),
       "Pino continua flutuando perfeitamente",
     );
+
+    // Quando em rota / em movimento: o pino NÃO flutua (fica assentado no solo com sombra fixa)
+    const htmlEmRota = gerarMarcador3DHtml({
+      placa: "BRA2E19",
+      corStatus: "#10B981",
+      anguloRumo: 90,
+      iconeGenerico: true,
+      mostrarPlaca: true,
+      isEmRota: true,
+    });
+
+    assert.ok(
+      !htmlEmRota.includes("hunter-pin-floating"),
+      "Em movimento o pino NÃO deve ter a classe hunter-pin-floating",
+    );
+    assert.ok(
+      htmlEmRota.includes("hunter-pin-shadow-fixed"),
+      "Em movimento o pino deve ter a sombra fixa no asfalto",
+    );
   });
 
   test("2. Funções auxiliares 3D: gerarMiniPlacaSoloHtml e gerarPinoFlutuanteHtml", () => {

@@ -137,7 +137,7 @@ describe("Hunter — Emulação Tática de Modos de Perfis pelo SuperADM", () =>
     assert.ok(modulosOperador.includes("monitor-gps"));
     assert.ok(modulosOperador.includes("vigilantes"), "Operador deve ter acesso a vigilantes");
     assert.ok(modulosOperador.includes("propostas"), "Operador deve ter acesso a propostas");
-    assert.ok(modulosOperador.includes("mensalidades"));
-    assert.ok(modulosOperador.includes("financeiro"), "Operador acessa financeiro e mensalidades");
+    assert.ok(!modulosOperador.includes("mensalidades"), "Operador nao acessa mensalidades/cobranca");
+    assert.ok(!modulosOperador.includes("financeiro"), "Operador nao acessa financeiro");
   });
 });
