@@ -21,6 +21,7 @@ import { useAuth } from "@/features/auth/context/AuthContext";
 import type { ModoPerfilEmulado } from "@/features/auth/types";
 import {
   MODOS_PERFIS_DISPONIVEIS,
+  MODOS_PERFIS_EMULAVEIS,
   obterRotuloModoPerfil,
 } from "@/features/auth/constants/modosPerfis";
 import { APP_NOME, APP_VERSION_NUMERO } from "@/shared/lib/version";
@@ -164,40 +165,6 @@ export function AppHeader() {
 
           {/* Lado Direito: Perfil + Chat + Tema + Senha + Logout */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            {/* Seletor Suspenso de Modos de Todos os Perfis para SuperADM */}
-            {isSuperAdmReal && (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-orange-500/10 border border-orange-500/30 text-xs shadow-xs">
-                <ShieldCheck className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-                <span className="text-[10px] font-black uppercase text-orange-600 dark:text-orange-400 hidden xl:inline">
-                  Visão:
-                </span>
-                <select
-                  value={modoAtivo}
-                  onChange={(e) => {
-                    const novoModo = e.target.value as ModoPerfilEmulado;
-                    emularModoPerfil(novoModo);
-                    if (novoModo === "superadmin") {
-                      toast.success("Visão SuperADM global restaurada.");
-                    } else {
-                      toast.success(`Modo ${obterRotuloModoPerfil(novoModo)} ativado.`);
-                    }
-                  }}
-                  className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-100 focus:outline-none cursor-pointer pr-1"
-                  title="Lista suspensa: alternar visão para qualquer perfil do sistema"
-                >
-                  {MODOS_PERFIS_DISPONIVEIS.map((m) => (
-                    <option
-                      key={m.id}
-                      value={m.id}
-                      className="bg-slate-900 text-slate-100 font-semibold py-1"
-                    >
-                      {m.rotulo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             {/* Badges de Perfil e Plano com Distinção Máxima (telas md:) */}
             <div className="hidden md:flex items-center gap-1.5">
               {session.isDegustacao || session.role === "superadmin_auditor" ? (
@@ -351,7 +318,7 @@ export function AppHeader() {
               className="text-[11px] font-bold px-2 py-1 rounded-lg border border-amber-500/40 bg-white/90 dark:bg-slate-900 text-amber-950 dark:text-amber-100 outline-none cursor-pointer shadow-2xs"
               title="Trocar perfil emulado na lista suspensa"
             >
-              {MODOS_PERFIS_DISPONIVEIS.map((m) => (
+              {MODOS_PERFIS_EMULAVEIS.map((m) => (
                 <option
                   key={m.id}
                   value={m.id}

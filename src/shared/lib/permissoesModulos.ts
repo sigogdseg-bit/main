@@ -119,11 +119,30 @@ export const MODULOS_PADRAO_FINANCEIRO: string[] = [
   "clientes",
   "revendedores",
   "instalacao",
-  "abastecimento",
-  "manutencao",
   "estoque",
   "chat",
   "atendimento",
+  "configuracoes",
+  "temas",
+];
+
+export const MODULOS_PADRAO_SUPERVISOR_GERAL: string[] = [
+  "monitor-gps",
+  "vigilantes",
+  "rotas",
+  "frota",
+  "abastecimento",
+  "manutencao",
+  "atendimento",
+  "chat",
+  "configuracoes",
+  "temas",
+];
+
+export const MODULOS_PADRAO_SUPERVISOR_VIGILANTE: string[] = [
+  "vigilantes",
+  "atendimento",
+  "chat",
   "configuracoes",
   "temas",
 ];
@@ -305,13 +324,22 @@ export function podeAcessarModulo(session: UserSession | null, moduloId: string)
     );
   }
 
-  // Motorista: exclusivamente abastecimento, manutenção preventiva e rotas inteligentes.
+  // Motorista: exclusivamente abastecimento, manutenção preventiva e rotas inteligentes para clientes Pro e Master.
   // Mapa operacional ao vivo SOMENTE se expressamente autorizado em seu cadastro.
   if (session.isMotorista) {
     if (moduloId === "monitor-gps") {
       return Boolean(session.acessoMapaMotorista);
     }
-    return ["rotas", "abastecimento", "manutencao", "motorista"].includes(moduloId);
+    const isPlanoProOuMaster =
+      session.plano === "pro" ||
+      session.plano === "master" ||
+      session.isTrialMaster ||
+      session.isDegustacao ||
+      !session.plano; // fallback resiliente caso o plano do titular não esteja preenchido
+    if (["rotas", "abastecimento", "manutencao", "motorista"].includes(moduloId)) {
+      return isPlanoProOuMaster;
+    }
+    return ["atendimento", "chat", "configuracoes", "temas"].includes(moduloId);
   }
 
   // Funcionário: acessa ESTRITAMENTE os módulos delegados pelo seu cliente titular
@@ -405,24 +433,13 @@ export function podeAcessarModulo(session: UserSession | null, moduloId: string)
     return ["vigilantes", "atendimento", "chat", "configuracoes", "temas"].includes(moduloId);
   }
 
-  // Supervisor: acesso igual do operador, podendo ser supervisor geral (com veículos) ou exclusivo de vigilante
+  // Supervisor: acesso geral de campo (com veículos) ou exclusivo de vigilante (postos fixos)
   if (session.role === "supervisor" || session.isSupervisor) {
     const isApenasVigilante = session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
     if (isApenasVigilante) {
-      if (["monitor-gps", "rotas", "frota", "abastecimento", "motoristas", "motorista"].includes(moduloId)) {
-        return false;
-      }
-      return ["vigilantes", "atendimento", "chat", "configuracoes", "temas"].includes(moduloId);
+      return MODULOS_PADRAO_SUPERVISOR_VIGILANTE.includes(moduloId);
     }
-    const modulosSupervisor =
-      session.modulos && session.modulos.length > 0
-        ? session.modulos
-        : [...MODULOS_PADRAO_OPERADOR, "vigilantes"];
-    if (modulosSupervisor.includes("todos") || modulosSupervisor.includes("*")) {
-      return true;
-    }
-    const aliases = aliasesModulo(moduloId);
-    return modulosSupervisor.some((userMod) => aliases.includes(userMod));
+    return MODULOS_PADRAO_SUPERVISOR_GERAL.includes(moduloId);
   }
 
   return false;
@@ -530,6 +547,51 @@ export function podeAcessarRota(session: UserSession | null, rota: string): bool
       "/configuracoes",
       "/configuracao/temas",
     ].some((r) => rotaNormalizada === r || rotaNormalizada.startsWith(`${r}/`));
+  }
+
+  // Regra Estrita para Supervisor:
+  if (session.isSupervisor || session.role === "supervisor") {
+    const isApenasVigilante = session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
+    if (isApenasVigilante) {
+      if (rotaNormalizada === "/vigilantes") return true;
+      if (
+        [
+          "/inicio",
+          "",
+          "/atendimento",
+          "/chat",
+          "/configuracoes",
+          "/configuracao/temas",
+        ].includes(rotaNormalizada)
+      ) {
+        return true;
+      }
+      return false;
+    }
+    // Supervisor Geral: apenas rotas operacionais de campo
+    const rotasPermitidasSupervisorGeral = [
+      "/inicio",
+      "",
+      "/monitor-gps",
+      "/vigilantes",
+      "/rotas",
+      "/frota",
+      "/abastecimento",
+      "/motorista",
+      "/manutencao",
+      "/atendimento",
+      "/chat",
+      "/configuracoes",
+      "/configuracao/temas",
+    ];
+    if (
+      rotasPermitidasSupervisorGeral.some(
+        (r) => rotaNormalizada === r || rotaNormalizada.startsWith(`${r}/`),
+      )
+    ) {
+      return true;
+    }
+    return false;
   }
 
   // Regra para Perfil Financeiro: Precedência dos módulos concedidos (com padrão financeiro canônico)

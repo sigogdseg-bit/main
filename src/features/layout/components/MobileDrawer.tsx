@@ -180,18 +180,6 @@ export function MobileDrawer({
             descricao: "Controle de repasses de mão de obra de instalações",
           },
           {
-            titulo: "Abastecimento e Notas Fiscais",
-            rota: "/abastecimento",
-            icone: Fuel,
-            descricao: "Lançamento de combustível, conferência de NFs e despesas",
-          },
-          {
-            titulo: "Manutenção Preventiva",
-            rota: "/manutencao",
-            icone: Wrench,
-            descricao: "Revisões, pneus, peças e custos de manutenção",
-          },
-          {
             titulo: "Estoque e Suprimentos",
             rota: "/estoque",
             icone: Boxes,
@@ -495,6 +483,87 @@ export function MobileDrawer({
         ],
       },
     ];
+  } else if (session.isSupervisor || session.role === "supervisor") {
+    const isApenasVigilante = session.tipoSupervisor === "vigilante" || session.acessoVeiculos === false;
+    if (isApenasVigilante) {
+      secoesMenu = [
+        {
+          titulo: "Vigilância Patrimonial",
+          itens: [
+            {
+              titulo: "Módulo Vigilante e Rondas",
+              rota: "/vigilantes",
+              icone: ShieldCheck,
+              descricao: "Rondas, escalas táticas e postos fixos",
+            },
+          ],
+        },
+      ];
+    } else {
+      secoesMenu = [
+        {
+          titulo: "Operações de Campo",
+          itens: [
+            {
+              titulo: "Painel Geral",
+              rota: "/inicio",
+              icone: LayoutDashboard,
+              descricao: "Visão executiva e telemetria",
+            },
+            {
+              titulo: "Mapa Operacional",
+              rota: "/monitor-gps",
+              icone: MapPin,
+              descricao: "Rastreamento tático e bloqueio remoto",
+            },
+            {
+              titulo: "Módulo Vigilante e Rondas",
+              rota: "/vigilantes",
+              icone: ShieldCheck,
+              descricao: "Rondas, escalas táticas e postos fixos",
+            },
+            {
+              titulo: "Rotas e Trajetos Inteligentes",
+              rota: "/rotas",
+              icone: Navigation,
+              descricao: "Planejar rotas pelas ruas com múltiplos destinos",
+            },
+            {
+              titulo: "Desempenho da Frota",
+              rota: "/frota",
+              icone: Activity,
+              descricao: "Analytics consolidado e relatórios",
+            },
+            {
+              titulo: "Abastecimento de Veículos",
+              rota: "/abastecimento",
+              icone: Fuel,
+              descricao: "Gestão e auditoria de combustível",
+            },
+            {
+              titulo: "Manutenção Preventiva",
+              rota: "/manutencao",
+              icone: Wrench,
+              descricao: "Agendamentos, revisão e controle de oficinas",
+            },
+          ],
+        },
+      ];
+    }
+  } else if (session.isVigilante || session.role === "vigilante") {
+    secoesMenu = [
+      {
+        titulo: "Vigilância e Rondas",
+        itens: [
+          {
+            titulo: "Módulo Vigilante e Rondas",
+            rota: "/vigilantes",
+            icone: ShieldCheck,
+            descricao: "Minha escala tática e cumprimento de rondas",
+          },
+        ],
+      },
+    ];
   } else {
     // Perfil Administrativo / SuperADM / Operador
     secoesMenu = [
@@ -605,6 +674,12 @@ export function MobileDrawer({
             rota: "/revendedores",
             icone: Briefcase,
             descricao: "Rede parceira, gestão de bases, equipe e repasses",
+          },
+          {
+            titulo: "Propostas Comerciais",
+            rota: "/propostas",
+            icone: FileText,
+            descricao: "Emissão de propostas comerciais de rastreamento",
           },
         ],
       },

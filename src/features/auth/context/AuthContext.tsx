@@ -182,7 +182,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isSupervisor: true,
         tipoSupervisor: "geral",
         acessoVeiculos: true,
-        isOperador: true,
+        isOperador: false,
         modulos: obterModulosPadraoPorPerfil("supervisor", "geral"),
       };
     }

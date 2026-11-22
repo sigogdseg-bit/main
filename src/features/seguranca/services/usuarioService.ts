@@ -149,32 +149,37 @@ export function obterModulosPadraoPorPerfil(
       return ["vigilantes", "atendimento", "chat", "configuracoes", "temas"];
     }
     return [
-      "atendimento",
-      "chat",
-      "clientes",
-      "configuracoes",
-      "estoque",
-      "financeiro",
-      "instalacao",
       "monitor-gps",
+      "vigilantes",
       "rotas",
       "frota",
       "abastecimento",
-      "mensalidades",
+      "manutencao",
+      "atendimento",
+      "chat",
+      "configuracoes",
       "temas",
-      "vigilantes",
     ];
   }
   if (role === "operador") {
     return [
-      "atendimento",
-      "clientes",
-      "configuracoes",
-      "estoque",
-      "financeiro",
-      "instalacao",
       "monitor-gps",
+      "vigilantes",
+      "rotas",
+      "frota",
+      "abastecimento",
+      "manutencao",
+      "instalacao",
+      "clientes",
+      "motoristas",
+      "financeiro",
       "mensalidades",
+      "estoque",
+      "propostas",
+      "demonstracao",
+      "atendimento",
+      "chat",
+      "configuracoes",
       "temas",
     ];
   }

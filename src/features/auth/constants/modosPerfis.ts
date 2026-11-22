@@ -85,3 +85,11 @@ export function obterRotuloModoPerfil(modo: ModoPerfilEmulado): string {
   const item = MODOS_PERFIS_DISPONIVEIS.find((m) => m.id === modo);
   return item ? item.rotulo : "SuperADM";
 }
+
+/**
+ * Perfis disponíveis estritamente para emulação pelo SuperADM.
+ * Exclui o próprio SuperADM pois o administrador já é o SuperADM por definição.
+ */
+export const MODOS_PERFIS_EMULAVEIS: ItemModoPerfil[] = MODOS_PERFIS_DISPONIVEIS.filter(
+  (m) => m.id !== "superadmin",
+);

@@ -45,6 +45,7 @@ import {
 import type { MensalidadeItem } from "@/features/mensalidades/types";
 import { gerarPayloadPix, gerarQrCodePixDataUrl } from "@/features/instalacoes/utils/pixPayload";
 import { APP_CHAVE_PIX_PADRAO } from "@/shared/lib/version";
+import { podeAcessarModulo } from "@/shared/lib/permissoesModulos";
 
 interface ClienteHomeViewProps {
   onAlternarParaModulos?: () => void;
@@ -77,6 +78,17 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     session?.isOperador ||
     session?.role === "adm" ||
     session?.role === "operador",
+  );
+  // Regra de Isolamento: Apenas perfis com permissão explícita de rastreamento veicular podem ver veículos
+  const podeVerVeiculos = Boolean(
+    podeAcessarModulo(session, "monitor-gps") &&
+      session?.acessoVeiculos !== false &&
+      session?.tipoSupervisor !== "vigilante" &&
+      !session?.isVendedor &&
+      !session?.isFinanceiro &&
+      !session?.isRevendedor &&
+      !session?.isInstalador &&
+      !session?.isVigilante,
   );
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clienteFiltroSelecionado, setClienteFiltroSelecionado] = useState<string>("todos");
@@ -132,8 +144,13 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     );
   };
 
-  // Carrega os veículos do cliente autenticado
+  // Carrega os veículos do cliente autenticado (estritamente se o perfil tiver acesso a veículos)
   useEffect(() => {
+    if (!podeVerVeiculos) {
+      setVeiculos([]);
+      setCarregandoVeiculos(false);
+      return;
+    }
     let ativo = true;
     async function carregar() {
       setCarregandoVeiculos(true);
@@ -154,7 +171,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     return () => {
       ativo = false;
     };
-  }, []);
+  }, [podeVerVeiculos]);
 
   // Carrega a lista de locatários para o cliente que tem locatário
   const recarregarLocatarios = async () => {
@@ -410,114 +427,124 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         </div>
 
         {/* Faixa Horizontal de Contadores Rápidos em Pílulas Interativas (Filtros de 1 Toque) */}
-        <div
-          className={`relative z-10 grid gap-2 mt-5 pt-4 border-t border-white/20 ${
-            postosFixos.length > 0 ? "grid-cols-4 sm:grid-cols-5" : "grid-cols-4"
-          }`}
-        >
-          {/* Veículos - Todos */}
-          <button
-            type="button"
-            onClick={() => setFiltroStatus("todos")}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
-              filtroStatus === "todos"
-                ? "bg-white/30 ring-2 ring-white shadow-md"
-                : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+        {(podeVerVeiculos || postosFixos.length > 0) && (
+          <div
+            className={`relative z-10 grid gap-2 mt-5 pt-4 border-t border-white/20 ${
+              podeVerVeiculos
+                ? postosFixos.length > 0
+                  ? "grid-cols-4 sm:grid-cols-5"
+                  : "grid-cols-4"
+                : "grid-cols-1 sm:grid-cols-2"
             }`}
-            title="Mostrar todos os veículos"
           >
-            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
-              <Car className="w-3.5 h-3.5" />
-              <span className="font-mono font-tabular">{totalVeiculos}</span>
-            </div>
-            <span className="text-[10px] sm:text-xs text-white/90 font-medium">veículos</span>
-          </button>
+            {podeVerVeiculos && (
+              <>
+                {/* Veículos - Todos */}
+                <button
+                  type="button"
+                  onClick={() => setFiltroStatus("todos")}
+                  className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+                    filtroStatus === "todos"
+                      ? "bg-white/30 ring-2 ring-white shadow-md"
+                      : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+                  }`}
+                  title="Mostrar todos os veículos"
+                >
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
+                    <Car className="w-3.5 h-3.5" />
+                    <span className="font-mono font-tabular">{totalVeiculos}</span>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-white/90 font-medium">veículos</span>
+                </button>
 
-          {/* Online */}
-          <button
-            type="button"
-            onClick={() => setFiltroStatus(filtroStatus === "online" ? "todos" : "online")}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
-              filtroStatus === "online"
-                ? "bg-emerald-950/50 ring-2 ring-emerald-300 shadow-md"
-                : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
-            }`}
-            title={
-              filtroStatus === "online"
-                ? "Filtro online ativo. Clique para remover filtro."
-                : `Filtrar apenas ${onlineVeiculos} veículo(s) online`
-            }
-          >
-            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
-              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
-              <span className="font-mono font-tabular">{onlineVeiculos}</span>
-            </div>
-            <span className="text-[10px] sm:text-xs text-white/90 font-medium">online</span>
-          </button>
+                {/* Online */}
+                <button
+                  type="button"
+                  onClick={() => setFiltroStatus(filtroStatus === "online" ? "todos" : "online")}
+                  className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+                    filtroStatus === "online"
+                      ? "bg-emerald-950/50 ring-2 ring-emerald-300 shadow-md"
+                      : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+                  }`}
+                  title={
+                    filtroStatus === "online"
+                      ? "Filtro online ativo. Clique para remover filtro."
+                      : `Filtrar apenas ${onlineVeiculos} veículo(s) online`
+                  }
+                >
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
+                    <span className="w-2 h-2 rounded-full bg-emerald-300 animate-pulse" />
+                    <span className="font-mono font-tabular">{onlineVeiculos}</span>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-white/90 font-medium">online</span>
+                </button>
 
-          {/* Offline */}
-          <button
-            type="button"
-            onClick={() => setFiltroStatus(filtroStatus === "offline" ? "todos" : "offline")}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
-              filtroStatus === "offline"
-                ? "bg-black/55 ring-2 ring-slate-200 shadow-md"
-                : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
-            }`}
-            title={
-              filtroStatus === "offline"
-                ? "Filtro offline ativo. Clique para remover filtro."
-                : `Filtrar apenas ${offlineVeiculos} veículo(s) offline`
-            }
-          >
-            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-white/90">
-              <span className="w-2 h-2 rounded-full bg-slate-300" />
-              <span className="font-mono font-tabular">{offlineVeiculos}</span>
-            </div>
-            <span className="text-[10px] sm:text-xs text-white/90 font-medium">offline</span>
-          </button>
+                {/* Offline */}
+                <button
+                  type="button"
+                  onClick={() => setFiltroStatus(filtroStatus === "offline" ? "todos" : "offline")}
+                  className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+                    filtroStatus === "offline"
+                      ? "bg-black/55 ring-2 ring-slate-200 shadow-md"
+                      : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+                  }`}
+                  title={
+                    filtroStatus === "offline"
+                      ? "Filtro offline ativo. Clique para remover filtro."
+                      : `Filtrar apenas ${offlineVeiculos} veículo(s) offline`
+                  }
+                >
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-white/90">
+                    <span className="w-2 h-2 rounded-full bg-slate-300" />
+                    <span className="font-mono font-tabular">{offlineVeiculos}</span>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-white/90 font-medium">offline</span>
+                </button>
 
-          {/* Alertas */}
-          <button
-            type="button"
-            onClick={() => setFiltroStatus(filtroStatus === "alertas" ? "todos" : "alertas")}
-            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
-              filtroStatus === "alertas"
-                ? "bg-amber-950/50 ring-2 ring-amber-300 shadow-md"
-                : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
-            }`}
-            title={
-              filtroStatus === "alertas"
-                ? "Filtro alertas ativo. Clique para remover filtro."
-                : `Filtrar ${totalAlertas} veículo(s) com alertas ou bloqueados`
-            }
-          >
-            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
-              <Bell className="w-3.5 h-3.5 text-amber-300" />
-              <span className="font-mono font-tabular">{totalAlertas}</span>
-            </div>
-            <span className="text-[10px] sm:text-xs text-white/90 font-medium">alertas</span>
-          </button>
+                {/* Alertas */}
+                <button
+                  type="button"
+                  onClick={() => setFiltroStatus(filtroStatus === "alertas" ? "todos" : "alertas")}
+                  className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl transition-all cursor-pointer active:scale-95 ${
+                    filtroStatus === "alertas"
+                      ? "bg-amber-950/50 ring-2 ring-amber-300 shadow-md"
+                      : "bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100"
+                  }`}
+                  title={
+                    filtroStatus === "alertas"
+                      ? "Filtro alertas ativo. Clique para remover filtro."
+                      : `Filtrar ${totalAlertas} veículo(s) com alertas ou bloqueados`
+                  }
+                >
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
+                    <Bell className="w-3.5 h-3.5 text-amber-300" />
+                    <span className="font-mono font-tabular">{totalAlertas}</span>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-white/90 font-medium">alertas</span>
+                </button>
+              </>
+            )}
 
-          {/* Postos Fixos (Propriedades Monitoradas) */}
-          {postosFixos.length > 0 && (
-            <button
-              type="button"
-              onClick={() => {
-                const el = document.getElementById("secao-postos-fixos");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100 transition-all cursor-pointer active:scale-95"
-              title="Visualizar propriedades monitoradas (postos fixos)"
-            >
-              <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
-                <Building2 className="w-3.5 h-3.5 text-emerald-300" />
-                <span className="font-mono font-tabular">{postosFixos.length}</span>
-              </div>
-              <span className="text-[10px] sm:text-xs text-white/90 font-medium">postos</span>
-            </button>
-          )}
-        </div>
+            {/* Postos Fixos (Propriedades Monitoradas) */}
+            {postosFixos.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById("secao-postos-fixos");
+                  if (el) el.scrollIntoView({ behavior: "smooth" });
+                }}
+                className="flex flex-col items-center justify-center py-1.5 px-2 rounded-2xl bg-black/15 hover:bg-black/25 border border-white/10 opacity-85 hover:opacity-100 transition-all cursor-pointer active:scale-95"
+                title="Visualizar propriedades monitoradas (postos fixos)"
+              >
+                <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black">
+                  <Building2 className="w-3.5 h-3.5 text-emerald-300" />
+                  <span className="font-mono font-tabular">{postosFixos.length}</span>
+                </div>
+                <span className="text-[10px] sm:text-xs text-white/90 font-medium">postos</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 2. Seção de Alerta Financeiro com Botão PIX de 1 Toque (Caso Haja Mensalidade e NÃO seja Locatário) */}
@@ -569,8 +596,11 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         </div>
       )}
 
-      {/* 3. Barra de Título e Ferramentas: Meus Veículos, Busca e Alternador de Visão */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+      {/* 3 e 4. Meus Veículos (Renderizado estritamente se o usuário tiver acesso a veículos) */}
+      {podeVerVeiculos && (
+        <>
+          {/* 3. Barra de Título e Ferramentas: Meus Veículos, Busca e Alternador de Visão */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
             Meus veículos
@@ -836,6 +866,8 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
             );
           })}
         </div>
+      )}
+        </>
       )}
 
       {/* 5. Propriedades Monitoradas (Postos Fixos do Cliente) */}

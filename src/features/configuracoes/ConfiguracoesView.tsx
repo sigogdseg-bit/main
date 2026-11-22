@@ -27,6 +27,7 @@ import { useAuth } from "@/features/auth/context/AuthContext";
 import type { ModoPerfilEmulado } from "@/features/auth/types";
 import {
   MODOS_PERFIS_DISPONIVEIS,
+  MODOS_PERFIS_EMULAVEIS,
   obterRotuloModoPerfil,
 } from "@/features/auth/constants/modosPerfis";
 import { useGpsRealtime } from "@/features/monitor-gps/hooks/useGpsRealtime";
@@ -920,20 +921,20 @@ export function ConfiguracoesView() {
                     )}
                   </div>
 
-                  {/* Seletor em Lista Suspensa: 13 Modos de Perfis */}
+                  {/* Seletor em Lista Suspensa: 12 Perfis Emuláveis (sem redundância de SuperADM para SuperADM) */}
                   <div className="flex flex-col gap-2">
                     <label className="text-xs font-black flex items-center justify-between">
                       <span>Selecionar perfil para emulação tática:</span>
                       <span className="text-[10px] font-bold text-orange-600 dark:text-orange-400">
-                        {MODOS_PERFIS_DISPONIVEIS.length} perfis disponíveis
+                        {MODOS_PERFIS_EMULAVEIS.length} perfis operacionais
                       </span>
                     </label>
                     <div className="relative">
                       <select
-                        value={modoAtivo}
+                        value={modoAtivo === "superadmin" ? "" : modoAtivo}
                         onChange={(e) => {
                           const novoModo = e.target.value as ModoPerfilEmulado;
-                          if (novoModo === "superadmin") {
+                          if (!novoModo || novoModo === "superadmin") {
                             desfazerEmulacao();
                             setModoOperacao("superadm");
                             toast.success("Modo SuperADM restaurado");
@@ -947,7 +948,12 @@ export function ConfiguracoesView() {
                         }}
                         className={`${inputInsetClass} font-bold cursor-pointer text-xs sm:text-sm`}
                       >
-                        {MODOS_PERFIS_DISPONIVEIS.map((item) => (
+                        <option value="">
+                          {modoAtivo === "superadmin"
+                            ? `-- Selecione o perfil para emular visão (${MODOS_PERFIS_EMULAVEIS.length} perfis) --`
+                            : "Restaurar Visão Normal (SuperADM)"}
+                        </option>
+                        {MODOS_PERFIS_EMULAVEIS.map((item) => (
                           <option key={item.id} value={item.id}>
                             {item.rotulo} — {item.descricao}
                           </option>

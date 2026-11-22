@@ -71,7 +71,7 @@ describe("Hunter — Perfil Financeiro Canônico e Isolamento Estrito (DJR-NEW)"
     assert.ok(conteudo.includes("pode_visualizar_estoque"));
   });
 
-  it("4. Verifica os módulos autorizados para o Perfil Financeiro padrão (incluindo abastecimento, manutenção e estoque)", () => {
+  it("4. Verifica os módulos autorizados para o Perfil Financeiro padrão (estoque, propostas, faturamento e GD)", () => {
     const modulosLiberados = [
       "financeiro",
       "mensalidades",
@@ -79,8 +79,6 @@ describe("Hunter — Perfil Financeiro Canônico e Isolamento Estrito (DJR-NEW)"
       "clientes",
       "revendedores",
       "instalacao",
-      "abastecimento",
-      "manutencao",
       "estoque",
       "chat",
       "atendimento",
@@ -102,6 +100,8 @@ describe("Hunter — Perfil Financeiro Canônico e Isolamento Estrito (DJR-NEW)"
       "monitor-gps",
       "rotas",
       "frota",
+      "abastecimento",
+      "manutencao",
       "motoristas",
       "funcionarios",
       "rastreadores",
@@ -121,7 +121,7 @@ describe("Hunter — Perfil Financeiro Canônico e Isolamento Estrito (DJR-NEW)"
     }
   });
 
-  it("6. Valida acesso a rotas permitidas para o Perfil Financeiro (incluindo /abastecimento, /manutencao e /estoque)", () => {
+  it("6. Valida acesso a rotas permitidas para o Perfil Financeiro (sem frotas dos clientes)", () => {
     const rotasPermitidas = [
       "/inicio",
       "",
@@ -131,9 +131,6 @@ describe("Hunter — Perfil Financeiro Canônico e Isolamento Estrito (DJR-NEW)"
       "/clientes",
       "/revendedores",
       "/instalacao",
-      "/abastecimento",
-      "/motorista",
-      "/manutencao",
       "/estoque",
       "/atendimento",
       "/chat",
@@ -153,6 +150,11 @@ describe("Hunter — Perfil Financeiro Canônico e Isolamento Estrito (DJR-NEW)"
   it("7. Bloqueia estritamente rotas de telemetria GPS, comandos de bloqueio, gestão de acessos e hardware", () => {
     const rotasBloqueadas = [
       "/monitor-gps",
+      "/rotas",
+      "/frota",
+      "/abastecimento",
+      "/manutencao",
+      "/motorista",
       "/rotas",
       "/frota",
       "/motoristas",
@@ -177,7 +179,7 @@ describe("Hunter — Perfil Financeiro Canônico e Isolamento Estrito (DJR-NEW)"
     }
   });
 
-  it("8. Garante que obterModulosPadraoPorPerfil retorna a lista canônica com 'abastecimento', 'manutencao' e 'estoque' para 'financeiro'", () => {
+  it("8. Garante que obterModulosPadraoPorPerfil retorna a lista canônica com 'estoque' para 'financeiro' (sem frotas dos clientes)", () => {
     const modulosPadrao = obterModulosPadraoPorPerfil("financeiro");
     assert.deepEqual(modulosPadrao, MODULOS_PADRAO_FINANCEIRO);
     assert.ok(modulosPadrao.includes("financeiro"));
@@ -186,9 +188,10 @@ describe("Hunter — Perfil Financeiro Canônico e Isolamento Estrito (DJR-NEW)"
     assert.ok(modulosPadrao.includes("clientes"));
     assert.ok(modulosPadrao.includes("revendedores"));
     assert.ok(modulosPadrao.includes("instalacao"));
-    assert.ok(modulosPadrao.includes("abastecimento"));
-    assert.ok(modulosPadrao.includes("manutencao"));
     assert.ok(modulosPadrao.includes("estoque"));
+    // Regra Canônica Aprovada: Financeiro é da GD e não da frota dos clientes
+    assert.ok(!modulosPadrao.includes("abastecimento"), "Financeiro nao deve conter abastecimento");
+    assert.ok(!modulosPadrao.includes("manutencao"), "Financeiro nao deve conter manutencao");
     assert.ok(!modulosPadrao.includes("monitor-gps"));
     assert.ok(!modulosPadrao.includes("usuarios"));
     assert.ok(!modulosPadrao.includes("central-seguranca"));

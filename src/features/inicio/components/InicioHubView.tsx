@@ -328,8 +328,22 @@ export function InicioHubView() {
   const todosCards = secoesModulos.flatMap((s) => s.cards);
   const cardsFiltrados = todosCards.filter((c) => podeAcessarRota(session, c.rota));
 
-  // Se a visão de Meus Veículos (Painel Geral Unificado) estiver ativa, renderiza a experiência de alta fidelidade
-  if (visaoClienteAtiva) {
+  // Perfis que operam/rastreiam veículos (SuperADM, Admin, Operador, Supervisor Geral com veículos, Cliente titular e Degustação)
+  // Perfis estritamente sem veículos (Vendedor, Financeiro, Revendedor, Instalador, Vigilante, Supervisor de Vigilante)
+  // são direcionados diretamente ao Hub de Módulos Operacionais do seu perfil, sem ver veículos indevidamente.
+  const perfilOperaVeiculos = Boolean(
+    session?.isSuperAdmin ||
+      session?.isAdmin ||
+      session?.isOperador ||
+      (session?.isSupervisor &&
+        session?.tipoSupervisor !== "vigilante" &&
+        session?.acessoVeiculos !== false) ||
+      session?.isCliente ||
+      session?.isDegustacao,
+  );
+
+  // Se o perfil opera veículos e a visão de Meus Veículos estiver ativa, renderiza a experiência de alta fidelidade
+  if (perfilOperaVeiculos && visaoClienteAtiva) {
     return (
       <div className="space-y-4 max-w-6xl mx-auto select-none">
         <ClienteHomeView />
