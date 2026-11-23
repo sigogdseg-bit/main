@@ -25,7 +25,7 @@ const CSP_DIRECTIVES = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https:",
-  `connect-src 'self' ${SUPABASE_ORIGIN ? `${SUPABASE_ORIGIN} wss://${SUPABASE_HOST}` : ""} https://*.supabase.co https://*.cloudflareinsights.com https://cloudflareinsights.com https://*.openstreetmap.org https://photon.komoot.io https://*.project-osrm.org https://router.project-osrm.org https://routing.openstreetmap.de https://*.arcgisonline.com https://*.maptiler.com https://gd.oficial.tec.br https://*.z-api.io https://*.evolution-api.com https://gps.oficial.tec.br:* http://gps.oficial.tec.br:* http://167.234.233.82:* https://167.234.233.82:* http://137.66.4.11:* https://137.66.4.11:* https://hunter-gps-gateway.fly.dev http://hunter-gps-gateway.fly.dev:* https://gd-whatsapp-gateway.fly.dev https://generativelanguage.googleapis.com https://trigger.macrodroid.com https://*.macrodroid.com`,
+  `connect-src 'self' ${SUPABASE_ORIGIN ? `${SUPABASE_ORIGIN} wss://${SUPABASE_HOST}` : ""} https://*.supabase.co https://*.cloudflareinsights.com https://cloudflareinsights.com https://*.openstreetmap.org https://photon.komoot.io https://*.project-osrm.org https://router.project-osrm.org https://routing.openstreetmap.de https://*.arcgisonline.com https://*.maptiler.com https://api.mapbox.com https://*.mapbox.com https://gd.oficial.tec.br https://*.z-api.io https://*.evolution-api.com https://gps.oficial.tec.br:* http://gps.oficial.tec.br:* http://167.234.233.82:* https://167.234.233.82:* http://137.66.4.11:* https://137.66.4.11:* https://hunter-gps-gateway.fly.dev http://hunter-gps-gateway.fly.dev:* https://gd-whatsapp-gateway.fly.dev https://generativelanguage.googleapis.com https://trigger.macrodroid.com https://*.macrodroid.com`,
   "worker-src 'self' blob:",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -8981,6 +8981,220 @@ async function handleApiRota(request: Request, _env: unknown): Promise<Response 
   );
 }
 
+/**
+ * Proxy Seguro de Map Matching (Snap-to-Road) Mapbox API
+ * Interpola coordenadas do veículo ao longo da malha viária real com timeout de 500ms
+ * e trava de sanidade de 45m para descarte de desvios anômalos.
+ */
+function getMapboxAccessToken(env: unknown): string {
+  const envObj = (env || {}) as Record<string, string | undefined>;
+  let token =
+    envObj.MAPBOX_ACCESS_TOKEN ||
+    envObj.VITE_MAPBOX_ACCESS_TOKEN ||
+    (typeof process !== "undefined" ? process.env?.MAPBOX_ACCESS_TOKEN : undefined) ||
+    (typeof process !== "undefined" ? process.env?.VITE_MAPBOX_ACCESS_TOKEN : undefined) ||
+    "";
+
+  if (!token && typeof process !== "undefined") {
+    try {
+      const fs = (globalThis as any).process?.getBuiltinModule?.("fs");
+      if (fs) {
+        const cwd = process.cwd();
+        for (const file of [".env.local", ".env.production", ".dev.vars"]) {
+          const p = `${cwd}/${file}`;
+          if (fs.existsSync(p)) {
+            const raw = fs.readFileSync(p, "utf-8");
+            for (const line of raw.split("\n")) {
+              const [k, ...v] = line.split("=");
+              if (k && v.length) {
+                const trimmedK = k.trim();
+                const trimmedV = v.join("=").trim();
+                if (
+                  (trimmedK === "MAPBOX_ACCESS_TOKEN" || trimmedK === "VITE_MAPBOX_ACCESS_TOKEN") &&
+                  !token
+                ) {
+                  token = trimmedV;
+                }
+              }
+            }
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return token;
+}
+
+function calcularDistanciaMetrosHaversine(
+  a: { lat: number; lng: number },
+  b: { lat: number; lng: number },
+): number {
+  const R = 6371000;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h =
+    sinLat * sinLat +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng;
+  return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+export async function handleApiSnapRoad(request: Request, env: unknown): Promise<Response | null> {
+  const url = new URL(request.url);
+  if (url.pathname !== "/api/mapa/snap-road") {
+    return null;
+  }
+
+  if (request.method !== "POST") {
+    return new Response(JSON.stringify({ ok: false, motivo: "metodo_invalido", vertices: [] }), {
+      status: 405,
+      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+    });
+  }
+
+  const token = getMapboxAccessToken(env);
+  if (!token) {
+    return new Response(JSON.stringify({ ok: false, motivo: "token_ausente", vertices: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+    });
+  }
+
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ ok: false, motivo: "payload_invalido", vertices: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+    });
+  }
+
+  const pontos = body?.pontos;
+  if (!Array.isArray(pontos) || pontos.length < 2) {
+    return new Response(
+      JSON.stringify({ ok: false, motivo: "pontos_insuficientes", vertices: [] }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      },
+    );
+  }
+
+  // Limita entre 2 e 5 pontos mais recentes
+  const pontosProcessar = pontos.slice(-5);
+  for (const p of pontosProcessar) {
+    if (typeof p?.lat !== "number" || isNaN(p.lat) || typeof p?.lng !== "number" || isNaN(p.lng)) {
+      return new Response(
+        JSON.stringify({ ok: false, motivo: "coordenadas_invalidas", vertices: [] }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        },
+      );
+    }
+  }
+
+  const coordsParam = pontosProcessar.map((p) => `${p.lng},${p.lat}`).join(";");
+  const radiusesParam = pontosProcessar.map(() => "25").join(";");
+  const urlMapbox = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordsParam}?geometries=geojson&overview=full&steps=false&radiuses=${radiusesParam}&access_token=${token}`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 500);
+
+    const res = await fetch(urlMapbox, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "GDRastreamento-Vehicle-Telemetry/1.8",
+      },
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      return new Response(JSON.stringify({ ok: false, vertices: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    }
+
+    const data = (await res.json()) as any;
+    if (
+      !data ||
+      data.code !== "Ok" ||
+      !Array.isArray(data.matchings) ||
+      data.matchings.length === 0
+    ) {
+      return new Response(JSON.stringify({ ok: false, vertices: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    }
+
+    const matching = data.matchings[0];
+    const allCoords = matching.geometry?.coordinates as Array<[number, number]>;
+    if (!Array.isArray(allCoords) || allCoords.length < 2) {
+      return new Response(JSON.stringify({ ok: false, vertices: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    }
+
+    // Extrai apenas os vértices do último segmento percorrido (do penúltimo ponto até o ponto mais recente)
+    const n = pontosProcessar.length;
+    const penultimoPonto = pontosProcessar[n - 2];
+    const ultimoPonto = pontosProcessar[n - 1];
+
+    let startIdx = 0;
+    if (n > 2) {
+      let menorDist = Infinity;
+      let melhorIdx = 0;
+      for (let i = 0; i < allCoords.length; i++) {
+        const [lng, lat] = allCoords[i];
+        const dist = calcularDistanciaMetrosHaversine({ lat, lng }, penultimoPonto);
+        if (dist < menorDist) {
+          menorDist = dist;
+          melhorIdx = i;
+        }
+      }
+      startIdx = Math.min(melhorIdx, Math.max(0, allCoords.length - 2));
+    }
+
+    const segmentCoords = allCoords.slice(startIdx);
+    const vertices = segmentCoords.map(([lng, lat]) => ({ lat, lng }));
+
+    // Trava de sanidade: se o snap deslocar o ponto final em mais de 45 metros do GPS bruto, descarte
+    const pFinalSnap = vertices[vertices.length - 1];
+    const desvioFinal = calcularDistanciaMetrosHaversine(ultimoPonto, pFinalSnap);
+
+    if (desvioFinal > 45) {
+      return new Response(JSON.stringify({ ok: false, motivo: "desvio_excessivo", vertices: [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true, vertices }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "no-store",
+        ...SECURITY_HEADERS,
+      },
+    });
+  } catch {
+    return new Response(JSON.stringify({ ok: false, vertices: [] }), {
+      status: 200,
+      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+    });
+  }
+}
+
 async function handleStaticPwaAssets(request: Request): Promise<Response | null> {
   const url = new URL(request.url);
 
@@ -12129,6 +12343,12 @@ export default {
     const rotaResponse = await handleApiRota(request, env);
     if (rotaResponse) {
       return rotaResponse;
+    }
+
+    // Intercepta proxy seguro de Map Matching (snap-to-road) Mapbox
+    const snapRoadResponse = await handleApiSnapRoad(request, env);
+    if (snapRoadResponse) {
+      return snapRoadResponse;
     }
 
     // Intercepta rotas de API seguras de gestao de manutencao preventiva
