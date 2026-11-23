@@ -203,43 +203,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       }
     };
 
-    const sincronizarQuadrosLeaflet = useCallback((agoraMs: number) => {
-      const map = mapInstanceRef.current;
-      const controlador = controladorMovimentoRef.current;
-
-      for (const [id, dados] of markersMapRef.current.entries()) {
-        const estado = controlador.obterEstado(id);
-        if (!estado) continue;
-
-        dados.marker.setLatLng([estado.visualLat, estado.visualLng]);
-        atualizarRotacaoElementoMarcador(dados.marker.getElement(), estado.headingContinuous);
-
-        if (
-          map &&
-          seguindoCameraRef.current &&
-          veiculoSelecionadoIdRef.current === id &&
-          !userDraggingRef.current &&
-          !(map as any)._animatingZoom &&
-          agoraMs - ultimoPanFollowMsRef.current >= 320
-        ) {
-          try {
-            const centroPx = map.latLngToContainerPoint(map.getCenter());
-            const marcadorPx = map.latLngToContainerPoint([estado.visualLat, estado.visualLng]);
-            const distPx = Math.hypot(centroPx.x - marcadorPx.x, centroPx.y - marcadorPx.y);
-            if (distPx > 22) {
-              ultimoPanFollowMsRef.current = agoraMs;
-              map.panTo([estado.visualLat, estado.visualLng], {
-                animate: true,
-                duration: 0.35,
-                easeLinearity: 1,
-                noMoveStart: true,
-              });
-            }
-          } catch {
-            // Mapa em transição de layout
-          }
-        }
-      }
+    const sincronizarQuadrosLeaflet = useCallback((_agoraMs: number) => {
+      // Hard reset determinístico: a movimentação do marcador é realizada exclusivamente pelo loop de 1500ms do VehicleMotionController
     }, []);
 
     useImperativeHandle(ref, () => ({
@@ -250,11 +215,10 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         if (mapInstanceRef.current && coordenadaValidaMapa(v?.latitude, v?.longitude)) {
           seguindoCameraRef.current = true;
           selectedIdAnteriorRef.current = v.id;
-          const estado = controladorMovimentoRef.current.obterEstado(v.id);
-          const latAlvo = estado ? estado.visualLat : v.latitude;
-          const lngAlvo = estado ? estado.visualLng : v.longitude;
+          const motionCtrl = vehicleMotionControllersRef.current.get(v.id);
+          const pos = motionCtrl ? motionCtrl.getPosition() : { lat: v.latitude, lng: v.longitude };
           const zoomAtual = mapInstanceRef.current.getZoom();
-          mapInstanceRef.current.setView([latAlvo, lngAlvo], Math.max(zoomAtual, 18), {
+          mapInstanceRef.current.setView([pos.lat, pos.lng], Math.max(zoomAtual, 18), {
             animate: true,
           });
         }
@@ -579,23 +543,17 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           if (!markersGroup.hasLayer(dadosAnteriores.marker)) {
             markersGroup.addLayer(dadosAnteriores.marker);
           }
-          dadosAnteriores.marker.setLatLng([estado.visualLat, estado.visualLng]);
           if (dadosAnteriores.visualKey !== visualKey) {
             dadosAnteriores.marker.setIcon(criarDivIcon());
             dadosAnteriores.visualKey = visualKey;
-          } else {
-            atualizarRotacaoElementoMarcador(
-              dadosAnteriores.marker.getElement(),
-              estado.headingContinuous,
-            );
           }
           if (dadosAnteriores.popupKey !== popupKey) {
             dadosAnteriores.marker.setPopupContent(criarPopupHtml());
             dadosAnteriores.popupKey = popupKey;
           }
         } else {
-          // Cria novo marcador tático
-          const marker = L.marker([estado.visualLat, estado.visualLng], { icon: criarDivIcon() });
+          // Cria novo marcador tático UMA ÚNICA VEZ por veículo
+          const marker = L.marker([v.latitude, v.longitude], { icon: criarDivIcon() });
           marker.bindPopup(criarPopupHtml(), { offset: [0, -15] });
 
           marker.on("click", () => {
@@ -612,7 +570,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           });
         }
 
-        // Integração VehicleMotionController (rastreamento contínuo sobre vias com interpolação OSRM a 60fps)
+        // Integração VehicleMotionController: ÚNICA entidade autorizada a invocar marker.setLatLng (loop 1500ms easeOutCubic)
         let motionCtrl = vehicleMotionControllersRef.current.get(v.id);
         if (!motionCtrl) {
           motionCtrl = new VehicleMotionController(
@@ -622,12 +580,42 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
               if (dados?.marker) {
                 dados.marker.setLatLng([frameState.lat, frameState.lng]);
                 atualizarRotacaoElementoMarcador(dados.marker.getElement(), frameState.bearing);
+
+                const map = mapInstanceRef.current;
+                if (
+                  map &&
+                  seguindoCameraRef.current &&
+                  veiculoSelecionadoIdRef.current === v.id &&
+                  !userDraggingRef.current &&
+                  !(map as any)._animatingZoom
+                ) {
+                  const agoraMs = performance.now();
+                  if (agoraMs - ultimoPanFollowMsRef.current >= 320) {
+                    try {
+                      const centroPx = map.latLngToContainerPoint(map.getCenter());
+                      const marcadorPx = map.latLngToContainerPoint([
+                        frameState.lat,
+                        frameState.lng,
+                      ]);
+                      if (Math.hypot(centroPx.x - marcadorPx.x, centroPx.y - marcadorPx.y) > 22) {
+                        ultimoPanFollowMsRef.current = agoraMs;
+                        map.panTo([frameState.lat, frameState.lng], {
+                          animate: true,
+                          duration: 0.35,
+                          easeLinearity: 1,
+                          noMoveStart: true,
+                        });
+                      }
+                    } catch {}
+                  }
+                }
               }
             },
+            anguloRumo,
           );
           vehicleMotionControllersRef.current.set(v.id, motionCtrl);
         } else {
-          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude });
+          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
         }
       });
 
@@ -653,7 +641,6 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       }
 
       controlador.removerVeiculosAusentes(idsVeiculosAtivos);
-      controlador.agendarLoop(sincronizarQuadrosLeaflet);
     }, [veiculos, veiculoSelecionado?.id, versaoPreferencia, zoomAtual, sincronizarQuadrosLeaflet]);
 
     // Listener reativo para atualizar a rotação do veículo assim que a geometria da rua for calculada

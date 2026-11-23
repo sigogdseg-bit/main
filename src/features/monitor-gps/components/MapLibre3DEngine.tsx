@@ -277,36 +277,8 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
       }
     };
 
-    const sincronizarQuadrosMapLibre = useCallback((agoraMs: number) => {
-      const map = mapInstanceRef.current;
-      const controlador = controladorMovimentoRef.current;
-
-      for (const [id, entry] of Object.entries(markersRef.current)) {
-        const estado = controlador.obterEstado(id);
-        if (!estado || !entry?.marker) continue;
-
-        entry.marker.setLngLat([estado.visualLng, estado.visualLat]);
-        atualizarRotacaoElementoMarcador(entry.marker.getElement(), estado.headingContinuous);
-      }
-
-      if (
-        map &&
-        seguindoCameraRef.current &&
-        veiculoSelecionadoIdRef.current &&
-        agoraMs >= programmaticFlyUntilRef.current &&
-        !map.isMoving()
-      ) {
-        const estadoSel = controlador.obterEstado(veiculoSelecionadoIdRef.current);
-        if (estadoSel) {
-          const centro = map.getCenter();
-          if (
-            Math.abs(centro.lat - estadoSel.visualLat) > 1e-7 ||
-            Math.abs(centro.lng - estadoSel.visualLng) > 1e-7
-          ) {
-            map.setCenter([estadoSel.visualLng, estadoSel.visualLat]);
-          }
-        }
-      }
+    const sincronizarQuadrosMapLibre = useCallback((_agoraMs: number) => {
+      // Hard reset determinístico: a movimentação do marcador é realizada exclusivamente pelo loop de 1500ms do VehicleMotionController
     }, []);
 
     useImperativeHandle(ref, () => ({
@@ -317,16 +289,16 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         if (mapInstanceRef.current && coordenadaValidaMapa(v?.latitude, v?.longitude)) {
           seguindoCameraRef.current = true;
           selectedIdAnteriorRef.current = v.id;
-          const estado = controladorMovimentoRef.current.obterEstado(v.id);
-          const latAlvo = estado ? estado.visualLat : v.latitude;
-          const lngAlvo = estado ? estado.visualLng : v.longitude;
+          const motionCtrl = vehicleMotionControllersRef.current.get(v.id);
+          const pos = motionCtrl ? motionCtrl.getPosition() : { lat: v.latitude, lng: v.longitude };
+          const rumo = motionCtrl ? motionCtrl.getBearing() : v.rumo || 0;
           programmaticFlyUntilRef.current =
             (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1150;
           mapInstanceRef.current.flyTo({
-            center: [lngAlvo, latAlvo],
+            center: [pos.lng, pos.lat],
             zoom: Math.max(mapInstanceRef.current.getZoom(), 18),
             pitch: 60,
-            bearing: v.rumo || 0,
+            bearing: rumo,
             essential: true,
             duration: 1000,
           });
@@ -578,7 +550,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         const entry = markersRef.current[v.id];
         const tipoEsperado: "generico" | "modelo" = isGenerico ? "generico" : "modelo";
 
-        // Integração VehicleMotionController (MapLibre 6.10.0 [lng, lat] em onFrame)
+        // Integração VehicleMotionController (MapLibre 6.10.0 [lng, lat] em onFrame - loop 1500ms easeOutCubic)
         let motionCtrl = vehicleMotionControllersRef.current.get(v.id);
         if (!motionCtrl) {
           motionCtrl = new VehicleMotionController(
@@ -591,17 +563,33 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
                   entryAtual.marker.getElement(),
                   frameState.bearing,
                 );
+
+                const map = mapInstanceRef.current;
+                if (
+                  map &&
+                  seguindoCameraRef.current &&
+                  veiculoSelecionadoIdRef.current === v.id &&
+                  !map.isMoving()
+                ) {
+                  const centro = map.getCenter();
+                  if (
+                    Math.abs(centro.lat - frameState.lat) > 1e-6 ||
+                    Math.abs(centro.lng - frameState.lng) > 1e-6
+                  ) {
+                    map.setCenter([frameState.lng, frameState.lat]);
+                  }
+                }
               }
             },
+            anguloRumo,
           );
           vehicleMotionControllersRef.current.set(v.id, motionCtrl);
         } else {
-          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude });
+          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
         }
 
         if (entry && entry.tipo === tipoEsperado && entry.marker) {
           entry.veiculoAtual = v;
-          entry.marker.setLngLat([estado.visualLng, estado.visualLat]);
           if (entry.visualKey !== visualKey) {
             entry.marker.getElement().innerHTML = gerarMarcador3DHtml({
               placa: v.placa,
@@ -661,7 +649,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
           pitchAlignment: "viewport",
           rotation: 0,
         })
-          .setLngLat([estado.visualLng, estado.visualLat])
+          .setLngLat([v.longitude, v.latitude])
           .addTo(map);
 
         markersRef.current[v.id] = {
@@ -696,7 +684,6 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
       });
 
       controlador.removerVeiculosAusentes(idsVeiculosAtivos);
-      controlador.agendarLoop(sincronizarQuadrosMapLibre);
     }, [
       veiculos,
       veiculoSelecionado?.id,

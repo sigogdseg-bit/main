@@ -9,153 +9,132 @@ export interface FrameState {
   bearing: number;
 }
 
-type FrameCallback = (state: FrameState) => void;
-
-const toRad = (deg: number) => (deg * Math.PI) / 180;
-const toDeg = (rad: number) => (rad * 180) / Math.PI;
+export type FrameCallback = (state: FrameState) => void;
 
 export function haversineMeters(a: Coord, b: Coord): number {
   const R = 6371000;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
   const sinLat = Math.sin(dLat / 2);
   const sinLng = Math.sin(dLng / 2);
-  const h = sinLat * sinLat + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * sinLng * sinLng;
+  const h =
+    sinLat * sinLat +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng;
   return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
 export function calcBearing(a: Coord, b: Coord): number {
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const dLng = toRad(b.lng - a.lng);
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
   const y = Math.sin(dLng) * Math.cos(lat2);
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
-  return (toDeg(Math.atan2(y, x)) + 360) % 360;
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
-function lerpBearing(start: number, end: number, t: number): number {
+export function lerpBearing(start: number, end: number, t: number): number {
   const diff = ((end - start + 540) % 360) - 180;
   return (start + diff * t + 360) % 360;
 }
 
-async function fetchRoadPolyline(from: Coord, to: Coord): Promise<Coord[]> {
-  const straightDist = haversineMeters(from, to);
-  if (straightDist < 10) return [from, to];
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 1500);
-
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
-    const res = await fetch(url, { signal: controller.signal });
-    if (!res.ok) return [from, to];
-
-    const data = await res.json();
-    const route = data?.routes?.[0];
-    if (!route?.geometry?.coordinates?.length) return [from, to];
-
-    // Trava de sanidade: descarta se o OSRM tentar dar a volta no quarteirao
-    if (route.distance > straightDist * 3 && route.distance > 120) {
-      return [from, to];
-    }
-
-    return route.geometry.coordinates.map(([lng, lat]: [number, number]) => ({
-      lat,
-      lng,
-    }));
-  } catch {
-    return [from, to];
-  } finally {
-    clearTimeout(timeout);
-  }
+export function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
 }
 
 export class VehicleMotionController {
   private currentPos: Coord;
-  private currentBearing: number = 0;
-  private lastPacketTime: number = Date.now();
+  private currentBearing: number;
+  private lastTimestamp: number = 0;
   private rafId: number | null = null;
   private onFrame: FrameCallback;
-  private isRouting = false;
-  private pendingTarget: Coord | null = null;
+  private animStartTime: number = 0;
+  private animStartPos: Coord;
+  private animTargetPos: Coord;
+  private animStartBearing: number;
+  private animTargetBearing: number;
+  public static readonly DURATION_MS = 1500;
 
-  constructor(initialPos: Coord, onFrame: FrameCallback) {
-    this.currentPos = initialPos;
+  constructor(initialPos: Coord, onFrame: FrameCallback, initialBearing: number = 0) {
+    this.currentPos = { ...initialPos };
+    this.animStartPos = { ...initialPos };
+    this.animTargetPos = { ...initialPos };
+    this.currentBearing = initialBearing;
+    this.animStartBearing = initialBearing;
+    this.animTargetBearing = initialBearing;
     this.onFrame = onFrame;
   }
 
-  public async updateTarget(newPos: Coord): Promise<void> {
+  public updateTarget(newPos: Coord, timestamp?: number | string | Date): void {
+    // 1. Trava de timestamp obrigatória: se timestamp <= lastTimestamp, ignore completamente
+    if (timestamp !== undefined && timestamp !== null) {
+      const tsMs = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
+
+      if (!isNaN(tsMs) && tsMs > 0) {
+        if (tsMs <= this.lastTimestamp) {
+          return;
+        }
+        this.lastTimestamp = tsMs;
+      }
+    }
+
     const dist = haversineMeters(this.currentPos, newPos);
-    if (dist < 2) return;
 
-    const now = Date.now();
-    const packetInterval = Math.min(Math.max(now - this.lastPacketTime, 1000), 12000);
-    this.lastPacketTime = now;
-
-    if (this.isRouting) {
-      this.pendingTarget = newPos;
+    // 2. Trava de zona morta: menor que 3 metros ignora (evita tremor com carro parado)
+    if (dist < 3) {
       return;
     }
 
-    this.isRouting = true;
-    const startPoint = { ...this.currentPos };
-    const polyline = await fetchRoadPolyline(startPoint, newPos);
-    this.isRouting = false;
-
-    this.animateAlongPolyline(polyline, packetInterval);
-
-    if (this.pendingTarget) {
-      const next = this.pendingTarget;
-      this.pendingTarget = null;
-      this.updateTarget(next);
+    // 3. Trava de teleporte: maior que 2000 metros move instantaneamente sem animar
+    if (dist > 2000) {
+      if (this.rafId !== null) {
+        cancelAnimationFrame(this.rafId);
+        this.rafId = null;
+      }
+      this.currentPos = { ...newPos };
+      this.animStartPos = { ...newPos };
+      this.animTargetPos = { ...newPos };
+      this.onFrame({
+        lat: newPos.lat,
+        lng: newPos.lng,
+        bearing: this.currentBearing,
+      });
+      return;
     }
-  }
 
-  private animateAlongPolyline(points: Coord[], durationMs: number): void {
+    // 4. Se chegar um novo pacote durante os 1500ms, cancele o frame anterior (cancelAnimationFrame)
+    // e inicie os novos 1500ms a partir da posição exata onde o marcador está naquele milissegundo.
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
 
-    if (points.length < 2) return;
+    this.animStartPos = { ...this.currentPos };
+    this.animTargetPos = { ...newPos };
+    this.animStartBearing = this.currentBearing;
+    this.animTargetBearing = calcBearing(this.animStartPos, this.animTargetPos);
+    this.animStartTime = typeof performance !== "undefined" ? performance.now() : Date.now();
 
-    const cumDist: number[] = [0];
-    let totalDist = 0;
-    for (let i = 1; i < points.length; i++) {
-      totalDist += haversineMeters(points[i - 1], points[i]);
-      cumDist.push(totalDist);
-    }
-
-    if (totalDist === 0) return;
-
-    const startTime = performance.now();
+    const startPos = this.animStartPos;
+    const targetPos = this.animTargetPos;
+    const startBearing = this.animStartBearing;
+    const targetBearing = this.animTargetBearing;
 
     const step = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / durationMs, 1);
-      const targetDist = progress * totalDist;
+      const elapsed = now - this.animStartTime;
+      const progress = Math.min(Math.max(elapsed / VehicleMotionController.DURATION_MS, 0), 1);
+      const easedT = easeOutCubic(progress);
 
-      let segIdx = 0;
-      while (segIdx < cumDist.length - 2 && cumDist[segIdx + 1] < targetDist) {
-        segIdx++;
-      }
-
-      const segStart = points[segIdx];
-      const segEnd = points[segIdx + 1];
-      const segLen = cumDist[segIdx + 1] - cumDist[segIdx];
-      const segT = segLen > 0 ? (targetDist - cumDist[segIdx]) / segLen : 0;
-
-      const lat = segStart.lat + (segEnd.lat - segStart.lat) * segT;
-      const lng = segStart.lng + (segEnd.lng - segStart.lng) * segT;
-      const targetBearing = calcBearing(segStart, segEnd);
+      const lat = startPos.lat + (targetPos.lat - startPos.lat) * easedT;
+      const lng = startPos.lng + (targetPos.lng - startPos.lng) * easedT;
+      const bearing = lerpBearing(startBearing, targetBearing, easedT);
 
       this.currentPos = { lat, lng };
-      this.currentBearing = lerpBearing(this.currentBearing, targetBearing, 0.25);
+      this.currentBearing = bearing;
 
       this.onFrame({
         lat,
         lng,
-        bearing: this.currentBearing,
+        bearing,
       });
 
       if (progress < 1) {
@@ -166,6 +145,14 @@ export class VehicleMotionController {
     };
 
     this.rafId = requestAnimationFrame(step);
+  }
+
+  public getPosition(): Coord {
+    return { ...this.currentPos };
+  }
+
+  public getBearing(): number {
+    return this.currentBearing;
   }
 
   public destroy(): void {

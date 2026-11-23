@@ -164,14 +164,17 @@ html.dark .leaflet-container {
   }
 }
 
-.leaflet-marker-icon {
+.leaflet-marker-icon,
+.custom-hunter-marker,
+.hunter-marker-3d,
+.hunter-marker-generico-flutuante,
+.maplibregl-marker {
   transition: none !important;
 }
 
 .custom-hunter-marker {
   background: transparent !important;
   border: none !important;
-  transition: none !important;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

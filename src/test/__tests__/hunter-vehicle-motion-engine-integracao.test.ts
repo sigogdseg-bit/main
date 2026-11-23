@@ -32,20 +32,44 @@ describe("Hunter — Vehicle Motion Engine e Integração aos Motores de Mapa (L
   });
 
   test("2. VehicleMotionController inicializa, interpola e executa ciclo de vida com destroy()", async () => {
-    let frameExecutado = false;
-    let ultimoBearing = 0;
+    let frames: any[] = [];
 
     const controller = new VehicleMotionController({ lat: -22.5235, lng: -44.1042 }, (frame) => {
-      frameExecutado = true;
-      ultimoBearing = frame.bearing;
+      frames.push(frame);
     });
 
-    // Atualiza para novo alvo com distância > 2m
-    await controller.updateTarget({ lat: -22.5236, lng: -44.1045 });
+    // 1. Deadband: distância menor que 3m deve ser ignorada
+    await controller.updateTarget({ lat: -22.523501, lng: -44.104201 }, 1000);
+    assert.equal(frames.length, 0, "Distância menor que 3m deve ser ignorada (deadband)");
+
+    // 2. Trava de teleporte: distância maior que 2000m move instantaneamente
+    await controller.updateTarget({ lat: -22.545, lng: -44.1042 }, 2000);
+    assert.ok(frames.length > 0, "Teleporte deve disparar frame instantaneamente");
+    assert.equal(frames[frames.length - 1].lat, -22.545);
+
+    // 3. Trava de timestamp: pacote com timestamp <= lastTimestamp deve ser ignorado
+    const frameCountBefore = frames.length;
+    await controller.updateTarget({ lat: -22.546, lng: -44.1042 }, 1500); // timestamp menor que 2000
+    assert.equal(
+      frames.length,
+      frameCountBefore,
+      "Pacote antigo com timestamp <= lastTimestamp deve ser ignorado",
+    );
 
     // Destrói o controller
     controller.destroy();
     assert.equal(typeof controller.destroy, "function");
+  });
+
+  test("2b. vehicleMotionEngine.ts é 100% livre de OSRM e extrapolação", async () => {
+    const engineCode = await fs.readFile(
+      new URL("../../../src/services/vehicleMotionEngine.ts", import.meta.url),
+      "utf-8",
+    );
+    assert.ok(!engineCode.includes("project-osrm.org"), "NÃO deve chamar OSRM");
+    assert.ok(!engineCode.includes("fetchRoadPolyline"), "NÃO deve ter fetchRoadPolyline");
+    assert.ok(engineCode.includes("DURATION_MS = 1500"), "Duração deve ser 1500ms");
+    assert.ok(engineCode.includes("easeOutCubic"), "Easing deve ser easeOutCubic");
   });
 
   test("3. LeafletEngine.tsx cumpre rigorosamente as 6 regras obrigatórias", async () => {
@@ -62,7 +86,7 @@ describe("Hunter — Vehicle Motion Engine e Integração aos Motores de Mapa (L
 
     // Regra 2: controller.updateTarget({ lat, lng })
     assert.ok(
-      code.includes("motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude })"),
+      code.includes("motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }"),
       "LeafletEngine deve chamar controller.updateTarget ao receber atualização",
     );
 
