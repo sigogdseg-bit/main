@@ -93,6 +93,7 @@ interface ConexaoRastreador {
   clienteId?: string;
   placa?: string;
   modeloVeiculo?: string;
+  modeloRastreador?: string;
   rastreadorId?: string;
   protocoloDispositivo?: "gt06" | "coban";
   ignicaoStatus?: boolean;
@@ -236,6 +237,218 @@ export function ehProtocoloCoban(comandoOuProtocolo?: string): boolean {
     upper.startsWith("STOP123456") ||
     upper.startsWith("RESUME123456")
   );
+}
+
+// ── CONTROLADOR AUTOMÁTICO DE FREQUÊNCIA COBAN / G900L (AUTO-THROTTLE) ──
+export type ModoFrequenciaCoban = "10s" | "05m";
+
+export interface EstadoAutoThrottleCoban {
+  imei: string;
+  modoAtual: ModoFrequenciaCoban | null;
+  ultimoEnvioTimestamp: number;
+  timerRepouso: NodeJS.Timeout | null;
+  socketRef?: net.Socket;
+}
+
+export const autoThrottleCobanPorImei = new Map<string, EstadoAutoThrottleCoban>();
+export const modeloRastreadorPorImei = new Map<string, string>();
+
+export const COBAN_THROTTLE_HYSTERESIS_MS = 120_000; // 120 segundos (2 minutos)
+export const COBAN_THROTTLE_COOLDOWN_MS = 60_000; // 60 segundos cooldown anti-spam
+
+// Determina com isolamento estrito se o modelo do rastreador é G900L (ignora espaços e caixa alta)
+export function isModeloG900L(modelo?: string | null): boolean {
+  if (!modelo) return false;
+  const normalizado = modelo.toUpperCase().replace(/\s+/g, "");
+  return normalizado.includes("G900L");
+}
+
+export function limparAutoThrottleCoban(imei: string) {
+  const estado = autoThrottleCobanPorImei.get(imei);
+  if (estado) {
+    if (estado.timerRepouso) {
+      clearTimeout(estado.timerRepouso);
+      estado.timerRepouso = null;
+    }
+    autoThrottleCobanPorImei.delete(imei);
+    console.log(`🧹 [AUTO-THROTTLE COBAN] Estado e timers limpos para IMEI ${imei}`);
+  }
+}
+
+export function dispararComandoRepousoCoban(imei: string, agora: number = Date.now()): boolean {
+  const estado = autoThrottleCobanPorImei.get(imei);
+  if (!estado) return false;
+
+  estado.timerRepouso = null;
+
+  if (estado.modoAtual === "05m") {
+    return false;
+  }
+
+  const socket = estado.socketRef;
+  if (!socket || socket.destroyed || (typeof socket.writable === "boolean" && !socket.writable)) {
+    console.warn(`⚠️ [AUTO-THROTTLE COBAN] Socket do IMEI ${imei} inativo ou destruído. Descarte.`);
+    return false;
+  }
+
+  const conn = conexoesAtivas.get(socket);
+  const modelo = conn?.modeloRastreador || modeloRastreadorPorImei.get(imei);
+  if (!isModeloG900L(modelo)) {
+    return false;
+  }
+
+  if (conn?.ignicaoStatus === true) {
+    console.log(
+      `⏱️ [AUTO-THROTTLE COBAN] Disparo de repouso ignorado para IMEI ${imei}: veículo com ignição ligada.`,
+    );
+    return false;
+  }
+
+  if (
+    estado.ultimoEnvioTimestamp > 0 &&
+    agora - estado.ultimoEnvioTimestamp < COBAN_THROTTLE_COOLDOWN_MS
+  ) {
+    console.warn(
+      `⚠️ [AUTO-THROTTLE COBAN] Cooldown anti-spam ativo para IMEI ${imei} (${Math.round(
+        (COBAN_THROTTLE_COOLDOWN_MS - (agora - estado.ultimoEnvioTimestamp)) / 1000,
+      )}s restantes). Repouso adiado.`,
+    );
+    return false;
+  }
+
+  const pkt = montarPacoteComandoCoban(imei, "C,05m");
+  try {
+    socket.write(pkt);
+    estado.modoAtual = "05m";
+    estado.ultimoEnvioTimestamp = agora;
+    console.log(
+      `🌙 [AUTO-THROTTLE COBAN] Modo Repouso C,05m despachado após 120s para IMEI ${imei}`,
+    );
+    return true;
+  } catch (err: any) {
+    console.error(
+      `❌ [AUTO-THROTTLE COBAN] Falha ao despachar C,05m para IMEI ${imei}:`,
+      err?.message || err,
+    );
+    return false;
+  }
+}
+
+export function processarAutoThrottleCoban(
+  imei: string,
+  ignicao: boolean,
+  velocidade: number,
+  socket: net.Socket,
+  agora: number = Date.now(),
+  modeloInformado?: string,
+): {
+  acao:
+    | "enviado_10s"
+    | "timer_repouso_iniciado"
+    | "timer_repouso_mantido"
+    | "timer_repouso_cancelado"
+    | "cooldown_ativo"
+    | "mesmo_modo"
+    | "modelo_nao_elegivel";
+} {
+  if (!imei) return { acao: "mesmo_modo" };
+
+  const conn = conexoesAtivas.get(socket);
+  if (conn) {
+    conn.ignicaoStatus = ignicao;
+  }
+
+  // TRAVA DE ISOLAMENTO ESTRITO: Auto-Throttle opera EXCLUSIVAMENTE em hardware G900L
+  const modelo = modeloInformado || conn?.modeloRastreador || modeloRastreadorPorImei.get(imei);
+  if (!isModeloG900L(modelo)) {
+    return { acao: "modelo_nao_elegivel" };
+  }
+
+  let estado = autoThrottleCobanPorImei.get(imei);
+  if (!estado) {
+    estado = {
+      imei,
+      modoAtual: null,
+      ultimoEnvioTimestamp: 0,
+      timerRepouso: null,
+      socketRef: socket,
+    };
+    autoThrottleCobanPorImei.set(imei, estado);
+  } else {
+    estado.socketRef = socket;
+  }
+
+  const emMovimento = ignicao === true || velocidade > 3;
+
+  if (emMovimento) {
+    let cancelouTimer = false;
+    if (estado.timerRepouso) {
+      clearTimeout(estado.timerRepouso);
+      estado.timerRepouso = null;
+      cancelouTimer = true;
+      console.log(
+        `⏱️ [AUTO-THROTTLE COBAN] Timer de repouso cancelado para IMEI ${imei} (veículo em movimento/ignição ligada)`,
+      );
+    }
+
+    if (estado.modoAtual === "10s") {
+      return { acao: cancelouTimer ? "timer_repouso_cancelado" : "mesmo_modo" };
+    }
+
+    // Se modoAtual !== '10s', verifica cooldown anti-spam
+    if (
+      estado.ultimoEnvioTimestamp > 0 &&
+      agora - estado.ultimoEnvioTimestamp < COBAN_THROTTLE_COOLDOWN_MS
+    ) {
+      console.warn(
+        `⚠️ [AUTO-THROTTLE COBAN] Cooldown anti-spam ativo para IMEI ${imei} (${Math.round(
+          (COBAN_THROTTLE_COOLDOWN_MS - (agora - estado.ultimoEnvioTimestamp)) / 1000,
+        )}s restantes). Bloqueando envio automático de C,10s.`,
+      );
+      return { acao: "cooldown_ativo" };
+    }
+
+    // Despacha C,10s imediatamente no socket ativo
+    const pkt = montarPacoteComandoCoban(imei, "C,10s");
+    try {
+      socket.write(pkt);
+      estado.modoAtual = "10s";
+      estado.ultimoEnvioTimestamp = agora;
+      console.log(`🚀 [AUTO-THROTTLE COBAN] Modo Movimento C,10s despachado para IMEI ${imei}`);
+      return { acao: "enviado_10s" };
+    } catch (err: any) {
+      console.error(
+        `❌ [AUTO-THROTTLE COBAN] Erro ao despachar C,10s para IMEI ${imei}:`,
+        err?.message || err,
+      );
+      return { acao: "mesmo_modo" };
+    }
+  } else {
+    // Modo Repouso: ignicao === false && velocidade === 0 (ou <= 3)
+    if (estado.modoAtual === "05m") {
+      if (estado.timerRepouso) {
+        clearTimeout(estado.timerRepouso);
+        estado.timerRepouso = null;
+      }
+      return { acao: "mesmo_modo" };
+    }
+
+    if (estado.timerRepouso) {
+      // Já está aguardando os 120s de histerese
+      return { acao: "timer_repouso_mantido" };
+    }
+
+    // Inicia timer de histerese de 120 segundos
+    estado.timerRepouso = setTimeout(() => {
+      dispararComandoRepousoCoban(imei);
+    }, COBAN_THROTTLE_HYSTERESIS_MS);
+    estado.timerRepouso.unref?.();
+
+    console.log(
+      `⏳ [AUTO-THROTTLE COBAN] Temporizador de repouso (120s) iniciado para IMEI ${imei}. Modo atual: ${estado.modoAtual || "indefinido"}.`,
+    );
+    return { acao: "timer_repouso_iniciado" };
+  }
 }
 
 // Extrai frames completos de um acumulador de stream TCP (GT06 Standard, GT06 Extendido e Coban ASCII)
@@ -524,6 +737,40 @@ export async function enviarComandoParaRastreador(
         ? montarPacoteComandoCoban(imei, comandoAscii)
         : montarPacoteComandoGT06(comandoAscii);
       socket.write(pkt);
+      if (ehCoban) {
+        const cmdUpper = comandoAscii.trim().toUpperCase();
+        if (cmdUpper === "C,10S") {
+          const est = autoThrottleCobanPorImei.get(imei) || {
+            imei,
+            modoAtual: null,
+            ultimoEnvioTimestamp: 0,
+            timerRepouso: null,
+            socketRef: socket,
+          };
+          est.modoAtual = "10s";
+          est.ultimoEnvioTimestamp = Date.now();
+          if (est.timerRepouso) {
+            clearTimeout(est.timerRepouso);
+            est.timerRepouso = null;
+          }
+          autoThrottleCobanPorImei.set(imei, est);
+        } else if (cmdUpper === "C,05M") {
+          const est = autoThrottleCobanPorImei.get(imei) || {
+            imei,
+            modoAtual: null,
+            ultimoEnvioTimestamp: 0,
+            timerRepouso: null,
+            socketRef: socket,
+          };
+          est.modoAtual = "05m";
+          est.ultimoEnvioTimestamp = Date.now();
+          if (est.timerRepouso) {
+            clearTimeout(est.timerRepouso);
+            est.timerRepouso = null;
+          }
+          autoThrottleCobanPorImei.set(imei, est);
+        }
+      }
       if (isCorte) {
         conn.bloqueadoEsperado = true;
         conn.ultimoComandoBloqueioPlataformaTs = Date.now();
@@ -679,11 +926,17 @@ if (process.env.NODE_ENV !== "test" && !process.env.GATEWAY_TEST_MODE) {
 export const server = net.createServer((socket) => {
   const remoteAddr = `${socket.remoteAddress}:${socket.remotePort}`;
   console.log(`\n[+] Nova conexão recebida de: ${remoteAddr}`);
-  conexoesAtivas.set(socket, { rxBuffer: Buffer.alloc(0) });
+  conexoesAtivas.set(socket, {
+    rxBuffer: Buffer.alloc(0),
+    protocoloDispositivo: PORTA_TCP === 7003 ? "coban" : undefined,
+  });
 
   socket.on("data", async (data: Buffer) => {
     try {
-      const conn = conexoesAtivas.get(socket) || { rxBuffer: Buffer.alloc(0) };
+      const conn = conexoesAtivas.get(socket) || {
+        rxBuffer: Buffer.alloc(0),
+        protocoloDispositivo: PORTA_TCP === 7003 ? "coban" : undefined,
+      };
       conexoesAtivas.set(socket, conn);
 
       conn.rxBuffer = Buffer.concat([conn.rxBuffer || Buffer.alloc(0), data]);
@@ -711,10 +964,17 @@ export const server = net.createServer((socket) => {
   socket.on("close", () => {
     const conn = conexoesAtivas.get(socket);
     console.log(`[-] Conexão encerrada: ${remoteAddr} (IMEI: ${conn?.imei || "desconhecido"})`);
+    if (conn?.imei) {
+      limparAutoThrottleCoban(conn.imei);
+    }
     conexoesAtivas.delete(socket);
   });
 
   socket.on("error", (err) => {
+    const conn = conexoesAtivas.get(socket);
+    if (conn?.imei) {
+      limparAutoThrottleCoban(conn.imei);
+    }
     console.warn(`[!] Aviso de socket de ${remoteAddr}:`, err.message);
   });
 });
@@ -727,7 +987,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
 
   // ── RECONHECIMENTO NATIVO PROTOCOLO COBAN / G900L (ASCII) ──
   // 1. Login / Handshake Coban: ##,imei:<15_digitos>,A; ou **,imei:<15_digitos>,A;
-  const matchLoginCoban = rawAscii.match(/(?:##|\*\*)[^;]*imei:(\d{15})/i);
+  const matchLoginCoban = rawAscii.match(/^(?:##|\*\*),?imei:(\d{15}),[AB];?$/i);
   if (matchLoginCoban && matchLoginCoban[1]) {
     const imei = matchLoginCoban[1];
     conn.imei = imei;
@@ -836,12 +1096,20 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
           .update({ rele_status: false, ultima_atualizacao: new Date().toISOString() })
           .eq("id", conn.veiculoId);
       }
+    } else if (keyword === "acc on") {
+      conn.ignicaoStatus = true;
+      processarAutoThrottleCoban(imei, true, 0, socket);
+    } else if (keyword === "acc off") {
+      conn.ignicaoStatus = false;
+      processarAutoThrottleCoban(imei, false, 0, socket);
     }
 
     const mapaKeywordsTraduzidas: Record<string, string> = {
       jt: "Bloqueio Confirmado (jt)",
       kt: "Desbloqueio Confirmado (kt)",
       tracker: "Posição Recebida (tracker)",
+      "acc on": "Ignição Ligada (acc on)",
+      "acc off": "Ignição Desligada (acc off)",
       lt: "Alarme Armado (lt)",
       mt: "Alarme Desarmado (mt)",
       et: "Alarmes Cancelados (et)",
@@ -877,13 +1145,17 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
   }
 
   // 4. Respostas de texto direto Coban (ok!, fail, bat:, gsm:, gprs:)
+  const isBinaryGt06 =
+    buf.length >= 2 && (buf.readUInt16BE(0) === 0x7878 || buf.readUInt16BE(0) === 0x7979);
+
   if (
-    conn.protocoloDispositivo === "coban" ||
-    rawAscii.toLowerCase().includes("ok!") ||
-    rawAscii.toLowerCase().includes("fail") ||
-    rawAscii.toLowerCase().includes("bat:") ||
-    rawAscii.toLowerCase().includes("gsm:") ||
-    rawAscii.toLowerCase().includes("gprs:")
+    !isBinaryGt06 &&
+    (conn.protocoloDispositivo === "coban" ||
+      rawAscii.toLowerCase().includes("ok!") ||
+      rawAscii.toLowerCase().includes("fail") ||
+      rawAscii.toLowerCase().includes("bat:") ||
+      rawAscii.toLowerCase().includes("gsm:") ||
+      rawAscii.toLowerCase().includes("gprs:"))
   ) {
     const imei = conn.imei || "Desconhecido";
     console.log(
@@ -939,6 +1211,9 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
   if (protocolo === 0x01) {
     const imei = bcdParaImei(buf, offset, 8);
     conn.imei = imei;
+    if (PORTA_TCP === 7003) {
+      conn.protocoloDispositivo = "coban";
+    }
     conexoesAtivas.set(socket, conn);
 
     // Encerra e expurga conexões zumbis anteriores do mesmo IMEI
@@ -1060,6 +1335,11 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     // Status da ignição: respeita estritamente o pós-chave físico (ACC/fio laranja) quando reportado pelo hardware.
     // Se o status físico for desconhecido (undefined), infere pelo deslocamento (> 3 km/h).
     const ignicao = conn.ignicaoStatus !== undefined ? conn.ignicaoStatus : velocidade > 3;
+
+    const ehCobanDispositivo = conn.protocoloDispositivo === "coban" || PORTA_TCP === 7003;
+    if (ehCobanDispositivo && conn.imei) {
+      processarAutoThrottleCoban(conn.imei, ignicao, velocidade, socket);
+    }
 
     console.log(`\n📍 [LOCALIZAÇÃO GPS RECEBIDA] IMEI: ${imei}`);
     console.log(`   Veículo: ${conn.placa || "Não identificado"} (${conn.modeloVeiculo || "—"})`);
@@ -1356,6 +1636,11 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     const alimentacaoAnterior = conn.alimentacaoExternaStatus;
     conn.ignicaoStatus = accFioLaranja;
     conn.releStatus = releStatus;
+
+    const ehCobanDispositivo = conn.protocoloDispositivo === "coban" || PORTA_TCP === 7003;
+    if (ehCobanDispositivo && conn.imei) {
+      processarAutoThrottleCoban(conn.imei, accFioLaranja, 0, socket);
+    }
 
     // Byte 5: Voltage Level (Bateria Interna: 0=0%, 1=15%, 2=35%, 3=55%, 4=75%, 5=90%, 6=100%)
     let pctBateriaInterna = 85;
@@ -1892,6 +2177,21 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
 async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string) {
   if (process.env.GATEWAY_TEST_MODE) return;
   try {
+    // 0. Busca modelo e id na tabela rastreadores por imei
+    const { data: rastreadorRow } = await supabase
+      .from("rastreadores")
+      .select("id, modelo")
+      .eq("imei", imei)
+      .maybeSingle();
+
+    if (rastreadorRow) {
+      conn.rastreadorId = rastreadorRow.id;
+      conn.modeloRastreador = rastreadorRow.modelo || undefined;
+      if (rastreadorRow.modelo) {
+        modeloRastreadorPorImei.set(imei, rastreadorRow.modelo);
+      }
+    }
+
     // 1. Busca na tabela veiculos por rastreador_imei
     const { data: veiculoPorImei } = await supabase
       .from("veiculos")
@@ -1906,7 +2206,9 @@ async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string
       conn.clienteId = veiculoPorImei.cliente_id || undefined;
       conn.placa = veiculoPorImei.placa;
       conn.modeloVeiculo = veiculoPorImei.marca_modelo;
-      conn.rastreadorId = veiculoPorImei.rastreador_id || undefined;
+      if (!conn.rastreadorId && veiculoPorImei.rastreador_id) {
+        conn.rastreadorId = veiculoPorImei.rastreador_id;
+      }
       conn.bloqueadorInstalado = veiculoPorImei.bloqueador_instalado ?? true;
       conn.tipoBloqueador = veiculoPorImei.tipo_bloqueador || "rele_combustivel";
       conn.bloqueadorDetalhes = veiculoPorImei.bloqueador_detalhes || undefined;
@@ -1923,20 +2225,13 @@ async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string
         conn.ultimoLng = Number(veiculoPorImei.ultima_longitude);
       }
       console.log(
-        `🎯 [VÍNCULO] Rastreador ${imei} associado ao veículo: ${conn.placa} (${conn.modeloVeiculo}) | Bloqueador: ${conn.bloqueadorInstalado ? conn.tipoBloqueador : "SEM BLOQUEADOR"} | Bloqueado: ${conn.bloqueadoEsperado}`,
+        `🎯 [VÍNCULO] Rastreador ${imei} (${conn.modeloRastreador || "Modelo —"}) associado ao veículo: ${conn.placa} (${conn.modeloVeiculo}) | Bloqueador: ${conn.bloqueadorInstalado ? conn.tipoBloqueador : "SEM BLOQUEADOR"} | Bloqueado: ${conn.bloqueadoEsperado}`,
       );
       return;
     }
 
-    // 2. Busca na tabela rastreadores por imei
-    const { data: rastreadorRow } = await supabase
-      .from("rastreadores")
-      .select("id")
-      .eq("imei", imei)
-      .maybeSingle();
-
-    if (rastreadorRow) {
-      conn.rastreadorId = rastreadorRow.id;
+    // 2. Busca na tabela veiculos por rastreador_id (se não vinculado diretamente por rastreador_imei)
+    if (rastreadorRow?.id) {
       const { data: veiculoPorFk } = await supabase
         .from("veiculos")
         .select(
@@ -1966,7 +2261,7 @@ async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string
           conn.ultimoLng = Number(veiculoPorFk.ultima_longitude);
         }
         console.log(
-          `🎯 [VÍNCULO] Rastreador ${imei} associado via FK ao veículo: ${conn.placa} (${conn.modeloVeiculo}) | Bloqueador: ${conn.bloqueadorInstalado ? conn.tipoBloqueador : "SEM BLOQUEADOR"}`,
+          `🎯 [VÍNCULO] Rastreador ${imei} (${conn.modeloRastreador || "Modelo —"}) associado via FK ao veículo: ${conn.placa} (${conn.modeloVeiculo}) | Bloqueador: ${conn.bloqueadorInstalado ? conn.tipoBloqueador : "SEM BLOQUEADOR"}`,
         );
       }
     }
