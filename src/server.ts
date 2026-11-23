@@ -11361,6 +11361,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
         }
       }
       const hosts = [
+        "http://167.234.233.82:8082/api/comando",
         "https://gps.oficial.tec.br/api/comando",
         "http://gps.oficial.tec.br:8080/api/comando",
         "http://167.234.233.82:8080/api/comando",
@@ -11414,6 +11415,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
   // Rota de listagem de conexões ativas no Gateway (consolidando Oracle e Fly.io)
   if (url.pathname === "/api/gateway/conexoes" && request.method === "GET") {
     const hosts = [
+      "http://167.234.233.82:8082/api/conexoes",
       "https://gps.oficial.tec.br/api/conexoes",
       "http://gps.oficial.tec.br:8080/api/conexoes",
       "http://167.234.233.82:8080/api/conexoes",

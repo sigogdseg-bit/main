@@ -45,14 +45,20 @@ export class VehicleMotionController {
   private currentPos: Coord;
   private currentBearing: number;
   private lastTimestamp: number = 0;
+  private lastPacketTime: number = 0;
   private rafId: number | null = null;
   private onFrame: FrameCallback;
   private animStartTime: number = 0;
+  private animDurationMs: number = 10000;
   private animStartPos: Coord;
   private animTargetPos: Coord;
   private animStartBearing: number;
   private animTargetBearing: number;
-  public static readonly DURATION_MS = 1500;
+
+  public static readonly MIN_DURATION_MS = 2000;
+  public static readonly MAX_DURATION_MS = 11000;
+  public static readonly DEFAULT_DURATION_MS = 10000;
+  public static readonly DURATION_MS = 10000;
 
   constructor(initialPos: Coord, onFrame: FrameCallback, initialBearing: number = 0) {
     this.currentPos = { ...initialPos };
@@ -64,28 +70,68 @@ export class VehicleMotionController {
     this.onFrame = onFrame;
   }
 
+  public getPosition(): Coord {
+    return { ...this.currentPos };
+  }
+
+  public getBearing(): number {
+    return this.currentBearing;
+  }
+
+  public getDurationMs(): number {
+    return this.animDurationMs;
+  }
+
   public updateTarget(newPos: Coord, timestamp?: number | string | Date): void {
-    // 1. Trava de timestamp obrigatória: se timestamp <= lastTimestamp, ignore completamente
+    const agora = typeof performance !== "undefined" ? performance.now() : Date.now();
+    const tempoDecorridoMs = this.lastPacketTime > 0 ? Math.round(agora - this.lastPacketTime) : 0;
+
+    // 1. Duração dinâmica baseada no intervalo real entre pacotes (now - lastPacketTime), limitada entre 2000ms e 11000ms
+    const duracaoDinamicaMs =
+      this.lastPacketTime > 0
+        ? Math.min(
+            Math.max(tempoDecorridoMs, VehicleMotionController.MIN_DURATION_MS),
+            VehicleMotionController.MAX_DURATION_MS,
+          )
+        : VehicleMotionController.DEFAULT_DURATION_MS;
+
+    this.lastPacketTime = agora;
+    this.animDurationMs = duracaoDinamicaMs;
+
+    const dist = haversineMeters(this.currentPos, newPos);
+
+    console.log(
+      `[VehicleMotion] updateTarget: dist=${dist.toFixed(1)}m | decorrido=${tempoDecorridoMs}ms | duracaoAnim=${duracaoDinamicaMs}ms | timestamp=${timestamp || "N/A"} | lastTs=${this.lastTimestamp}`,
+    );
+
+    // 2. Trava de timestamp obrigatória: se timestamp <= lastTimestamp, ignore completamente
     if (timestamp !== undefined && timestamp !== null) {
       const tsMs = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
 
       if (!isNaN(tsMs) && tsMs > 0) {
         if (tsMs <= this.lastTimestamp) {
+          console.warn(
+            `[VehicleMotion] ⚠️ Pacote ignorado por trava de timestamp (antigo/fora de ordem): ts=${tsMs} <= lastTs=${this.lastTimestamp}`,
+          );
           return;
         }
         this.lastTimestamp = tsMs;
       }
     }
 
-    const dist = haversineMeters(this.currentPos, newPos);
-
-    // 2. Trava de zona morta: menor que 3 metros ignora (evita tremor com carro parado)
+    // 3. Trava de zona morta: menor que 3 metros ignora (evita tremor com carro parado)
     if (dist < 3) {
+      console.log(
+        `[VehicleMotion] ⏸️ Pacote ignorado por zona morta (< 3m): dist=${dist.toFixed(1)}m`,
+      );
       return;
     }
 
-    // 3. Trava de teleporte: maior que 2000 metros move instantaneamente sem animar
+    // 4. Trava de teleporte: maior que 2000 metros move instantaneamente sem animar
     if (dist > 2000) {
+      console.warn(
+        `[VehicleMotion] 🚀 Trava de teleporte acionada (> 2000m): dist=${dist.toFixed(1)}m. Movendo instantaneamente sem animar.`,
+      );
       if (this.rafId !== null) {
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
@@ -101,8 +147,12 @@ export class VehicleMotionController {
       return;
     }
 
-    // 4. Se chegar um novo pacote durante os 1500ms, cancele o frame anterior (cancelAnimationFrame)
-    // e inicie os novos 1500ms a partir da posição exata onde o marcador está naquele milissegundo.
+    console.log(
+      `[VehicleMotion] ▶️ Iniciando locomoção contínua linear de ${duracaoDinamicaMs}ms (sem frenagem) para nova posição: dist=${dist.toFixed(1)}m`,
+    );
+
+    // 5. Se chegar um novo pacote durante o percurso, cancele o frame anterior (cancelAnimationFrame)
+    // e inicie a nova animação linear a partir da posição exata onde o marcador está naquele milissegundo.
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -118,15 +168,17 @@ export class VehicleMotionController {
     const targetPos = this.animTargetPos;
     const startBearing = this.animStartBearing;
     const targetBearing = this.animTargetBearing;
+    const duration = this.animDurationMs;
 
     const step = (now: number) => {
       const elapsed = now - this.animStartTime;
-      const progress = Math.min(Math.max(elapsed / VehicleMotionController.DURATION_MS, 0), 1);
-      const easedT = easeOutCubic(progress);
+      // Movimento estritamente linear (t = elapsed / duration) sem curva de desaceleração para evitar que o pin freie
+      const progress = Math.min(Math.max(elapsed / duration, 0), 1);
+      const t = progress;
 
-      const lat = startPos.lat + (targetPos.lat - startPos.lat) * easedT;
-      const lng = startPos.lng + (targetPos.lng - startPos.lng) * easedT;
-      const bearing = lerpBearing(startBearing, targetBearing, easedT);
+      const lat = startPos.lat + (targetPos.lat - startPos.lat) * t;
+      const lng = startPos.lng + (targetPos.lng - startPos.lng) * t;
+      const bearing = lerpBearing(startBearing, targetBearing, t);
 
       this.currentPos = { lat, lng };
       this.currentBearing = bearing;
@@ -141,18 +193,17 @@ export class VehicleMotionController {
         this.rafId = requestAnimationFrame(step);
       } else {
         this.rafId = null;
+        this.currentPos = { ...targetPos };
+        this.currentBearing = targetBearing;
+        this.onFrame({
+          lat: targetPos.lat,
+          lng: targetPos.lng,
+          bearing: targetBearing,
+        });
       }
     };
 
     this.rafId = requestAnimationFrame(step);
-  }
-
-  public getPosition(): Coord {
-    return { ...this.currentPos };
-  }
-
-  public getBearing(): number {
-    return this.currentBearing;
   }
 
   public destroy(): void {

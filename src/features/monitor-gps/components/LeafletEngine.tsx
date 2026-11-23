@@ -217,9 +217,10 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           selectedIdAnteriorRef.current = v.id;
           const motionCtrl = vehicleMotionControllersRef.current.get(v.id);
           const pos = motionCtrl ? motionCtrl.getPosition() : { lat: v.latitude, lng: v.longitude };
-          const zoomAtual = mapInstanceRef.current.getZoom();
-          mapInstanceRef.current.setView([pos.lat, pos.lng], Math.max(zoomAtual, 18), {
+          mapInstanceRef.current.panTo([pos.lat, pos.lng], {
             animate: true,
+            duration: 1.5,
+            easeLinearity: 1,
           });
         }
       },
@@ -589,25 +590,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
                   !userDraggingRef.current &&
                   !(map as any)._animatingZoom
                 ) {
-                  const agoraMs = performance.now();
-                  if (agoraMs - ultimoPanFollowMsRef.current >= 320) {
-                    try {
-                      const centroPx = map.latLngToContainerPoint(map.getCenter());
-                      const marcadorPx = map.latLngToContainerPoint([
-                        frameState.lat,
-                        frameState.lng,
-                      ]);
-                      if (Math.hypot(centroPx.x - marcadorPx.x, centroPx.y - marcadorPx.y) > 22) {
-                        ultimoPanFollowMsRef.current = agoraMs;
-                        map.panTo([frameState.lat, frameState.lng], {
-                          animate: true,
-                          duration: 0.35,
-                          easeLinearity: 1,
-                          noMoveStart: true,
-                        });
-                      }
-                    } catch {}
-                  }
+                  map.panTo([frameState.lat, frameState.lng], { animate: false });
                 }
               }
             },
@@ -701,10 +684,13 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       if (coordenadaValidaMapa(lat, lon)) {
         selectedIdAnteriorRef.current = veiculoSelecionado.id;
         seguindoCameraRef.current = true;
-        const estado = controladorMovimentoRef.current.obterEstado(veiculoSelecionado.id);
-        const latAlvo = estado ? estado.visualLat : lat;
-        const lonAlvo = estado ? estado.visualLng : lon;
-        map.setView([latAlvo, lonAlvo], Math.max(map.getZoom(), 18), { animate: true });
+        const motionCtrl = vehicleMotionControllersRef.current.get(veiculoSelecionado.id);
+        const pos = motionCtrl ? motionCtrl.getPosition() : { lat, lng: lon };
+        map.panTo([pos.lat, pos.lng], {
+          animate: true,
+          duration: 1.5,
+          easeLinearity: 1,
+        });
       }
     }, [veiculoSelecionado]);
 

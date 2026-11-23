@@ -68,8 +68,9 @@ describe("Hunter — Vehicle Motion Engine e Integração aos Motores de Mapa (L
     );
     assert.ok(!engineCode.includes("project-osrm.org"), "NÃO deve chamar OSRM");
     assert.ok(!engineCode.includes("fetchRoadPolyline"), "NÃO deve ter fetchRoadPolyline");
-    assert.ok(engineCode.includes("DURATION_MS = 1500"), "Duração deve ser 1500ms");
-    assert.ok(engineCode.includes("easeOutCubic"), "Easing deve ser easeOutCubic");
+    assert.ok(engineCode.includes("MIN_DURATION_MS = 2000"), "Duração mínima deve ser 2000ms");
+    assert.ok(engineCode.includes("MAX_DURATION_MS = 11000"), "Duração máxima deve ser 11000ms");
+    assert.ok(engineCode.includes("elapsed / duration"), "Movimento deve ser estritamente linear");
   });
 
   test("3. LeafletEngine.tsx cumpre rigorosamente as 6 regras obrigatórias", async () => {
