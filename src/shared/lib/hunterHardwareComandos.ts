@@ -79,13 +79,18 @@ export function sanitizarComandoHardware(cmd: string): string {
       /^(FIX\d{3}s\*\*\*n|NOFIX|TIME\s*ZONE\d*|G\d{4,6}#?|LESS\s*GPRS|NOGPRS|TCP|UDP|ARM|DISARM)/i.test(
         semHashUpper,
       );
+    const isCobanCurto =
+      /^(B|A|J|K|L|M|E)(\s*;?\s*)?$/i.test(semHashUpper) ||
+      /^(C|H),\d+[smh]?(\s*;?\s*)?$/i.test(semHashUpper) ||
+      upper.startsWith("**,IMEI:") ||
+      upper.startsWith("##,IMEI:");
     const isAtHayes =
       upper.startsWith("AT") ||
       upper.startsWith("AT+") ||
       upper.startsWith("ATI") ||
       upper.startsWith("ATE");
 
-    if (isRelayAcaoOuCorte || isCobanComSenha || isCobanSintaxe || isAtHayes) {
+    if (isRelayAcaoOuCorte || isCobanComSenha || isCobanSintaxe || isCobanCurto || isAtHayes) {
       // Comandos de ação de relé/corte e protocolo Coban/AT NUNCA levam '#' no final
       while (limpo.endsWith("#")) {
         limpo = limpo.slice(0, -1).trim();
@@ -161,6 +166,7 @@ const CONSULTAS_AT_PERMITIDAS = new Set([
 ]);
 
 const CONSULTAS_COBAN_PERMITIDAS = new Set([
+  "B",
   "CHECK123456",
   "STATUS123456",
   "IMEI123456",
@@ -209,8 +215,16 @@ export function ehComandoBloqueio(cmd: string): boolean {
     return true;
   }
 
-  // Comandos Coban / G900L com senha para corte
-  if (/^STOP\d{4,6}/i.test(upper)) {
+  // Comandos Coban / G900L TCP e SMS para corte
+  if (
+    upper === "J" ||
+    upper === "J;" ||
+    upper.endsWith(",J") ||
+    upper.endsWith(",J;") ||
+    upper.includes(",J;") ||
+    upper.includes(",J,") ||
+    /^STOP\d{4,6}/i.test(upper)
+  ) {
     return true;
   }
 
@@ -233,8 +247,16 @@ export function ehComandoDesbloqueio(cmd: string): boolean {
     return true;
   }
 
-  // Comandos Coban / G900L com senha para liberação
-  if (/^RESUME\d{4,6}/i.test(upper)) {
+  // Comandos Coban / G900L TCP e SMS para liberação
+  if (
+    upper === "K" ||
+    upper === "K;" ||
+    upper.endsWith(",K") ||
+    upper.endsWith(",K;") ||
+    upper.includes(",K;") ||
+    upper.includes(",K,") ||
+    /^RESUME\d{4,6}/i.test(upper)
+  ) {
     return true;
   }
 

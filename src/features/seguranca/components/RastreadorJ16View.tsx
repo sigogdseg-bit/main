@@ -1525,82 +1525,34 @@ export function RastreadorJ16View() {
     // Dispara a Sequência Automática Canônica Coban
     // ─────────────────────────────────────────────────────────────
     if (filtroModelo === "g900l") {
-      if (
-        parametrosHabilitadosBatch.servidorDns ||
-        parametrosHabilitadosBatch.portaTcp ||
-        parametrosHabilitadosBatch.ipDedicado
-      ) {
-        // Se o usuário digitou comando adminip completo no campo, usa diretamente
-        const cmdServidor = servidorAlvo.toLowerCase().startsWith("adminip")
-          ? servidorAlvo
-          : `adminip${senhaAtiva} ${servidorAlvo} ${portaTcp}`;
-        comandos.push({
-          cmd: cmdServidor,
-          nome: `1. Apontar Servidor e Porta G900L (${cmdServidor})`,
-        });
+      // No G900L, a plataforma opera exclusivamente via socket TCP na porta 7003.
+      // Comandos de configuração inicial (adminip, apn, etc.) são feitos fora da plataforma via SMS.
+      // O lote TCP dispara apenas os comandos reais suportados pelo socket Coban em tempo real:
+
+      // 1. Frequência de transmissão: C,<segundos>s (respeitando timerMovimento, padrão C,30s)
+      const valTimer = (timerMovimento || "30").trim();
+      let segMov = "30s";
+      if (valTimer.toLowerCase().startsWith("c,")) {
+        segMov = valTimer.slice(2).trim();
+      } else if (valTimer.toLowerCase().startsWith("fix")) {
+        const extraido = valTimer.match(/\d+/)?.[0];
+        segMov = `${parseInt(extraido || "30", 10)}s`;
+      } else {
+        const n = parseInt(valTimer, 10);
+        segMov = isNaN(n) || n <= 0 ? "30s" : `${n}s`;
       }
-      if (
-        parametrosHabilitadosBatch.apnNome ||
-        parametrosHabilitadosBatch.apnUser ||
-        parametrosHabilitadosBatch.apnPass
-      ) {
-        const apnCmd = apnNome.toLowerCase().startsWith("apn")
-          ? apnNome
-          : apnUser && apnPass
-            ? `apn${senhaAtiva} ${apnNome} ${apnUser} ${apnPass}`
-            : `apn${senhaAtiva} ${apnNome}`;
-        comandos.push({
-          cmd: apnCmd,
-          nome: `2. Configurar APN M2M G900L (${apnCmd})`,
-        });
-      }
-      if (parametrosHabilitadosBatch.timerMovimento || parametrosHabilitadosBatch.timerParado) {
-        const valTimer = timerMovimento.trim();
-        const segMov = valTimer.toLowerCase().startsWith("fix")
-          ? valTimer.match(/fix(\d+)/i)?.[1] || "030"
-          : String(parseInt(valTimer, 10) || 30).padStart(3, "0");
-        const cmdTimer = valTimer.toLowerCase().startsWith("fix")
-          ? valTimer
-          : `fix${segMov}s***n${senhaAtiva}`;
-        comandos.push({
-          cmd: cmdTimer,
-          nome: `3. Frequência de Transmissão G900L (${cmdTimer})`,
-        });
-      }
-      if (parametrosHabilitadosBatch.hbtLigado || parametrosHabilitadosBatch.hbtDesligado) {
-        const valHbt = hbtLigado.trim();
-        const cmdHbt = valHbt.toLowerCase().startsWith("hbt")
-          ? valHbt
-          : `hbt${senhaAtiva} ${valHbt || "300"}`;
-        comandos.push({
-          cmd: cmdHbt,
-          nome: `4. Heartbeat G900L (${cmdHbt})`,
-        });
-      }
-      if (parametrosHabilitadosBatch.gmtUniversal) {
-        comandos.push({
-          cmd: `time zone${senhaAtiva} 0`,
-          nome: `5. Fuso Horário UTC 0 G900L (time zone${senhaAtiva} 0)`,
-        });
-      }
-      if (parametrosHabilitadosBatch.statusDiagnostico) {
-        comandos.push({
-          cmd: `status${senhaAtiva}`,
-          nome: `Status Operacional G900L (status${senhaAtiva})`,
-        });
-      }
-      if (parametrosHabilitadosBatch.paramDiagnostico) {
-        comandos.push({
-          cmd: `check${senhaAtiva}`,
-          nome: `Auditoria de Parâmetros G900L (check${senhaAtiva})`,
-        });
-      }
-      if (parametrosHabilitadosBatch.resetFinal) {
-        comandos.push({
-          cmd: `reset${senhaAtiva}`,
-          nome: `Reinicialização Limpa G900L (reset${senhaAtiva})`,
-        });
-      }
+      const cmdFrequencia = `C,${segMov}`;
+
+      comandos.push({
+        cmd: cmdFrequencia,
+        nome: `1. Frequência de Transmissão Coban TCP (${cmdFrequencia})`,
+      });
+
+      // 2. Validação imediata de posição/diagnóstico: B
+      comandos.push({
+        cmd: "B",
+        nome: "2. Validação Imediata de Posição Coban TCP (B)",
+      });
 
       return comandos.map((c) => ({
         ...c,
@@ -2892,6 +2844,28 @@ export function RastreadorJ16View() {
       }
     }
 
+    // Se for um comando exclusivo de SMS do G900L, alerta e não envia pelo socket TCP
+    const cmdUpper = comandoTexto.trim().toUpperCase();
+    const isCobanExclusivoSms =
+      cmdUpper.startsWith("BEGIN") ||
+      cmdUpper.startsWith("ADMINIP") ||
+      cmdUpper.startsWith("APN123456") ||
+      cmdUpper.startsWith("TIME ZONE") ||
+      cmdUpper.startsWith("GPRS123456") ||
+      cmdUpper.startsWith("RESET123456");
+
+    if (isCobanExclusivoSms && filtroModelo === "g900l") {
+      toast.info(
+        `ℹ️ Comando Exclusivo SMS: "${comandoTexto}" é destinado à configuração inicial por SMS do chip celular e não opera no socket TCP (porta 7003). Para controle online em tempo real, utilize os comandos TCP (B, C, J, K, etc.).`,
+        { duration: 6000 },
+      );
+      adicionarLog(
+        "info",
+        `ℹ️ [COMANDO SMS] "${comandoTexto}" é uma instrução exclusiva de SMS celular. Não despachado via socket TCP.`,
+      );
+      return;
+    }
+
     const imeisArray = Array.from(selectedImeis);
     const label = descricaoLabel || comandoTexto;
 
@@ -3139,163 +3113,104 @@ export function RastreadorJ16View() {
 
     if (filtroModelo === "g900l") {
       return [
+        // ── COMANDOS TCP/GPRS (ENVIADOS PELO TERMINAL NA PORTA 7003) ──
         {
           num: 1,
-          titulo: "Conectar Servidor Coban (adminip)",
-          exemplo: `adminip${senhaAtiva} ${servidorAlvo} ${portaTcp}`,
-          desc: `Aponta o rastreador G900L para o servidor ${servidorAlvo}:${portaTcp} via protocolo Coban.`,
-          prioridade: "Obrigatório",
-          categoria: "Conectividade",
-          presets: [
-            {
-              label: `IP Direto (${ipDedicado}:${portaTcp})`,
-              valor: `adminip${senhaAtiva} ${ipDedicado} ${portaTcp}`,
-            },
-            {
-              label: `DNS Oficial (${servidorDns}:${portaTcp})`,
-              valor: `adminip${senhaAtiva} ${servidorDns} ${portaTcp}`,
-            },
-          ],
+          titulo: "Localização em Tempo Real (B) [TCP]",
+          exemplo: "B",
+          desc: "Solicita a posição GPS atual do veículo instantaneamente pelo rádio 4G via canal TCP.",
+          prioridade: "Diagnóstico",
+          categoria: "Telemetria TCP",
+          presets: [{ label: "Localizar Agora (B)", valor: "B" }],
         },
         {
           num: 2,
-          titulo: "Internet do Chip APN (apn)",
-          exemplo:
-            apnUser && apnPass
-              ? `apn${senhaAtiva} ${apnNome} ${apnUser} ${apnPass}`
-              : `apn${senhaAtiva} ${apnNome}`,
-          desc: "Cadastra a APN da operadora para conexão 4G LTE do G900L.",
-          prioridade: "Obrigatório",
-          categoria: "Conectividade",
+          titulo: "Intervalo em Movimento 30s (C,30s) [TCP]",
+          exemplo: "C,30s",
+          desc: "Configura a transmissão periódica contínua a cada 30 segundos enquanto o veículo estiver se movendo.",
+          prioridade: "Recomendado",
+          categoria: "Telemetria TCP",
           presets: [
-            {
-              label: `APN Algar/Voxter (${apnNome})`,
-              valor: `apn${senhaAtiva} ${apnNome} ${apnUser} ${apnPass}`,
-            },
-            {
-              label: `APN Simples (${apnNome})`,
-              valor: `apn${senhaAtiva} ${apnNome}`,
-            },
+            { label: "30 segundos (Padrão GD - C,30s)", valor: "C,30s" },
+            { label: "10 segundos (Alta Precisão - C,10s)", valor: "C,10s" },
+            { label: "60 segundos (Econômico - C,60s)", valor: "C,60s" },
           ],
         },
         {
           num: 3,
-          titulo: "Intervalo de Transmissão (fix)",
-          exemplo: `fix${String(timerMovimento || "30").padStart(3, "0")}s***n${senhaAtiva}`,
-          desc: `Transmissão contínua em movimento a cada ${timerMovimento || 30} segundos (protocolo Coban).`,
+          titulo: "Intervalo em Movimento 10s (C,10s) [TCP]",
+          exemplo: "C,10s",
+          desc: "Transmissão contínua em alta fidelidade a cada 10 segundos para perseguição ou monitoramento crítico.",
           prioridade: "Recomendado",
-          categoria: "Telemetria",
-          presets: [
-            {
-              label: "30 segundos (Padrão GD - fix030s***n)",
-              valor: `fix030s***n${senhaAtiva}`,
-            },
-            {
-              label: "15 segundos (Alta Precisão - fix015s***n)",
-              valor: `fix015s***n${senhaAtiva}`,
-            },
-            {
-              label: "60 segundos (Economia - fix060s***n)",
-              valor: `fix060s***n${senhaAtiva}`,
-            },
-            {
-              label: "Cancelar Envio Contínuo (nofix)",
-              valor: `nofix${senhaAtiva}`,
-            },
-          ],
+          categoria: "Telemetria TCP",
+          presets: [{ label: "10 segundos (C,10s)", valor: "C,10s" }],
         },
         {
           num: 4,
-          titulo: "Sinal de Presença (hbt)",
-          exemplo: `hbt${senhaAtiva} ${hbtLigado || "300"}`,
-          desc: `Heartbeat a cada ${hbtLigado || 300} segundos para manter a conexão ativa no servidor.`,
-          prioridade: "Recomendado",
-          categoria: "Conectividade",
-          presets: [
-            { label: `300s (5 minutos)`, valor: `hbt${senhaAtiva} 300` },
-            { label: `180s (3 minutos)`, valor: `hbt${senhaAtiva} 180` },
-          ],
+          titulo: "Parar Envio Contínuo (A) [TCP]",
+          exemplo: "A",
+          desc: "Cancela a transmissão contínua de telemetria, mantendo apenas pings periódicos de repouso.",
+          prioridade: "Opcional",
+          categoria: "Telemetria TCP",
+          presets: [{ label: "Parar Envio (A)", valor: "A" }],
         },
         {
           num: 5,
-          titulo: "Fuso Horário UTC Zero (time zone)",
-          exemplo: `time zone${senhaAtiva} 0`,
-          desc: "Sincroniza o relógio do G900L no fuso GMT/UTC 0 canônico da plataforma.",
-          prioridade: "Obrigatório",
-          categoria: "Conectividade",
-          presets: [{ label: "UTC 0 (Padrão Plataforma)", valor: `time zone${senhaAtiva} 0` }],
+          titulo: "Bloqueio Veicular Relé (J) [TCP]",
+          exemplo: "J",
+          desc: "Aciona o corte de combustível/ignição do veículo pelo relé do G900L via comando TCP direto.",
+          prioridade: "Segurança",
+          categoria: "Cadeado Digital",
+          presets: [{ label: "Bloquear Veículo (J)", valor: "J" }],
         },
         {
           num: 6,
-          titulo: "Auditoria Geral de Parâmetros (check)",
-          exemplo: `check${senhaAtiva}`,
-          desc: "Retorna todos os parâmetros gravados na controladora G900L (IP, porta, APN, timers).",
-          prioridade: "Diagnóstico",
-          categoria: "Auditoria",
-          presets: [{ label: "Verificar Parâmetros (check)", valor: `check${senhaAtiva}` }],
+          titulo: "Desbloqueio Veicular Relé (K) [TCP]",
+          exemplo: "K",
+          desc: "Restaura a passagem de corrente do relé permitindo a partida normal do veículo via comando TCP.",
+          prioridade: "Segurança",
+          categoria: "Cadeado Digital",
+          presets: [{ label: "Desbloquear Veículo (K)", valor: "K" }],
         },
         {
           num: 7,
-          titulo: "Status Operacional (status)",
-          exemplo: `status${senhaAtiva}`,
-          desc: "Retorna o estado de alimentação 12V, bateria interna, GPS e sinal celular.",
-          prioridade: "Diagnóstico",
-          categoria: "Auditoria",
-          presets: [{ label: "Consultar Status (status)", valor: `status${senhaAtiva}` }],
+          titulo: "Armar Alarme de Segurança (L) [TCP]",
+          exemplo: "L",
+          desc: "Ativa o alarme antifurto de ignição, sensor de vibração e deslocamento indevido via TCP.",
+          prioridade: "Segurança",
+          categoria: "Cadeado Digital",
+          presets: [{ label: "Armar Alarme (L)", valor: "L" }],
         },
         {
           num: 8,
-          titulo: "Consultar IMEI (imei)",
-          exemplo: `imei${senhaAtiva}`,
-          desc: "Consulta o número de série IMEI gravado no firmware G900L.",
-          prioridade: "Diagnóstico",
-          categoria: "Auditoria",
-          presets: [{ label: "Ler IMEI", valor: `imei${senhaAtiva}` }],
+          titulo: "Desarmar Alarme (M) [TCP]",
+          exemplo: "M",
+          desc: "Desativa o monitoramento de sensores de violação do veículo via canal TCP.",
+          prioridade: "Segurança",
+          categoria: "Cadeado Digital",
+          presets: [{ label: "Desarmar Alarme (M)", valor: "M" }],
         },
         {
           num: 9,
-          titulo: "Localização Maps (G123456#)",
-          exemplo: `G${senhaAtiva}#`,
-          desc: "Retorna link com coordenadas no Google Maps e status imediato.",
-          prioridade: "Diagnóstico",
-          categoria: "Auditoria",
-          presets: [{ label: "Obter Localização", valor: `G${senhaAtiva}#` }],
+          titulo: "Cancelar Alarmes Ativos (E) [TCP]",
+          exemplo: "E",
+          desc: "Cancela e silencia alertas e disparos de sirene ou pânico ativos no microcontrolador via TCP.",
+          prioridade: "Segurança",
+          categoria: "Cadeado Digital",
+          presets: [{ label: "Cancelar Alarmes (E)", valor: "E" }],
         },
         {
           num: 10,
-          titulo: "Modo GPRS Ativo (gprs)",
-          exemplo: `gprs${senhaAtiva}`,
-          desc: "Ativa o canal de dados GPRS 4G para transmissão direta à plataforma.",
-          prioridade: "Obrigatório",
-          categoria: "Conectividade",
-          presets: [{ label: "Ativar GPRS", valor: `gprs${senhaAtiva}` }],
-        },
-        {
-          num: 11,
-          titulo: "Bloqueio Veicular (stop)",
-          exemplo: `stop${senhaAtiva}`,
-          desc: "Aciona o corte de combustível/ignição do veículo pelo relé G900L.",
-          prioridade: "Segurança",
-          categoria: "Cadeado Digital",
-          presets: [{ label: "Bloquear Veículo (stop)", valor: `stop${senhaAtiva}` }],
-        },
-        {
-          num: 12,
-          titulo: "Desbloqueio Veicular (resume)",
-          exemplo: `resume${senhaAtiva}`,
-          desc: "Libera o relé permitindo a partida normal do veículo.",
-          prioridade: "Segurança",
-          categoria: "Cadeado Digital",
-          presets: [{ label: "Liberar Veículo (resume)", valor: `resume${senhaAtiva}` }],
-        },
-        {
-          num: 13,
-          titulo: "Reiniciar Rastreador (reset)",
-          exemplo: `reset${senhaAtiva}`,
-          desc: "Reinicia a controladora interna do G900L para aplicar os novos parâmetros.",
-          prioridade: "Obrigatório",
-          categoria: "Hardware",
-          presets: [{ label: "Reiniciar Dispositivo (reset)", valor: `reset${senhaAtiva}` }],
+          titulo: "Alerta de Limite de Velocidade 80 km/h (H,080) [TCP]",
+          exemplo: "H,080",
+          desc: "Configura alerta automático quando a velocidade do veículo ultrapassar 80 km/h.",
+          prioridade: "Recomendado",
+          categoria: "Telemetria TCP",
+          presets: [
+            { label: "80 km/h (H,080)", valor: "H,080" },
+            { label: "100 km/h (H,100)", valor: "H,100" },
+            { label: "120 km/h (H,120)", valor: "H,120" },
+          ],
         },
       ];
     }
@@ -6969,6 +6884,12 @@ export function RastreadorJ16View() {
                   <span className="px-2 py-0.5 rounded-full text-[11px] font-mono font-bold bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20">
                     {comandosFiltrados.length} de {catalogoComandos.length}
                   </span>
+                  {filtroModelo === "g900l" && (
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal italic hidden sm:inline">
+                      (Socket TCP porta 7003. Configuração inicial de APN e IP/porta
+                      167.234.233.82:7003 realizada previamente via SMS fora da plataforma).
+                    </span>
+                  )}
                 </div>
               </div>
               <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -7201,7 +7122,7 @@ export function RastreadorJ16View() {
                           type="button"
                           onClick={() => dispararComandoParaSelecionados(comandoAtivo, c.titulo)}
                           disabled={enviandoComando || selectedImeis.size === 0}
-                          className={`py-1.5 px-2 rounded-xl text-[11px] font-bold bg-orange-500 hover:bg-orange-400 text-slate-950 transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs active:scale-95 ${
+                          className={`py-1.5 px-2 rounded-xl text-[11px] font-bold bg-orange-500 hover:bg-orange-400 text-slate-950 shadow-2xs transition flex items-center justify-center gap-1 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 ${
                             c.presets && c.presets.length > 0 ? "" : "w-full"
                           }`}
                           title={`Disparar "${comandoAtivo}" para ${selectedImeis.size} aparelho(s)`}

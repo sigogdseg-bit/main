@@ -170,4 +170,15 @@ describe("Hunter — Sanitização Canônica Universal de Comandos de Hardware G
     assert.equal(ehComandoConsultaSomenteLeitura('AT+CGDCONT=1,"IP","voxter.br"'), false);
     assert.equal(ehComandoConsultaSomenteLeitura("AT+CFUN=1,1"), false);
   });
+
+  test("6. Comandos Coban de frequência e tempo com sufixos s, m, h nunca recebem '#'", () => {
+    assert.equal(sanitizarComandoHardware("C,30s"), "C,30s");
+    assert.equal(sanitizarComandoHardware("C,10s"), "C,10s");
+    assert.equal(sanitizarComandoHardware("C,05m"), "C,05m");
+    assert.equal(sanitizarComandoHardware("C,01h"), "C,01h");
+    assert.equal(sanitizarComandoHardware("H,080"), "H,080");
+    assert.equal(sanitizarComandoHardware("B"), "B");
+    assert.equal(sanitizarComandoHardware("J"), "J");
+    assert.equal(sanitizarComandoHardware("K"), "K");
+  });
 });

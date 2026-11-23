@@ -43,9 +43,12 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
 // Canal de Broadcast Realtime para atualização instantânea na interface
 const canalRealtime = supabase.channel("hunter_telemetria_changes");
-canalRealtime.subscribe();
+if (process.env.NODE_ENV !== "test" && !process.env.GATEWAY_TEST_MODE) {
+  canalRealtime.subscribe();
+}
 
 async function notificarAtualizacaoRealtime(payload: Record<string, unknown>) {
+  if (process.env.GATEWAY_TEST_MODE) return;
   try {
     await canalRealtime.send({
       type: "broadcast",
@@ -84,6 +87,7 @@ function bcdParaImei(buf: Buffer, offset: number, length: number): string {
 }
 
 interface ConexaoRastreador {
+  rxBuffer?: Buffer;
   imei?: string;
   veiculoId?: string;
   clienteId?: string;
@@ -107,8 +111,19 @@ interface ConexaoRastreador {
   ultimoMileageConsultaTs?: number;
 }
 
-const conexoesAtivas = new Map<net.Socket, ConexaoRastreador>();
+export const conexoesAtivas = new Map<net.Socket, ConexaoRastreador>();
 const kalmanFiltersPorVeiculo = new Map<string, GpsKalmanFilter2D>();
+
+// Variável de ambiente para controle de CRLF no protocolo Coban (padrão: false / sem CRLF)
+const COBAN_USAR_CRLF = process.env.COBAN_USAR_CRLF === "true";
+
+export function formatarAsciiControle(str: string): string {
+  return (str || "")
+    .replace(/\\/g, "\\\\")
+    .replace(/\r/g, "\\r")
+    .replace(/\n/g, "\\n")
+    .replace(/\t/g, "\\t");
+}
 
 // Montador de pacotes de comando GT06 protocolo 0x80 (Online Server Command)
 export function montarPacoteComandoGT06(comandoAscii: string, serialNumber = 1): Buffer {
@@ -141,18 +156,75 @@ export function montarPacoteComandoGT06(comandoAscii: string, serialNumber = 1):
   return buf.subarray(0, offset);
 }
 
-// Montador de comandos ASCII para hardware Coban / G900L (terminação canônica em ;)
-export function montarPacoteComandoCoban(comandoAscii: string): Buffer {
-  const cmdLimpo = comandoAscii.trim().replace(/;+$/, "");
-  return Buffer.from(`${cmdLimpo};\r\n`, "ascii");
+// Montador de comandos ASCII para hardware Coban / G900L (envelope oficial **,imei:<imei>,<cmd>;)
+export function montarPacoteComandoCoban(imeiOrCmd: string, comando?: string): Buffer {
+  let imei = "";
+  let cmd = "";
+
+  if (comando !== undefined) {
+    imei = (imeiOrCmd || "").trim();
+    cmd = (comando || "").trim();
+  } else {
+    const texto = (imeiOrCmd || "").trim();
+    if (texto.startsWith("**,imei:")) {
+      const match = texto.match(/^\*\*,imei:(\d{15}),?(.*)$/i);
+      if (match) {
+        imei = match[1];
+        cmd = match[2];
+      } else {
+        cmd = texto.replace(/^\*\*,imei:/i, "");
+      }
+    } else {
+      cmd = texto;
+    }
+  }
+
+  // Se o comando já vier com prefixo **,imei:, extrai para não duplicar o envelope
+  if (cmd.startsWith("**,imei:")) {
+    const match = cmd.match(/^\*\*,imei:(\d{15})?,?(.*)$/i);
+    if (match) {
+      if (!imei && match[1]) imei = match[1];
+      cmd = match[2] || "";
+    }
+  }
+
+  let cmdLimpo = cmd.replace(/^;+/, "").replace(/;+$/, "").trim();
+
+  // Normalização de códigos Coban comuns
+  const cmdUpper = cmdLimpo.toUpperCase();
+  if (cmdUpper === "B") cmdLimpo = "B";
+  else if (cmdUpper === "A") cmdLimpo = "A";
+  else if (cmdUpper === "J") cmdLimpo = "J";
+  else if (cmdUpper === "K") cmdLimpo = "K";
+  else if (cmdUpper === "L") cmdLimpo = "L";
+  else if (cmdUpper === "M") cmdLimpo = "M";
+  else if (cmdUpper === "E") cmdLimpo = "E";
+  else if (cmdUpper.startsWith("C,") || cmdUpper.startsWith("C")) cmdLimpo = cmdLimpo;
+  else if (cmdUpper.startsWith("H,") || cmdUpper.startsWith("H")) cmdLimpo = cmdLimpo;
+
+  const envelope = imei ? `**,imei:${imei},${cmdLimpo};` : `${cmdLimpo};`;
+  const pacoteFinal = COBAN_USAR_CRLF ? `${envelope}\r\n` : envelope;
+
+  return Buffer.from(pacoteFinal, "ascii");
 }
 
 // Determina se o comando ou dispositivo utiliza protocolo Coban / ASCII direto
 export function ehProtocoloCoban(comandoOuProtocolo?: string): boolean {
   if (!comandoOuProtocolo) return false;
-  const upper = comandoOuProtocolo.toUpperCase();
+  const upper = comandoOuProtocolo.toUpperCase().trim();
   return (
     upper === "COBAN" ||
+    upper === "B" ||
+    upper === "A" ||
+    upper === "J" ||
+    upper === "K" ||
+    upper === "L" ||
+    upper === "M" ||
+    upper === "E" ||
+    upper.startsWith("C,") ||
+    upper.startsWith("H,") ||
+    upper.startsWith("**,IMEI:") ||
+    upper.startsWith("##,IMEI:") ||
     upper.startsWith("ADMINIP") ||
     upper.startsWith("APN123456") ||
     upper.startsWith("FIX") ||
@@ -164,6 +236,89 @@ export function ehProtocoloCoban(comandoOuProtocolo?: string): boolean {
     upper.startsWith("STOP123456") ||
     upper.startsWith("RESUME123456")
   );
+}
+
+// Extrai frames completos de um acumulador de stream TCP (GT06 Standard, GT06 Extendido e Coban ASCII)
+export function extrairFramesDoBufferTcp(buffer: Buffer): {
+  frames: Buffer[];
+  bufferRestante: Buffer;
+} {
+  const frames: Buffer[] = [];
+  let atual = buffer;
+
+  while (atual && atual.length > 0) {
+    // 1. Descarte de quebras de linha ou bytes nulos residuais entre frames
+    let inicio = 0;
+    while (
+      inicio < atual.length &&
+      (atual[inicio] === 0x0d ||
+        atual[inicio] === 0x0a ||
+        atual[inicio] === 0x20 ||
+        atual[inicio] === 0x00)
+    ) {
+      inicio++;
+    }
+    if (inicio > 0) {
+      atual = atual.subarray(inicio);
+      if (atual.length === 0) break;
+    }
+
+    const header16 = atual.length >= 2 ? atual.readUInt16BE(0) : 0;
+
+    // Caso 1: GT06 Standard (0x78 0x78)
+    if (header16 === 0x7878) {
+      if (atual.length < 3) {
+        break; // Precisa do byte de length no offset 2
+      }
+      const packetLen = atual.readUInt8(2);
+      const frameTotalLen = packetLen + 5;
+      if (atual.length < frameTotalLen) {
+        break; // Frame fragmentado, aguarda próximo chunk TCP
+      }
+      frames.push(atual.subarray(0, frameTotalLen));
+      atual = atual.subarray(frameTotalLen);
+      continue;
+    }
+
+    // Caso 2: GT06 Extendido (0x79 0x79)
+    if (header16 === 0x7979) {
+      if (atual.length < 4) {
+        break; // Precisa dos bytes 2-3 para ler length em 16-bit
+      }
+      const packetLen = atual.readUInt16BE(2);
+      const frameTotalLen = packetLen + 6;
+      if (atual.length < frameTotalLen) {
+        break; // Frame fragmentado, aguarda próximo chunk TCP
+      }
+      frames.push(atual.subarray(0, frameTotalLen));
+      atual = atual.subarray(frameTotalLen);
+      continue;
+    }
+
+    // Caso 3: Coban ASCII (delimitado por ';' [0x3B])
+    const idxPontoEVirgula = atual.indexOf(0x3b);
+    if (idxPontoEVirgula !== -1) {
+      const frameTotalLen = idxPontoEVirgula + 1;
+      frames.push(atual.subarray(0, frameTotalLen));
+      atual = atual.subarray(frameTotalLen);
+      continue;
+    }
+
+    // Caso 4: Frame Coban ASCII incompleto (começa com caractere imprimível sem ';' ainda)
+    const primeiroByte = atual[0];
+    const ehTextoAscii = primeiroByte >= 0x20 && primeiroByte <= 0x7e;
+    if (ehTextoAscii && atual.length < 1024) {
+      break; // Aguarda chegada do restante do frame com ';'
+    }
+
+    // Caso 5: Byte fora de sincronia ou corrompido
+    console.warn(
+      `⚠️ [TCP DESALINHAMENTO] Byte 0x${primeiroByte.toString(16)} não reconhecido. Descartando 1 byte para realinhar.`,
+    );
+    atual = atual.subarray(1);
+  }
+
+  return { frames, bufferRestante: atual };
 }
 
 // Fila spooler de comandos pendentes para rastreadores temporariamente em ciclo de reconexão/reboot
@@ -200,27 +355,30 @@ export async function processarComandosPendentes(imei: string, socket: net.Socke
       break;
     }
 
+    const conn = conexoesAtivas.get(socket) || {};
     const ehCoban = conn.protocoloDispositivo === "coban" || ehProtocoloCoban(cmd);
-    const pkt = ehCoban ? montarPacoteComandoCoban(cmd) : montarPacoteComandoGT06(cmd);
+    const pkt = ehCoban ? montarPacoteComandoCoban(imei, cmd) : montarPacoteComandoGT06(cmd);
     socket.write(pkt);
     console.log(
       `📡 [SPOOLER ENVIADO ${ehCoban ? "COBAN" : "GT06"}] IMEI ${imei}: "${cmd}" (${pkt.toString("hex")})`,
     );
 
-    try {
-      await canalComandos.send({
-        type: "broadcast",
-        event: "status_comando",
-        payload: {
-          imei,
-          comando: cmd,
-          sucesso: true,
-          mensagem: "Comando transmitido com sucesso via socket TCP (despachado pós-reconexão)",
-          dataHora: new Date().toISOString(),
-        },
-      });
-    } catch {
-      // Silencioso
+    if (!process.env.GATEWAY_TEST_MODE && process.env.NODE_ENV !== "test") {
+      try {
+        await canalComandos.send({
+          type: "broadcast",
+          event: "status_comando",
+          payload: {
+            imei,
+            comando: cmd,
+            sucesso: true,
+            mensagem: "Comando transmitido com sucesso via socket TCP (despachado pós-reconexão)",
+            dataHora: new Date().toISOString(),
+          },
+        });
+      } catch {
+        // Silencioso
+      }
     }
 
     if (i < fila.length - 1) {
@@ -302,7 +460,24 @@ export async function enviarComandoParaRastreador(
     return { enviado: true, enfileirado: false };
   }
 
-  const isCorte = comandoAscii.startsWith("DYD") || comandoAscii.startsWith("RELAY,1");
+  const cmdUpper = comandoAscii.trim().toUpperCase();
+  const isCorte =
+    comandoAscii.startsWith("DYD") ||
+    comandoAscii.startsWith("RELAY,1") ||
+    cmdUpper === "J" ||
+    cmdUpper.endsWith(",J") ||
+    cmdUpper.endsWith(",J;") ||
+    cmdUpper.includes(",J;") ||
+    cmdUpper.includes(",J,");
+
+  const isDesbloqueio =
+    comandoAscii.startsWith("HFYD") ||
+    comandoAscii.startsWith("RELAY,0") ||
+    cmdUpper === "K" ||
+    cmdUpper.endsWith(",K") ||
+    cmdUpper.endsWith(",K;") ||
+    cmdUpper.includes(",K;") ||
+    cmdUpper.includes(",K,");
 
   for (let tentativa = 1; tentativa <= maxTentativas; tentativa++) {
     // Coleta todos os sockets válidos associados a este IMEI
@@ -346,10 +521,9 @@ export async function enviarComandoParaRastreador(
 
       const ehCoban = conn.protocoloDispositivo === "coban" || ehProtocoloCoban(comandoAscii);
       const pkt = ehCoban
-        ? montarPacoteComandoCoban(comandoAscii)
+        ? montarPacoteComandoCoban(imei, comandoAscii)
         : montarPacoteComandoGT06(comandoAscii);
       socket.write(pkt);
-      const isDesbloqueio = comandoAscii.startsWith("HFYD") || comandoAscii.startsWith("RELAY,0");
       if (isCorte) {
         conn.bloqueadoEsperado = true;
         conn.ultimoComandoBloqueioPlataformaTs = Date.now();
@@ -496,17 +670,39 @@ canalComandos
         }
       }
     },
-  )
-  .subscribe();
+  );
 
-const server = net.createServer((socket) => {
+if (process.env.NODE_ENV !== "test" && !process.env.GATEWAY_TEST_MODE) {
+  canalComandos.subscribe();
+}
+
+export const server = net.createServer((socket) => {
   const remoteAddr = `${socket.remoteAddress}:${socket.remotePort}`;
   console.log(`\n[+] Nova conexão recebida de: ${remoteAddr}`);
-  conexoesAtivas.set(socket, {});
+  conexoesAtivas.set(socket, { rxBuffer: Buffer.alloc(0) });
 
   socket.on("data", async (data: Buffer) => {
     try {
-      await processarPacote(socket, data);
+      const conn = conexoesAtivas.get(socket) || { rxBuffer: Buffer.alloc(0) };
+      conexoesAtivas.set(socket, conn);
+
+      conn.rxBuffer = Buffer.concat([conn.rxBuffer || Buffer.alloc(0), data]);
+
+      // Proteção contra buffer infinito (> 4KB sem delimitador válido)
+      if (conn.rxBuffer.length > 4096) {
+        console.warn(
+          `[${new Date().toISOString()}] ⚠️ [TCP OVERFLOW] Buffer acumulador excedeu 4KB de ${remoteAddr} (IMEI: ${conn.imei || "—"}). Descartando ${conn.rxBuffer.length} bytes. HEX: ${conn.rxBuffer.subarray(0, 128).toString("hex")}...`,
+        );
+        conn.rxBuffer = Buffer.alloc(0);
+        return;
+      }
+
+      const { frames, bufferRestante } = extrairFramesDoBufferTcp(conn.rxBuffer);
+      conn.rxBuffer = bufferRestante;
+
+      for (const frame of frames) {
+        await processarPacote(socket, frame);
+      }
     } catch (err: any) {
       console.error(`[-] Erro ao processar dados de ${remoteAddr}:`, err?.message || err);
     }
@@ -523,14 +719,14 @@ const server = net.createServer((socket) => {
   });
 });
 
-async function processarPacote(socket: net.Socket, buf: Buffer) {
+export async function processarPacote(socket: net.Socket, buf: Buffer) {
   if (buf.length < 2) return;
 
   const rawAscii = buf.toString("ascii").trim();
   const conn = conexoesAtivas.get(socket) || {};
 
   // ── RECONHECIMENTO NATIVO PROTOCOLO COBAN / G900L (ASCII) ──
-  // Login / Handshake Coban: ##,imei:865893084742487,A; ou **,imei:865893084742487,A;
+  // 1. Login / Handshake Coban: ##,imei:<15_digitos>,A; ou **,imei:<15_digitos>,A;
   const matchLoginCoban = rawAscii.match(/(?:##|\*\*)[^;]*imei:(\d{15})/i);
   if (matchLoginCoban && matchLoginCoban[1]) {
     const imei = matchLoginCoban[1];
@@ -549,25 +745,138 @@ async function processarPacote(socket: net.Socket, buf: Buffer) {
       }
     }
 
-    console.log(`\n========================================================`);
-    console.log(`📡 [LOGIN COBAN/G900L] Rastreador conectado com sucesso!`);
-    console.log(`🔑 IMEI Identificado: ${imei}`);
-    console.log(`========================================================`);
-
-    // Resposta de Handshake padrão Coban (LOAD)
+    // Resposta de Handshake padrão Coban (LOAD) — sem CRLF por padrão, ou com CRLF se COBAN_USAR_CRLF=true
+    const respLoad = Buffer.from(COBAN_USAR_CRLF ? "LOAD\r\n" : "LOAD", "ascii");
     try {
-      socket.write(Buffer.from("LOAD\r\n", "ascii"));
+      socket.write(respLoad);
     } catch {}
+
+    console.log(`\n========================================================`);
+    console.log(
+      `[${new Date().toISOString()}] 📡 [RX COBAN LOGIN] IMEI: ${imei} | ASCII: "${formatarAsciiControle(rawAscii)}" | HEX: ${buf.toString("hex")}`,
+    );
+    console.log(
+      `[${new Date().toISOString()}] 📤 [TX COBAN LOGIN ACK] IMEI: ${imei} | ASCII: "${formatarAsciiControle(respLoad.toString("ascii"))}" | HEX: ${respLoad.toString("hex")}`,
+    );
+    console.log(`========================================================`);
 
     await vincularRastreadorAoVeiculo(conn, imei);
 
-    setTimeout(async () => {
+    const tLogin = setTimeout(async () => {
       await processarComandosPendentes(imei, socket);
     }, 1500);
+    tLogin.unref?.();
     return;
   }
 
-  // Respostas de Comandos Coban (ex: "check ok!", "status ok!", "adminip ok!", "fix ok!", "reset ok!")
+  // 2. Heartbeat Coban: frame composto por 15 dígitos seguidos por ponto e vírgula (^\d{15};?$)
+  const matchHeartbeatCoban = rawAscii.match(/^(\d{15});?$/);
+  if (matchHeartbeatCoban) {
+    const imei = matchHeartbeatCoban[1];
+    if (!conn.imei) conn.imei = imei;
+    conn.protocoloDispositivo = "coban";
+    conexoesAtivas.set(socket, conn);
+
+    const respHeartbeat = Buffer.from(COBAN_USAR_CRLF ? "ON\r\n" : "ON", "ascii");
+    try {
+      socket.write(respHeartbeat);
+    } catch {}
+
+    console.log(
+      `[${new Date().toISOString()}] 💓 [RX COBAN HEARTBEAT] IMEI: ${imei} | ASCII: "${formatarAsciiControle(rawAscii)}" | HEX: ${buf.toString("hex")}`,
+    );
+    console.log(
+      `[${new Date().toISOString()}] 📤 [TX COBAN HEARTBEAT ACK] IMEI: ${imei} | ASCII: "${formatarAsciiControle(respHeartbeat.toString("ascii"))}" | HEX: ${respHeartbeat.toString("hex")}`,
+    );
+
+    if (!conn.veiculoId && conn.imei) {
+      await vincularRastreadorAoVeiculo(conn, conn.imei);
+    }
+
+    if (conn.veiculoId && !process.env.GATEWAY_TEST_MODE) {
+      await supabase
+        .from("veiculos")
+        .update({
+          ultima_atualizacao: new Date().toISOString(),
+        })
+        .eq("id", conn.veiculoId);
+    }
+
+    const tHbt = setTimeout(async () => {
+      await processarComandosPendentes(imei, socket);
+    }, 500);
+    tHbt.unref?.();
+    return;
+  }
+
+  // 3. Respostas e Confirmações de Comandos Coban TCP (jt, kt, tracker, lt, mt, et)
+  const matchCobanKeywords = rawAscii.match(/(?:##|\*\*)?imei:(\d{15}),([^,;]+)/i);
+  if (matchCobanKeywords) {
+    const imei = matchCobanKeywords[1];
+    const keyword = matchCobanKeywords[2].trim().toLowerCase();
+    if (!conn.imei) conn.imei = imei;
+    conn.protocoloDispositivo = "coban";
+    conexoesAtivas.set(socket, conn);
+
+    if (keyword === "jt") {
+      conn.releStatus = true;
+      conn.bloqueadoEsperado = true;
+      if (conn.veiculoId) {
+        await supabase
+          .from("veiculos")
+          .update({ rele_status: true, ultima_atualizacao: new Date().toISOString() })
+          .eq("id", conn.veiculoId);
+      }
+    } else if (keyword === "kt") {
+      conn.releStatus = false;
+      conn.bloqueadoEsperado = false;
+      if (conn.veiculoId) {
+        await supabase
+          .from("veiculos")
+          .update({ rele_status: false, ultima_atualizacao: new Date().toISOString() })
+          .eq("id", conn.veiculoId);
+      }
+    }
+
+    const mapaKeywordsTraduzidas: Record<string, string> = {
+      jt: "Bloqueio Confirmado (jt)",
+      kt: "Desbloqueio Confirmado (kt)",
+      tracker: "Posição Recebida (tracker)",
+      lt: "Alarme Armado (lt)",
+      mt: "Alarme Desarmado (mt)",
+      et: "Alarmes Cancelados (et)",
+    };
+    const keywordTraduzida = mapaKeywordsTraduzidas[keyword] || `Resposta Coban (${keyword})`;
+
+    console.log(
+      `[${new Date().toISOString()}] 📥 [RX COBAN RESPOSTA] IMEI: ${imei} | Keyword: ${keyword} | Tradução: "${keywordTraduzida}"`,
+    );
+    console.log(
+      `   Frame ASCII: "${formatarAsciiControle(rawAscii)}" | HEX: ${buf.toString("hex")}`,
+    );
+
+    notificarRespostaHardwareJ16(imei, rawAscii);
+
+    if (!process.env.GATEWAY_TEST_MODE && process.env.NODE_ENV !== "test") {
+      try {
+        await canalComandos.send({
+          type: "broadcast",
+          event: "resposta_comando",
+          payload: {
+            imei,
+            resposta: rawAscii,
+            keyword,
+            keywordTraduzida,
+            dataHora: new Date().toISOString(),
+          },
+        });
+      } catch {}
+    }
+
+    return;
+  }
+
+  // 4. Respostas de texto direto Coban (ok!, fail, bat:, gsm:, gprs:)
   if (
     conn.protocoloDispositivo === "coban" ||
     rawAscii.toLowerCase().includes("ok!") ||
@@ -577,22 +886,25 @@ async function processarPacote(socket: net.Socket, buf: Buffer) {
     rawAscii.toLowerCase().includes("gprs:")
   ) {
     const imei = conn.imei || "Desconhecido";
-    console.log(`\n📥 [RESPOSTA COMANDO COBAN/G900L] IMEI: ${imei}`);
-    console.log(`   Conteúdo retornado pelo G900L: "${rawAscii}"`);
+    console.log(
+      `[${new Date().toISOString()}] 📥 [RX RESPOSTA TEXTO COBAN] IMEI: ${imei} | ASCII: "${formatarAsciiControle(rawAscii)}" | HEX: ${buf.toString("hex")}`,
+    );
 
     if (imei && rawAscii) {
       notificarRespostaHardwareJ16(imei, rawAscii);
-      try {
-        await canalComandos.send({
-          type: "broadcast",
-          event: "resposta_comando",
-          payload: {
-            imei,
-            resposta: rawAscii,
-            dataHora: new Date().toISOString(),
-          },
-        });
-      } catch {}
+      if (!process.env.GATEWAY_TEST_MODE && process.env.NODE_ENV !== "test") {
+        try {
+          await canalComandos.send({
+            type: "broadcast",
+            event: "resposta_comando",
+            payload: {
+              imei,
+              resposta: rawAscii,
+              dataHora: new Date().toISOString(),
+            },
+          });
+        } catch {}
+      }
     }
     return;
   }
@@ -603,7 +915,7 @@ async function processarPacote(socket: net.Socket, buf: Buffer) {
   const header = buf.readUInt16BE(0);
   if (header !== 0x7878 && header !== 0x7979) {
     console.log(
-      `[RAW] Pacote não reconhecido (Header 0x${header.toString(16)}): ${buf.toString("hex")} | ASCII: "${rawAscii}"`,
+      `[${new Date().toISOString()}] ❓ [RX PACOTE NÃO RECONHECIDO] Header 0x${header.toString(16)}: ${buf.toString("hex")} | ASCII: "${formatarAsciiControle(rawAscii)}"`,
     );
     return;
   }
@@ -622,8 +934,6 @@ async function processarPacote(socket: net.Socket, buf: Buffer) {
   const length = isExtended ? buf.readUInt16BE(2) : buf.readUInt8(2);
   const protocolo = isExtended ? buf.readUInt8(4) : buf.readUInt8(3);
   const offset = isExtended ? 5 : 4;
-
-  const conn = conexoesAtivas.get(socket) || {};
 
   // 1. PACOTE DE LOGIN (0x01)
   if (protocolo === 0x01) {
@@ -853,18 +1163,20 @@ async function processarPacote(socket: net.Socket, buf: Buffer) {
       notificarRespostaHardwareJ16(imei, respostaAscii);
     }
 
-    try {
-      await canalComandos.send({
-        type: "broadcast",
-        event: "resposta_comando",
-        payload: {
-          imei,
-          resposta: respostaAscii,
-          dataHora: new Date().toISOString(),
-        },
-      });
-    } catch {
-      // Silencioso
+    if (!process.env.GATEWAY_TEST_MODE && process.env.NODE_ENV !== "test") {
+      try {
+        await canalComandos.send({
+          type: "broadcast",
+          event: "resposta_comando",
+          payload: {
+            imei,
+            resposta: respostaAscii,
+            dataHora: new Date().toISOString(),
+          },
+        });
+      } catch {
+        // Silencioso
+      }
     }
 
     if (!conn.veiculoId && conn.imei) {
@@ -1524,7 +1836,7 @@ async function processarPacote(socket: net.Socket, buf: Buffer) {
         latitude,
         longitude,
         velocidade,
-        rumo: heading,
+        rumo,
         sinalGsm: gsmSignal,
         releStatus,
         origem: alarmCode !== 0x00 ? "alarme_0x16" : "telemetria_0x16",
@@ -1578,6 +1890,7 @@ async function processarPacote(socket: net.Socket, buf: Buffer) {
 }
 
 async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string) {
+  if (process.env.GATEWAY_TEST_MODE) return;
   try {
     // 1. Busca na tabela veiculos por rastreador_imei
     const { data: veiculoPorImei } = await supabase
@@ -2663,16 +2976,6 @@ export async function auditarIntegridadeEstadoEReverter(params: {
   }
 }
 
-// Inicia servidor TCP
-server.listen(PORTA_TCP, "0.0.0.0", () => {
-  console.log(`========================================================`);
-  console.log(`  HUNTER GPS GATEWAY — SERVIÇO DE ESCUTA TCP`);
-  console.log(`  Porta TCP: ${PORTA_TCP} (Protocolo GT06 / J16 4G)`);
-  console.log(`  Supabase: ${SUPABASE_URL}`);
-  console.log(`  Status: PRONTO E AGUARDANDO CONEXÕES DO RASTREADOR...`);
-  console.log(`========================================================\n`);
-});
-
 // ─────────────────────────────────────────────────────────────────────────────
 // SERVICO HTTP DE HEALTH CHECK BLINDADO (HARDENING / ZERO EXPOSIÇÃO)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2778,6 +3081,22 @@ const httpServer = http.createServer((req, res) => {
   res.end(JSON.stringify({ error: "Not Found" }));
 });
 
-httpServer.listen(PORTA_HTTP, "0.0.0.0", () => {
-  console.log(`[HTTP HEALTH CHECK] Servidor de monitoramento seguro ativo na porta ${PORTA_HTTP}`);
-});
+if (!process.env.VITEST && process.env.NODE_ENV !== "test" && !process.env.GATEWAY_TEST_MODE) {
+  // Inicia servidor TCP
+  server.listen(PORTA_TCP, "0.0.0.0", () => {
+    console.log(`========================================================`);
+    console.log(`  HUNTER GPS GATEWAY — SERVIÇO DE ESCUTA TCP`);
+    console.log(`  Porta TCP: ${PORTA_TCP} (Protocolo GT06 / J16 4G & Coban G900L)`);
+    console.log(`  Supabase: ${SUPABASE_URL}`);
+    console.log(`  Status: PRONTO E AGUARDANDO CONEXÕES DO RASTREADOR...`);
+    console.log(`========================================================\n`);
+  });
+
+  httpServer.listen(PORTA_HTTP, "0.0.0.0", () => {
+    console.log(
+      `[HTTP HEALTH CHECK] Servidor de monitoramento seguro ativo na porta ${PORTA_HTTP}`,
+    );
+  });
+}
+
+export { httpServer };
