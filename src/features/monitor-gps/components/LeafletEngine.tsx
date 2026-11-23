@@ -641,9 +641,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
             (Boolean((v as any).imei) &&
               (veiculoSelecionadoRef.current as any)?.imei === (v as any).imei);
 
-          // 2. Em movimento (velocidade > 3 ou distância > 15m)
-          const emMovimento =
-            (typeof v.velocidade === "number" && v.velocidade > 3) || distAoUltimo > 15;
+          // 2. Em deslocamento viário real (velocidade >= 18 km/h para evitar atração indevida em pátios/estacionamentos)
+          const emMovimento = typeof v.velocidade === "number" && v.velocidade >= 18;
 
           // 3. Zoom >= 14
           const zoomAtualNum = mapInstanceRef.current?.getZoom() ?? zoomAtual ?? 0;

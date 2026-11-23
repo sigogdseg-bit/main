@@ -156,6 +156,10 @@ describe("Hunter — Map Matching (Snap-to-Road) e Interpolação por Polilinha"
       assert.ok(code.includes("isFocado"), `${nome} deve validar se o veículo está focado`);
       // 2. Em movimento
       assert.ok(code.includes("emMovimento"), `${nome} deve validar se está em movimento`);
+      assert.ok(
+        code.includes("v.velocidade >= 18"),
+        `${nome} deve exigir piso de velocidade >= 18 km/h para evitar atração indevida em pátios`,
+      );
       // 3. Zoom >= 14
       assert.ok(code.includes("zoomAdequado"), `${nome} deve validar zoom >= 14`);
       // 4. Tipo veículo
@@ -169,6 +173,29 @@ describe("Hunter — Map Matching (Snap-to-Road) e Interpolação por Polilinha"
       assert.ok(
         code.includes("motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }"),
         `${nome} deve preservar chamada de fallback motionCtrl.updateTarget`,
+      );
+    }
+  });
+
+  // Teste 5: Veículo manobrando em pátio/estacionamento (velocidade < 18 km/h) não dispara snap
+  test("5. Manobras em pátios e estacionamentos (velocidade < 18 km/h) mantêm GPS bruto sem snap", () => {
+    const velocidadesEstacionamento = [0, 5, 10, 15, 17.9];
+    for (const vel of velocidadesEstacionamento) {
+      const emMovimento = typeof vel === "number" && vel >= 18;
+      assert.equal(
+        emMovimento,
+        false,
+        `Velocidade ${vel} km/h em pátio/estacionamento NÃO deve ativar snap-to-road`,
+      );
+    }
+
+    const velocidadesViarias = [18, 25, 40, 60, 100];
+    for (const vel of velocidadesViarias) {
+      const emMovimento = typeof vel === "number" && vel >= 18;
+      assert.equal(
+        emMovimento,
+        true,
+        `Velocidade ${vel} km/h em deslocamento viário real DEVE ativar snap-to-road`,
       );
     }
   });
