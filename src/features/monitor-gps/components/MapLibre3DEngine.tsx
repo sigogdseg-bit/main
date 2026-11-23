@@ -357,6 +357,18 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
               programmaticFlyUntilRef.current = 0;
             }
           });
+          map.on("touchstart", (e: any) => {
+            if (e?.originalEvent) {
+              seguindoCameraRef.current = false;
+              programmaticFlyUntilRef.current = 0;
+            }
+          });
+          map.on("wheel", (e: any) => {
+            if (e?.originalEvent) {
+              seguindoCameraRef.current = false;
+              programmaticFlyUntilRef.current = 0;
+            }
+          });
           map.on("moveend", () => {
             programmaticFlyUntilRef.current = 0;
           });
@@ -565,19 +577,16 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
                 );
 
                 const map = mapInstanceRef.current;
+                const agora = typeof performance !== "undefined" ? performance.now() : Date.now();
+                const emVooProgramatico = agora < programmaticFlyUntilRef.current;
+
                 if (
                   map &&
                   seguindoCameraRef.current &&
                   veiculoSelecionadoIdRef.current === v.id &&
-                  !map.isMoving()
+                  !emVooProgramatico
                 ) {
-                  const centro = map.getCenter();
-                  if (
-                    Math.abs(centro.lat - frameState.lat) > 1e-6 ||
-                    Math.abs(centro.lng - frameState.lng) > 1e-6
-                  ) {
-                    map.setCenter([frameState.lng, frameState.lat]);
-                  }
+                  map.jumpTo({ center: [frameState.lng, frameState.lat] });
                 }
               }
             },

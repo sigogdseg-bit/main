@@ -56,7 +56,7 @@ export class VehicleMotionController {
   private animTargetBearing: number;
 
   public static readonly MIN_DURATION_MS = 2000;
-  public static readonly MAX_DURATION_MS = 11000;
+  public static readonly MAX_DURATION_MS = 13000;
   public static readonly DEFAULT_DURATION_MS = 10000;
   public static readonly DURATION_MS = 10000;
 
@@ -86,7 +86,7 @@ export class VehicleMotionController {
     const agora = typeof performance !== "undefined" ? performance.now() : Date.now();
     const tempoDecorridoMs = this.lastPacketTime > 0 ? Math.round(agora - this.lastPacketTime) : 0;
 
-    // 1. Duração dinâmica baseada no intervalo real entre pacotes (now - lastPacketTime), limitada entre 2000ms e 11000ms
+    // 1. Duração dinâmica baseada no intervalo real entre pacotes (now - lastPacketTime), limitada entre 2000ms e 13000ms
     const duracaoDinamicaMs =
       this.lastPacketTime > 0
         ? Math.min(

@@ -69,7 +69,7 @@ describe("Hunter — Vehicle Motion Engine e Integração aos Motores de Mapa (L
     assert.ok(!engineCode.includes("project-osrm.org"), "NÃO deve chamar OSRM");
     assert.ok(!engineCode.includes("fetchRoadPolyline"), "NÃO deve ter fetchRoadPolyline");
     assert.ok(engineCode.includes("MIN_DURATION_MS = 2000"), "Duração mínima deve ser 2000ms");
-    assert.ok(engineCode.includes("MAX_DURATION_MS = 11000"), "Duração máxima deve ser 11000ms");
+    assert.ok(engineCode.includes("MAX_DURATION_MS = 13000"), "Duração máxima deve ser 13000ms");
     assert.ok(engineCode.includes("elapsed / duration"), "Movimento deve ser estritamente linear");
   });
 
