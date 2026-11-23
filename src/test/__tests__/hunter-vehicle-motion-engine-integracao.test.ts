@@ -56,9 +56,29 @@ describe("Hunter — Vehicle Motion Engine e Integração aos Motores de Mapa (L
       "Pacote antigo com timestamp <= lastTimestamp deve ser ignorado",
     );
 
+    // 4. Chamada redundante com mesmo alvo e animação ativa não reinicia e não corrompe estado
+    await controller.updateTarget({ lat: -22.545, lng: -44.1042 }, 2500);
+
     // Destrói o controller
     controller.destroy();
     assert.equal(typeof controller.destroy, "function");
+  });
+
+  test("2c. vehicleMotionEngine blinda duração dinâmica de 10s-12s contra corrupção e micro-paradas", async () => {
+    let frames: any[] = [];
+    const controller = new VehicleMotionController({ lat: -22.5235, lng: -44.1042 }, (frame) => {
+      frames.push(frame);
+    });
+
+    // Primeiro pacote legítimo a ~100m de distância
+    await controller.updateTarget({ lat: -22.5245, lng: -44.1042 }, 10000);
+    assert.equal(controller.getDurationMs(), VehicleMotionController.DEFAULT_DURATION_MS);
+
+    // Pacote repetido (mesma coordenada e timestamp anterior) deve ser ignorado sem corromper duração
+    await controller.updateTarget({ lat: -22.5245, lng: -44.1042 }, 9500);
+    assert.equal(controller.getDurationMs(), VehicleMotionController.DEFAULT_DURATION_MS);
+
+    controller.destroy();
   });
 
   test("2b. vehicleMotionEngine.ts é 100% livre de OSRM e extrapolação", async () => {

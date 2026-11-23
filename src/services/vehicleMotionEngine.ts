@@ -83,28 +83,7 @@ export class VehicleMotionController {
   }
 
   public updateTarget(newPos: Coord, timestamp?: number | string | Date): void {
-    const agora = typeof performance !== "undefined" ? performance.now() : Date.now();
-    const tempoDecorridoMs = this.lastPacketTime > 0 ? Math.round(agora - this.lastPacketTime) : 0;
-
-    // 1. Duração dinâmica baseada no intervalo real entre pacotes (now - lastPacketTime), limitada entre 2000ms e 13000ms
-    const duracaoDinamicaMs =
-      this.lastPacketTime > 0
-        ? Math.min(
-            Math.max(tempoDecorridoMs, VehicleMotionController.MIN_DURATION_MS),
-            VehicleMotionController.MAX_DURATION_MS,
-          )
-        : VehicleMotionController.DEFAULT_DURATION_MS;
-
-    this.lastPacketTime = agora;
-    this.animDurationMs = duracaoDinamicaMs;
-
-    const dist = haversineMeters(this.currentPos, newPos);
-
-    console.log(
-      `[VehicleMotion] updateTarget: dist=${dist.toFixed(1)}m | decorrido=${tempoDecorridoMs}ms | duracaoAnim=${duracaoDinamicaMs}ms | timestamp=${timestamp || "N/A"} | lastTs=${this.lastTimestamp}`,
-    );
-
-    // 2. Trava de timestamp obrigatória: se timestamp <= lastTimestamp, ignore completamente
+    // 1. Trava de timestamp obrigatória: se timestamp fornecido for anterior ou igual ao último timestamp processado, ignore
     if (timestamp !== undefined && timestamp !== null) {
       const tsMs = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
 
@@ -115,17 +94,25 @@ export class VehicleMotionController {
           );
           return;
         }
-        this.lastTimestamp = tsMs;
       }
     }
 
-    // 3. Trava de zona morta: menor que 3 metros ignora (evita tremor com carro parado)
-    if (dist < 3) {
+    // 2. Trava de deduplicação de alvo: se o novo destino for idêntico ao alvo em curso e a animação já estiver rodando, ignore
+    const distAlvoAnterior = haversineMeters(this.animTargetPos, newPos);
+    if (distAlvoAnterior < 1.0 && this.rafId !== null) {
+      return;
+    }
+
+    // 3. Trava de zona morta: menor que 3 metros do destino e da posição atual ignora (evita tremor com carro parado)
+    const dist = haversineMeters(this.currentPos, newPos);
+    if (dist < 3 && distAlvoAnterior < 3) {
       console.log(
         `[VehicleMotion] ⏸️ Pacote ignorado por zona morta (< 3m): dist=${dist.toFixed(1)}m`,
       );
       return;
     }
+
+    const agora = typeof performance !== "undefined" ? performance.now() : Date.now();
 
     // 4. Trava de teleporte: maior que 2000 metros move instantaneamente sem animar
     if (dist > 2000) {
@@ -139,6 +126,11 @@ export class VehicleMotionController {
       this.currentPos = { ...newPos };
       this.animStartPos = { ...newPos };
       this.animTargetPos = { ...newPos };
+      this.lastPacketTime = agora;
+      if (timestamp !== undefined && timestamp !== null) {
+        const tsMs = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
+        if (!isNaN(tsMs) && tsMs > 0) this.lastTimestamp = tsMs;
+      }
       this.onFrame({
         lat: newPos.lat,
         lng: newPos.lng,
@@ -147,11 +139,40 @@ export class VehicleMotionController {
       return;
     }
 
+    // 5. Atualiza lastTimestamp apenas quando o pacote é aceito
+    if (timestamp !== undefined && timestamp !== null) {
+      const tsMs = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
+      if (!isNaN(tsMs) && tsMs > 0) {
+        this.lastTimestamp = tsMs;
+      }
+    }
+
+    // 6. Duração dinâmica: calcula intervalo real entre pacotes consecutivos legítimos
+    const tempoDecorridoMs = this.lastPacketTime > 0 ? Math.round(agora - this.lastPacketTime) : 0;
+
+    // Se o intervalo real estiver dentro do fluxo contínuo normal (até MAX_DURATION_MS + 2000ms),
+    // adiciona margem de 500ms para absorver oscilações de rede GSM (~10s a 12s) sem micro-paradas.
+    // Se decorreu muito tempo (> 15s, ex.: veículo retomando movimento após parada), utiliza DEFAULT_DURATION_MS (10000ms).
+    const duracaoDinamicaMs =
+      this.lastPacketTime > 0 && tempoDecorridoMs <= VehicleMotionController.MAX_DURATION_MS + 2000
+        ? Math.min(
+            Math.max(tempoDecorridoMs + 500, VehicleMotionController.MIN_DURATION_MS),
+            VehicleMotionController.MAX_DURATION_MS,
+          )
+        : VehicleMotionController.DEFAULT_DURATION_MS;
+
+    this.lastPacketTime = agora;
+    this.animDurationMs = duracaoDinamicaMs;
+
+    console.log(
+      `[VehicleMotion] updateTarget: dist=${dist.toFixed(1)}m | decorrido=${tempoDecorridoMs}ms | duracaoAnim=${duracaoDinamicaMs}ms | timestamp=${timestamp || "N/A"} | lastTs=${this.lastTimestamp}`,
+    );
+
     console.log(
       `[VehicleMotion] ▶️ Iniciando locomoção contínua linear de ${duracaoDinamicaMs}ms (sem frenagem) para nova posição: dist=${dist.toFixed(1)}m`,
     );
 
-    // 5. Se chegar um novo pacote durante o percurso, cancele o frame anterior (cancelAnimationFrame)
+    // 7. Se chegar um novo pacote durante o percurso, cancele o frame anterior (cancelAnimationFrame)
     // e inicie a nova animação linear a partir da posição exata onde o marcador está naquele milissegundo.
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);

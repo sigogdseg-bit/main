@@ -212,8 +212,12 @@ export function useGpsRealtime() {
         return lista;
       });
       setUltimaAtualizacao(new Date());
-      // Coalesce sincronização completa de odômetros/clientes em apenas 1 requisição após rajadas WebSocket
-      agendarSincronizacaoCompleta(encontrouNaLista ? 850 : 150);
+      // Só agenda sincronização completa via HTTP se o veículo NÃO foi encontrado na lista local
+      // (ex.: veículo recém-cadastrado ou atribuído no banco).
+      // Se já estiver na lista, o WebSocket fornece telemetria contínua sem necessidade de polling concorrente.
+      if (!encontrouNaLista) {
+        agendarSincronizacaoCompleta(150);
+      }
     },
     [agendarSincronizacaoCompleta],
   );
@@ -308,6 +312,15 @@ export function useGpsRealtime() {
       .on("broadcast", { event: "telemetria_atualizada" }, (msg) => {
         const dados = (msg?.payload || msg) as Record<string, any> | null;
         const veiculoId = dados?.veiculoId || dados?.veiculo_id;
+        const tsGps =
+          typeof dados?.dataHoraGps === "string" && dados.dataHoraGps.length > 0
+            ? dados.dataHoraGps
+            : typeof dados?.data_hora_gps === "string" && dados.data_hora_gps.length > 0
+              ? dados.data_hora_gps
+              : typeof dados?.ultima_atualizacao === "string" && dados.ultima_atualizacao.length > 0
+                ? dados.ultima_atualizacao
+                : undefined;
+
         if (typeof veiculoId === "string" && veiculoId.length > 0) {
           aplicarPatchImediato({
             veiculoId,
@@ -316,12 +329,7 @@ export function useGpsRealtime() {
             velocidade: typeof dados?.velocidade === "number" ? dados.velocidade : undefined,
             ignicao: typeof dados?.ignicao === "boolean" ? dados.ignicao : undefined,
             rumo: typeof dados?.rumo === "number" ? dados.rumo : undefined,
-            ultima_atualizacao:
-              typeof dados?.ultima_atualizacao === "string"
-                ? dados.ultima_atualizacao
-                : dados?.origem === "gps_posicao"
-                  ? new Date().toISOString()
-                  : undefined,
+            ultima_atualizacao: tsGps,
           });
         } else {
           agendarSincronizacaoCompleta(200);
