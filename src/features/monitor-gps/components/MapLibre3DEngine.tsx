@@ -71,6 +71,8 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
     onSelectVeiculoRef.current = onSelectVeiculo;
     const veiculoSelecionadoIdRef = useRef<string | null>(veiculoSelecionado?.id ?? null);
     veiculoSelecionadoIdRef.current = veiculoSelecionado?.id ?? null;
+    const veiculoSelecionadoRef = useRef<VeiculoGps | null>(veiculoSelecionado);
+    veiculoSelecionadoRef.current = veiculoSelecionado;
     const selectedIdAnteriorRef = useRef<string | null>(null);
     const seguindoCameraRef = useRef<boolean>(true);
     const programmaticFlyUntilRef = useRef<number>(0);
@@ -357,18 +359,6 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
               programmaticFlyUntilRef.current = 0;
             }
           });
-          map.on("touchstart", (e: any) => {
-            if (e?.originalEvent) {
-              seguindoCameraRef.current = false;
-              programmaticFlyUntilRef.current = 0;
-            }
-          });
-          map.on("wheel", (e: any) => {
-            if (e?.originalEvent) {
-              seguindoCameraRef.current = false;
-              programmaticFlyUntilRef.current = 0;
-            }
-          });
           map.on("moveend", () => {
             programmaticFlyUntilRef.current = 0;
           });
@@ -579,13 +569,13 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
                 const map = mapInstanceRef.current;
                 const agora = typeof performance !== "undefined" ? performance.now() : Date.now();
                 const emVooProgramatico = agora < programmaticFlyUntilRef.current;
+                const isFocado =
+                  veiculoSelecionadoIdRef.current === v.id ||
+                  (Boolean(v.placa) && veiculoSelecionadoRef.current?.placa === v.placa) ||
+                  (Boolean((v as any).imei) &&
+                    (veiculoSelecionadoRef.current as any)?.imei === (v as any).imei);
 
-                if (
-                  map &&
-                  seguindoCameraRef.current &&
-                  veiculoSelecionadoIdRef.current === v.id &&
-                  !emVooProgramatico
-                ) {
+                if (map && seguindoCameraRef.current && isFocado && !emVooProgramatico) {
                   map.jumpTo({ center: [frameState.lng, frameState.lat] });
                 }
               }
@@ -647,6 +637,8 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         });
 
         el.addEventListener("click", () => {
+          seguindoCameraRef.current = true;
+          programmaticFlyUntilRef.current = 0;
           const atual = markersRef.current[v.id]?.veiculoAtual ?? v;
           onSelectVeiculoRef.current(atual);
         });
@@ -999,13 +991,14 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         return;
       }
 
+      seguindoCameraRef.current = true;
+
       if (selectedIdAnteriorRef.current === veiculoSelecionado.id) {
         return;
       }
 
       if (coordenadaValidaMapa(veiculoSelecionado.latitude, veiculoSelecionado.longitude)) {
         selectedIdAnteriorRef.current = veiculoSelecionado.id;
-        seguindoCameraRef.current = true;
         const estado = controladorMovimentoRef.current.obterEstado(veiculoSelecionado.id);
         const latAlvo = estado ? estado.visualLat : veiculoSelecionado.latitude;
         const lngAlvo = estado ? estado.visualLng : veiculoSelecionado.longitude;

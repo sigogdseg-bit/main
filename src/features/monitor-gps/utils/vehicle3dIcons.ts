@@ -1133,9 +1133,9 @@ export function gerarMarcador3DHtml(params: {
       <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; user-select: none;">
         ${
           temAlerta
-            ? `<div style="position: absolute; bottom: 0px; width: 50px; height: 50px; border-radius: 50%; background: #EF444450; animation: ping 1s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
+            ? `<div style="position: absolute; bottom: 0px; left: 50%; margin-left: -25px; width: 50px; height: 50px; border-radius: 50%; background: #EF444450; animation: ping 1s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
             : isEmRota
-              ? `<div style="position: absolute; bottom: 0px; width: 46px; height: 46px; border-radius: 50%; background: ${corStatus}30; animation: ping 1.8s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
+              ? `<div style="position: absolute; bottom: 0px; left: 50%; margin-left: -23px; width: 46px; height: 46px; border-radius: 50%; background: ${corStatus}30; animation: ping 1.8s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
               : ""
         }
 
@@ -1145,7 +1145,12 @@ export function gerarMarcador3DHtml(params: {
             ? `<div class="hunter-generico-seta" style="
                 position: absolute;
                 bottom: 0px;
+                left: 50%;
+                margin-left: -10px;
+                width: 20px;
+                height: 20px;
                 transform: rotate(${anguloRumo}deg);
+                transform-origin: center center;
                 transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
                 pointer-events: none;
                 z-index: 5;
@@ -1219,9 +1224,9 @@ export function gerarMarcador3DHtml(params: {
     <div style="position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; cursor: pointer; user-select: none;">
       ${
         temAlerta
-          ? `<div style="position: absolute; bottom: 0px; width: 54px; height: 54px; border-radius: 50%; background: #EF444450; animation: ping 1s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
+          ? `<div style="position: absolute; bottom: 0px; left: 50%; margin-left: -27px; width: 54px; height: 54px; border-radius: 50%; background: #EF444450; animation: ping 1s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
           : isEmRota
-            ? `<div style="position: absolute; bottom: 0px; width: 50px; height: 50px; border-radius: 50%; background: ${corStatus}30; animation: ping 1.8s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
+            ? `<div style="position: absolute; bottom: 0px; left: 50%; margin-left: -25px; width: 50px; height: 50px; border-radius: 50%; background: ${corStatus}30; animation: ping 1.8s cubic-bezier(0,0,0.2,1) infinite; pointer-events: none;"></div>`
             : ""
       }
 
@@ -1229,7 +1234,12 @@ export function gerarMarcador3DHtml(params: {
       <div class="vehicle-via-aligned hunter-generico-seta" style="
         position: absolute;
         bottom: 0px;
+        left: 50%;
+        margin-left: -12px;
+        width: 24px;
+        height: 24px;
         transform: rotate(${anguloRumo}deg);
+        transform-origin: center center;
         transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         pointer-events: none;
         z-index: 5;

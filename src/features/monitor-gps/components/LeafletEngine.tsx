@@ -94,6 +94,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
     onSelectVeiculoRef.current = onSelectVeiculo;
     const veiculoSelecionadoIdRef = useRef<string | null>(veiculoSelecionado?.id ?? null);
     veiculoSelecionadoIdRef.current = veiculoSelecionado?.id ?? null;
+    const veiculoSelecionadoRef = useRef<VeiculoGps | null>(veiculoSelecionado);
+    veiculoSelecionadoRef.current = veiculoSelecionado;
     const selectedIdAnteriorRef = useRef<string | null>(null);
     const seguindoCameraRef = useRef<boolean>(true);
     const userDraggingRef = useRef<boolean>(false);
@@ -214,6 +216,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       centralizarVeiculo: (v: VeiculoGps) => {
         if (mapInstanceRef.current && coordenadaValidaMapa(v?.latitude, v?.longitude)) {
           seguindoCameraRef.current = true;
+          userDraggingRef.current = false;
           selectedIdAnteriorRef.current = v.id;
           const motionCtrl = vehicleMotionControllersRef.current.get(v.id);
           const pos = motionCtrl ? motionCtrl.getPosition() : { lat: v.latitude, lng: v.longitude };
@@ -558,6 +561,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           marker.bindPopup(criarPopupHtml(), { offset: [0, -15] });
 
           marker.on("click", () => {
+            seguindoCameraRef.current = true;
+            userDraggingRef.current = false;
             const atual = markersMapRef.current.get(v.id)?.veiculoAtual ?? v;
             onSelectVeiculoRef.current(atual);
           });
@@ -583,10 +588,16 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
                 atualizarRotacaoElementoMarcador(dados.marker.getElement(), frameState.bearing);
 
                 const map = mapInstanceRef.current;
+                const isFocado =
+                  veiculoSelecionadoIdRef.current === v.id ||
+                  (Boolean(v.placa) && veiculoSelecionadoRef.current?.placa === v.placa) ||
+                  (Boolean((v as any).imei) &&
+                    (veiculoSelecionadoRef.current as any)?.imei === (v as any).imei);
+
                 if (
                   map &&
                   seguindoCameraRef.current &&
-                  veiculoSelecionadoIdRef.current === v.id &&
+                  isFocado &&
                   !userDraggingRef.current &&
                   !(map as any)._animatingZoom
                 ) {
@@ -674,6 +685,9 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         return;
       }
 
+      seguindoCameraRef.current = true;
+      userDraggingRef.current = false;
+
       if (selectedIdAnteriorRef.current === veiculoSelecionado.id) {
         return;
       }
@@ -683,7 +697,6 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
 
       if (coordenadaValidaMapa(lat, lon)) {
         selectedIdAnteriorRef.current = veiculoSelecionado.id;
-        seguindoCameraRef.current = true;
         const motionCtrl = vehicleMotionControllersRef.current.get(veiculoSelecionado.id);
         const pos = motionCtrl ? motionCtrl.getPosition() : { lat, lng: lon };
         map.panTo([pos.lat, pos.lng], {
