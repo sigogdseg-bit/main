@@ -8983,7 +8983,7 @@ async function handleApiRota(request: Request, _env: unknown): Promise<Response 
 
 /**
  * Proxy Seguro de Map Matching (Snap-to-Road) Mapbox API
- * Interpola coordenadas do veículo ao longo da malha viária real com timeout de 500ms
+ * Interpola coordenadas do veículo ao longo da malha viária real com timeout de 1200ms
  * e trava de sanidade de 45m para descarte de desvios anômalos.
  */
 function getMapboxAccessToken(env: unknown): string {
@@ -9105,7 +9105,7 @@ export async function handleApiSnapRoad(request: Request, env: unknown): Promise
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 500);
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
 
     const res = await fetch(urlMapbox, {
       signal: controller.signal,

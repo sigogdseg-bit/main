@@ -160,7 +160,7 @@ describe("Hunter — Map Matching (Snap-to-Road) e Interpolação por Polilinha"
       assert.ok(code.includes("zoomAdequado"), `${nome} deve validar zoom >= 14`);
       // 4. Tipo veículo
       assert.ok(code.includes("ehVeiculoValido"), `${nome} deve validar se ativo é veículo`);
-      // Disparo e timeout 500ms
+      // Disparo e timeout 1500ms
       assert.ok(
         code.includes("requisitarSnapToRoad"),
         `${nome} deve integrar requisitarSnapToRoad`,

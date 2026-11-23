@@ -13,8 +13,8 @@ export interface SnapRoadResponse {
 }
 
 /**
- * Requisita Map Matching (snap-to-road) com timeout estrito de 500ms
- * Se o backend responder em até 500ms com vértices válidos, devolve o caminho;
+ * Requisita Map Matching (snap-to-road) com timeout estrito de 1500ms
+ * Se o backend responder em até 1500ms com vértices válidos, devolve o caminho;
  * Caso contrário (erro, timeout ou token ausente), devolve null de forma transparente.
  */
 export async function requisitarSnapToRoad(
@@ -25,7 +25,7 @@ export async function requisitarSnapToRoad(
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 500);
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
 
     const onParentAbort = () => {
       clearTimeout(timeoutId);
