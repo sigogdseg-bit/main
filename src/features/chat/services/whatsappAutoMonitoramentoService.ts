@@ -1452,6 +1452,7 @@ async function despacharComandoAoGatewayGps(
   comando: string,
 ): Promise<{ sucesso: boolean; resposta?: string; erro?: string }> {
   const hosts = [
+    "https://gps.oficial.tec.br/gd/gps/api/comando",
     "http://167.234.233.82:8082/api/comando",
     "https://gps.oficial.tec.br/api/comando",
     "http://gps.oficial.tec.br:8080/api/comando",

@@ -11361,6 +11361,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
         }
       }
       const hosts = [
+        "https://gps.oficial.tec.br/gd/gps/api/comando",
         "http://167.234.233.82:8082/api/comando",
         "https://gps.oficial.tec.br/api/comando",
         "http://gps.oficial.tec.br:8080/api/comando",
@@ -11368,6 +11369,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
       ];
       let ultimoErro = "";
       let ultimaRespostaJson: any = null;
+      let respostaEnfileirada: any = null;
       for (const host of hosts) {
         try {
           const controller = new AbortController();
@@ -11382,17 +11384,27 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
           if (res.ok) {
             const data = await res.json();
             ultimaRespostaJson = data;
-            // Se o comando foi despachado para o hardware ou obteve resposta direta
-            if (data && (data.sucesso || data.enviado || data.resposta)) {
+            // Se o comando foi despachado para o socket ativo ou obteve resposta direta do hardware
+            if (data && (data.enviado || data.resposta)) {
               return new Response(JSON.stringify(data), {
                 status: 200,
                 headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
               });
             }
+            // Guarda resposta de enfileiramento caso nenhum outro gateway tenha o socket online
+            if (data && data.enfileirado && !respostaEnfileirada) {
+              respostaEnfileirada = data;
+            }
           }
         } catch (err: any) {
           ultimoErro = err?.message || String(err);
         }
+      }
+      if (respostaEnfileirada) {
+        return new Response(JSON.stringify(respostaEnfileirada), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
       }
       if (ultimaRespostaJson) {
         return new Response(JSON.stringify(ultimaRespostaJson), {
@@ -11415,6 +11427,7 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
   // Rota de listagem de conexões ativas no Gateway (consolidando Oracle e Fly.io)
   if (url.pathname === "/api/gateway/conexoes" && request.method === "GET") {
     const hosts = [
+      "https://gps.oficial.tec.br/gd/gps/api/conexoes",
       "http://167.234.233.82:8082/api/conexoes",
       "https://gps.oficial.tec.br/api/conexoes",
       "http://gps.oficial.tec.br:8080/api/conexoes",
