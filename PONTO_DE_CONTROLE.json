@@ -1,7 +1,7 @@
 {
-  "versao": "1.0.0.0",
-  "commit": "9df7a001a634d4e03ec4339c23645bc19a55495e",
-  "tag": "v1.0.0.0",
+  "versao": "1.0.1.39",
+  "commit": "ffbedec206aedeb4b2d3a8594173600c65cd2784",
+  "tag": "v1.0.1.39",
   "tag_ponteiro": "ultimo-ponto-de-controle",
   "repositorio_seguro": "https://github.com/sigogdseg-bit/BKP-A.git",
   "repositorio_seguro_a": "https://github.com/sigogdseg-bit/BKP-A.git",
@@ -9,13 +9,14 @@
   "marco_ativo": "BKP-A",
   "proximo_a_substituir": "BKP-B",
   "branch_segura": "main",
-  "data": "13/11/2026",
-  "timestamp": "2026-11-13T17:00:00+0000",
+  "data": "24/11/2026",
+  "timestamp": "2026-11-24T20:37:58+0000",
   "imutavel": true,
-  "descricao": "Marco de Seguranca estavel v1.0.0.0 aprovado e protegido.",
+  "descricao": "Marco de Seguranca estavel v1.0.1.39 aprovado e protegido.",
   "comandos_restauracao": [
     "git fetch bkp-a --tags",
     "git checkout main",
+    "git reset --hard ffbedec206aedeb4b2d3a8594173600c65cd2784",
     "npm test",
     "npm run build"
   ]

@@ -6,13 +6,13 @@
     "nome": "BKP-A",
     "repositorio": "https://github.com/sigogdseg-bit/BKP-A.git",
     "remote": "bkp-a",
-    "versao": "1.0.0.0",
-    "commit": "9df7a001a634d4e03ec4339c23645bc19a55495e",
-    "tag": "v1.0.0.0",
+    "versao": "1.0.1.39",
+    "commit": "ffbedec206aedeb4b2d3a8594173600c65cd2784",
+    "tag": "v1.0.1.39",
     "tag_ponteiro": "marco-seguranca-a",
-    "data": "13/11/2026",
-    "timestamp": "2026-11-13T17:00:00+0000",
-    "descricao": "Marco de Seguranca estavel v1.0.0.0 aprovado e protegido."
+    "data": "24/11/2026",
+    "timestamp": "2026-11-24T20:37:58+0000",
+    "descricao": "Marco de Seguranca estavel v1.0.1.39 aprovado e protegido."
   },
   "bkp_b": {
     "nome": "BKP-B",
