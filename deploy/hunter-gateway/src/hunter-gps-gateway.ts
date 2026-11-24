@@ -109,6 +109,7 @@ interface ConexaoRastreador {
   modeloRastreador?: string;
   rastreadorId?: string;
   protocoloDispositivo?: "gt06" | "coban";
+  protocoloTransporte?: "gt06" | "coban_ascii";
   ignicaoStatus?: boolean;
   alimentacaoExternaStatus?: boolean;
   bloqueadorInstalado?: boolean;
@@ -340,6 +341,12 @@ export function dispararComandoRepousoCoban(imei: string, agora: number = Date.n
   }
 
   const conn = conexoesAtivas.get(socket);
+  if (conn?.protocoloTransporte === "gt06") {
+    console.log(
+      `⚠️ [AUTO-THROTTLE COBAN] Repouso cancelado para IMEI ${imei}: socket opera em transporte binário GT06.`,
+    );
+    return false;
+  }
   const modelo = conn?.modeloRastreador || modeloRastreadorPorImei.get(imei);
   if (!isModeloG900L(modelo)) {
     return false;
@@ -404,6 +411,10 @@ export function processarAutoThrottleCoban(
   const conn = conexoesAtivas.get(socket);
   if (conn) {
     conn.ignicaoStatus = ignicao;
+    if (conn.protocoloTransporte === "gt06") {
+      // Sockets operando em transporte binário GT06 não aceitam comandos Coban ASCII crus
+      return { acao: "modelo_nao_elegivel" };
+    }
   }
 
   // TRAVA DE ISOLAMENTO ESTRITO: Auto-Throttle opera EXCLUSIVAMENTE em hardware G900L
@@ -426,7 +437,8 @@ export function processarAutoThrottleCoban(
     estado.socketRef = socket;
   }
 
-  const emMovimento = ignicao === true || velocidade > 3;
+  // Gatilho de movimento: ignição ligada ou deslocamento real comprovado (> 15 km/h quando desligada para evitar falsos positivos de jitter GPS)
+  const emMovimento = ignicao === true || (ignicao === false ? velocidade > 15 : velocidade > 5);
 
   if (emMovimento) {
     let cancelouTimer = false;
@@ -780,12 +792,19 @@ export async function enviarComandoParaRastreador(
         return { enviado: false, enfileirado: false };
       }
 
-      const ehCoban = conn.protocoloDispositivo === "coban" || ehProtocoloCoban(comandoAscii);
-      const pkt = ehCoban
-        ? montarPacoteComandoCoban(imei, comandoAscii)
-        : montarPacoteComandoGT06(comandoAscii);
+      // Quando o transporte for GT06, empacota SEMPRE em binário 0x80 com montarPacoteComandoGT06
+      const ehTransporteGt06 =
+        conn.protocoloTransporte === "gt06" || conn.protocoloDispositivo === "gt06";
+      const ehCobanAscii =
+        conn.protocoloTransporte === "coban_ascii" ||
+        (!ehTransporteGt06 &&
+          (conn.protocoloDispositivo === "coban" || ehProtocoloCoban(comandoAscii)));
+      const pkt =
+        ehCobanAscii && conn.protocoloTransporte !== "gt06"
+          ? montarPacoteComandoCoban(imei, comandoAscii)
+          : montarPacoteComandoGT06(comandoAscii);
       socket.write(pkt);
-      if (ehCoban) {
+      if (ehCobanAscii && conn.protocoloTransporte !== "gt06") {
         const cmdUpper = comandoAscii.trim().toUpperCase();
         if (cmdUpper === "C,10S") {
           const est = autoThrottleCobanPorImei.get(imei) || {
@@ -833,7 +852,7 @@ export async function enviarComandoParaRastreador(
         timestamp: Date.now(),
       });
       console.log(
-        `📡 [COMANDO ENVIADO ${ehCoban ? "COBAN" : "GT06"}] IMEI ${imei}: "${comandoAscii}" (${pkt.toString("hex")})`,
+        `📡 [COMANDO ENVIADO ${ehCobanAscii && conn.protocoloTransporte !== "gt06" ? "COBAN" : "GT06"}] IMEI ${imei}: "${comandoAscii}" (${pkt.toString("hex")})`,
       );
       return { enviado: true, enfileirado: false };
     }
@@ -1030,8 +1049,16 @@ export const server = net.createServer((socket) => {
 export async function processarPacote(socket: net.Socket, buf: Buffer) {
   if (buf.length < 2) return;
 
-  const rawAscii = buf.toString("ascii").trim();
   const conn = conexoesAtivas.get(socket) || {};
+  const header = buf.readUInt16BE(0);
+
+  // Reconhecimento imediato do protocolo de transporte binário GT06 (0x7878 Standard ou 0x7979 Extendido)
+  if (header === 0x7878 || header === 0x7979) {
+    conn.protocoloTransporte = "gt06";
+    conexoesAtivas.set(socket, conn);
+  }
+
+  const rawAscii = buf.toString("ascii").trim();
 
   // ── RECONHECIMENTO NATIVO PROTOCOLO COBAN / G900L (ASCII) ──
   // 1. Login / Handshake Coban: ##,imei:<15_digitos>,A; ou **,imei:<15_digitos>,A;
@@ -1040,6 +1067,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     const imei = matchLoginCoban[1];
     conn.imei = imei;
     conn.protocoloDispositivo = "coban";
+    conn.protocoloTransporte = "coban_ascii";
     conexoesAtivas.set(socket, conn);
 
     // Encerra e expurga conexões zumbis anteriores do mesmo IMEI
@@ -1083,6 +1111,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     const imei = matchHeartbeatCoban[1];
     if (!conn.imei) conn.imei = imei;
     conn.protocoloDispositivo = "coban";
+    conn.protocoloTransporte = "coban_ascii";
     conexoesAtivas.set(socket, conn);
 
     const respHeartbeat = Buffer.from(COBAN_USAR_CRLF ? "ON\r\n" : "ON", "ascii");
@@ -1232,7 +1261,6 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
   // Pacotes GT06 começam com 0x78 0x78 (Standard) ou 0x79 0x79 (Extendido)
   if (buf.length < 5) return;
 
-  const header = buf.readUInt16BE(0);
   if (header !== 0x7878 && header !== 0x7979) {
     console.log(
       `[${new Date().toISOString()}] ❓ [RX PACOTE NÃO RECONHECIDO] Header 0x${header.toString(16)}: ${buf.toString("hex")} | ASCII: "${formatarAsciiControle(rawAscii)}"`,
@@ -1475,9 +1503,9 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     }
 
     // Fallback heurístico: se a extração padrão vier vazia ou com bytes de controle, extrai sequência ASCII imprimível
-    if (!respostaAscii || !/^[\x20-\x7E]/.test(respostaAscii)) {
+    if (!respostaAscii || !/^[\x20-\x7E\r\n\t]/.test(respostaAscii)) {
       const rawText = payloadBuf.toString("ascii");
-      const match = rawText.match(/[\w#:=,._\-+@%*?!/() ]{2,}/);
+      const match = rawText.match(/[\x20-\x7E\r\n\t]{2,}/);
       if (match) {
         respostaAscii = match[0].trim();
       }
@@ -1486,7 +1514,8 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     console.log(
       `\n📥 [RESPOSTA COMANDO 0x${protocolo.toString(16).padStart(2, "0")}] IMEI: ${imei} | Flag: ${serverFlag} | Serial: ${serialNumber}`,
     );
-    console.log(`   Conteúdo retornado pelo J16: "${respostaAscii}"`);
+    console.log(`   [HEX]: ${buf.toString("hex")}`);
+    console.log(`   [RESPOSTA ASCII]:\n${respostaAscii}`);
 
     // Notifica imediatamente listeners síncronos aguardando pela rota HTTP
     if (imei && respostaAscii) {
@@ -3350,15 +3379,35 @@ export async function auditarIntegridadeEstadoEReverter(params: {
 // ─────────────────────────────────────────────────────────────────────────────
 const PORTA_HTTP = Number(process.env.PORTA_HTTP || 8080);
 
+export function validarAutenticacaoHttp(req: http.IncomingMessage): boolean {
+  const authHeader = req.headers["authorization"] || "";
+  const secretHeader = req.headers["x-gateway-secret"] || "";
+  const tokensValidos = [
+    process.env.GD_GPS_GATEWAY_TOKEN,
+    process.env.GATEWAY_SECRET,
+    process.env.HUNTER_GATEWAY_TOKEN,
+    process.env.SUPABASE_SERVICE_ROLE_KEY,
+    "hunter-gateway-secret-2026",
+  ].filter(Boolean) as string[];
+
+  if (typeof secretHeader === "string" && secretHeader.trim()) {
+    if (tokensValidos.includes(secretHeader.trim())) return true;
+  }
+  if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+    const bearer = authHeader.substring(7).trim();
+    if (bearer && tokensValidos.includes(bearer)) return true;
+  }
+  return false;
+}
+
 const httpServer = http.createServer((req, res) => {
   // Mascara identificador do servidor para evitar fingerprinting
   res.removeHeader("X-Powered-By");
   res.setHeader("Server", "GD-Rastreamento");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-gateway-secret");
     res.writeHead(204);
     res.end();
     return;
@@ -3371,6 +3420,18 @@ const httpServer = http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ status: "ok" }));
     return;
+  }
+
+  // Validação de autenticação obrigatória para rotas administrativas (/api/conexoes e /api/comando)
+  if (url === "/api/conexoes" || url === "/api/comando") {
+    if (!validarAutenticacaoHttp(req)) {
+      console.warn(
+        `🔒 [GATEWAY HTTP 401] Acesso não autorizado bloqueado em ${url} de ${req.socket.remoteAddress}`,
+      );
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Unauthorized" }));
+      return;
+    }
   }
 
   // Rota de listagem de conexões ativas no Gateway
@@ -3418,7 +3479,7 @@ const httpServer = http.createServer((req, res) => {
         }
 
         console.log(`📡 [COMANDO GT06 HTTP] IMEI: ${imeiAlvo} | Comando: "${comando}"`);
-        const promessaResposta = aguardarRespostaHardwareJ16(imeiAlvo, 3500);
+        const promessaResposta = aguardarRespostaHardwareJ16(imeiAlvo, 6000);
         const resEnvio = await enviarComandoParaRastreador(imeiAlvo, comando);
 
         let respostaHardware: string | null = null;

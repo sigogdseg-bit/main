@@ -11400,13 +11400,22 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
       let ultimoErro = "";
       let ultimaRespostaJson: any = null;
       let respostaEnfileirada: any = null;
+      const gatewayToken =
+        (env as any)?.SUPABASE_SERVICE_ROLE_KEY ||
+        (env as any)?.GD_GPS_GATEWAY_TOKEN ||
+        (env as any)?.GATEWAY_SECRET ||
+        "hunter-gateway-secret-2026";
       for (const host of hosts) {
         try {
           const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5500);
+          const timeoutId = setTimeout(() => controller.abort(), 6500);
           const res = await fetch(host, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${gatewayToken}`,
+              "x-gateway-secret": gatewayToken,
+            },
             body: JSON.stringify(body),
             signal: controller.signal,
           });
@@ -11481,13 +11490,22 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
     const conexoesConsolidadas: any[] = [];
     let respondeuPeloMenosUm = false;
     const errosDiag: Record<string, string> = {};
+    const gatewayToken =
+      (env as any)?.SUPABASE_SERVICE_ROLE_KEY ||
+      (env as any)?.GD_GPS_GATEWAY_TOKEN ||
+      (env as any)?.GATEWAY_SECRET ||
+      "hunter-gateway-secret-2026";
 
     for (const host of hosts) {
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 4000);
         const res = await fetch(host, {
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${gatewayToken}`,
+            "x-gateway-secret": gatewayToken,
+          },
           signal: controller.signal,
         });
         clearTimeout(timeoutId);

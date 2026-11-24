@@ -1460,14 +1460,22 @@ async function despacharComandoAoGatewayGps(
   ];
 
   const cmdSanitizado = sanitizarComandoHardware(comando);
+  const secretToken =
+    (typeof process !== "undefined" &&
+      (process.env?.SUPABASE_SERVICE_ROLE_KEY || process.env?.GD_GPS_GATEWAY_TOKEN)) ||
+    "hunter-gateway-secret-2026";
 
   for (const host of hosts) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 6500);
       const res = await fetch(host, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${secretToken}`,
+          "x-gateway-secret": secretToken,
+        },
         body: JSON.stringify({ imei, comando: cmdSanitizado }),
         signal: controller.signal,
       });
