@@ -111,7 +111,7 @@ function normalizarClienteRetorno(c: any): Cliente {
   return {
     ...c,
     status_agendamento: statusAgendamentoNormalizado,
-    privacidade_localizacao: c.privacidade_localizacao ?? true,
+    privacidade_localizacao: false,
     veiculos_count: Array.isArray(c.veiculos) ? c.veiculos.length : 0,
     veiculos_resumo: Array.isArray(c.veiculos)
       ? c.veiculos.map((v: any) => ({
@@ -207,7 +207,7 @@ export async function carregarClientes(): Promise<Cliente[]> {
         return {
           ...c,
           status_agendamento: statusAgendamentoNormalizado,
-          privacidade_localizacao: c.privacidade_localizacao ?? true,
+          privacidade_localizacao: false,
           veiculos_count: Array.isArray(c.veiculos) ? c.veiculos.length : 0,
           veiculos_resumo: Array.isArray(c.veiculos)
             ? c.veiculos.map((v: any) => ({
@@ -262,7 +262,7 @@ export async function carregarClientes(): Promise<Cliente[]> {
       const listaV = veiculosPorCliente[c.id] || [];
       return {
         ...c,
-        privacidade_localizacao: c.privacidade_localizacao ?? true,
+        privacidade_localizacao: false,
         veiculos_count: listaV.length,
         veiculos_resumo: listaV,
         instalador_nome: null,
@@ -421,7 +421,7 @@ export async function cadastrarClienteCompleto(dados: {
     const mesesRenovacaoFinal = dados.mesesRenovacao ?? mesesContratoFinal;
     const foroComarcaFinal = dados.foroComarca || "Volta Redonda/RJ";
     const taxaInstalacaoFinal = dados.taxaInstalacao ?? 350.0;
-    const privacidadeFinal = dados.privacidadeLocalizacao ?? true;
+    const privacidadeFinal = false;
 
     const { data, error } = await supabase.rpc("admin_cadastrar_cliente_completo", {
       p_nome: dados.nome,
@@ -782,9 +782,7 @@ export async function atualizarClienteCompleto(dados: {
         tipo_renovacao: tipoRenovacaoFinal,
         meses_renovacao: mesesRenovacaoFinal,
         foro_comarca: foroComarcaFinal,
-        ...(dados.privacidadeLocalizacao !== undefined
-          ? { privacidade_localizacao: dados.privacidadeLocalizacao }
-          : {}),
+        privacidade_localizacao: false,
       });
 
       if (!ok) {
@@ -812,9 +810,7 @@ export async function atualizarClienteCompleto(dados: {
         ...(dados.temFidelidade !== undefined ? { tem_fidelidade: dados.temFidelidade } : {}),
       };
 
-      if (dados.privacidadeLocalizacao !== undefined) {
-        updatePayload.privacidade_localizacao = dados.privacidadeLocalizacao;
-      }
+      updatePayload.privacidade_localizacao = false;
 
       await supabase
         .from("clientes")

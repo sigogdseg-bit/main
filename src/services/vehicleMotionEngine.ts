@@ -41,60 +41,6 @@ export function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
-/**
- * Interpola posição ao longo de uma polilinha com base no progresso normalizado t [0, 1]
- * Calcula a distância acumulada de cada subsegmento e devolve lat, lng e bearing da curva.
- */
-export function interpolatePolylinePosition(
-  polyline: Coord[],
-  t: number,
-  fallbackBearing: number = 0,
-): FrameState {
-  if (!polyline || polyline.length === 0) {
-    return { lat: 0, lng: 0, bearing: fallbackBearing };
-  }
-  if (polyline.length === 1) {
-    return { lat: polyline[0].lat, lng: polyline[0].lng, bearing: fallbackBearing };
-  }
-
-  const numPontos = polyline.length;
-  const segLengths: number[] = [];
-  const cumDistances: number[] = [0];
-
-  for (let j = 0; j < numPontos - 1; j++) {
-    const d = haversineMeters(polyline[j], polyline[j + 1]);
-    segLengths.push(d);
-    cumDistances.push(cumDistances[j] + d);
-  }
-
-  const totalDistance = cumDistances[cumDistances.length - 1];
-  if (totalDistance < 0.1) {
-    return {
-      lat: polyline[numPontos - 1].lat,
-      lng: polyline[numPontos - 1].lng,
-      bearing: fallbackBearing,
-    };
-  }
-
-  const clampedT = Math.min(Math.max(t, 0), 1);
-  const targetDist = clampedT * totalDistance;
-
-  let j = 0;
-  while (j < numPontos - 2 && cumDistances[j + 1] < targetDist) {
-    j++;
-  }
-
-  const segLen = segLengths[j];
-  const localDist = targetDist - cumDistances[j];
-  const localT = segLen > 0 ? Math.min(Math.max(localDist / segLen, 0), 1) : 1;
-
-  const lat = polyline[j].lat + (polyline[j + 1].lat - polyline[j].lat) * localT;
-  const lng = polyline[j].lng + (polyline[j + 1].lng - polyline[j].lng) * localT;
-  const bearing = calcBearing(polyline[j], polyline[j + 1]);
-
-  return { lat, lng, bearing };
-}
-
 export class VehicleMotionController {
   private currentPos: Coord;
   private currentBearing: number;
@@ -108,10 +54,6 @@ export class VehicleMotionController {
   private animTargetPos: Coord;
   private animStartBearing: number;
   private animTargetBearing: number;
-  private animPolyline: Coord[] | null = null;
-  private animSegLengths: number[] = [];
-  private animCumDistances: number[] = [];
-  private animTotalDistance: number = 0;
 
   public static readonly MIN_DURATION_MS = 2000;
   public static readonly MAX_DURATION_MS = 13000;
@@ -140,11 +82,7 @@ export class VehicleMotionController {
     return this.animDurationMs;
   }
 
-  public getPolyline(): Coord[] | null {
-    return this.animPolyline ? [...this.animPolyline] : null;
-  }
-
-  public updateTarget(newPos: Coord, timestamp?: number | string | Date, caminho?: Coord[]): void {
+  public updateTarget(newPos: Coord, timestamp?: number | string | Date): void {
     // 1. Trava de timestamp obrigatória: se timestamp fornecido for anterior ou igual ao último timestamp processado, ignore
     if (timestamp !== undefined && timestamp !== null) {
       const tsMs = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
@@ -188,7 +126,6 @@ export class VehicleMotionController {
       this.currentPos = { ...newPos };
       this.animStartPos = { ...newPos };
       this.animTargetPos = { ...newPos };
-      this.animPolyline = null;
       this.lastPacketTime = agora;
       if (timestamp !== undefined && timestamp !== null) {
         const tsMs = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
@@ -213,9 +150,6 @@ export class VehicleMotionController {
     // 6. Duração dinâmica: calcula intervalo real entre pacotes consecutivos legítimos
     const tempoDecorridoMs = this.lastPacketTime > 0 ? Math.round(agora - this.lastPacketTime) : 0;
 
-    // Se o intervalo real estiver dentro do fluxo contínuo normal (até MAX_DURATION_MS + 2000ms),
-    // adiciona margem de 500ms para absorver oscilações de rede GSM (~10s a 12s) sem micro-paradas.
-    // Se decorreu muito tempo (> 15s, ex.: veículo retomando movimento após parada), utiliza DEFAULT_DURATION_MS (10000ms).
     const duracaoDinamicaMs =
       this.lastPacketTime > 0 && tempoDecorridoMs <= VehicleMotionController.MAX_DURATION_MS + 2000
         ? Math.min(
@@ -231,12 +165,8 @@ export class VehicleMotionController {
       `[VehicleMotion] updateTarget: dist=${dist.toFixed(1)}m | decorrido=${tempoDecorridoMs}ms | duracaoAnim=${duracaoDinamicaMs}ms | timestamp=${timestamp || "N/A"} | lastTs=${this.lastTimestamp}`,
     );
 
-    console.log(
-      `[VehicleMotion] ▶️ Iniciando locomoção contínua linear de ${duracaoDinamicaMs}ms (sem frenagem) para nova posição: dist=${dist.toFixed(1)}m`,
-    );
-
-    // 7. Se chegar um novo pacote durante o percurso, cancele o frame anterior (cancelAnimationFrame)
-    // e inicie a nova animação linear a partir da posição exata onde o marcador está naquele milissegundo.
+    // 7. Se chegar um novo pacote durante o percurso, cancela o frame anterior (cancelAnimationFrame)
+    // e inicia a nova animação linear a partir da posição exata onde o marcador está naquele milissegundo (pivô contínuo).
     if (this.rafId !== null) {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
@@ -248,86 +178,6 @@ export class VehicleMotionController {
     this.animTargetBearing = calcBearing(this.animStartPos, this.animTargetPos);
     this.animStartTime = typeof performance !== "undefined" ? performance.now() : Date.now();
 
-    const temCaminho =
-      Array.isArray(caminho) &&
-      caminho.length >= 2 &&
-      caminho.every(
-        (p) =>
-          typeof p?.lat === "number" &&
-          !isNaN(p.lat) &&
-          typeof p?.lng === "number" &&
-          !isNaN(p.lng),
-      );
-
-    if (temCaminho && caminho) {
-      // 1. Pivô contínuo obrigatório: encontrar o segmento de caminho mais próximo de currentPos
-      let bestSegIdx = 0;
-      let minSegDist = Infinity;
-      let bestU = 0;
-
-      for (let i = 0; i < caminho.length - 1; i++) {
-        const vA = caminho[i];
-        const vB = caminho[i + 1];
-        const dx = vB.lng - vA.lng;
-        const dy = vB.lat - vA.lat;
-        const lenSq = dx * dx + dy * dy;
-
-        let u = 0;
-        if (lenSq > 0) {
-          u = Math.max(
-            0,
-            Math.min(
-              1,
-              ((this.currentPos.lng - vA.lng) * dx + (this.currentPos.lat - vA.lat) * dy) / lenSq,
-            ),
-          );
-        }
-        const projCoord: Coord = {
-          lat: vA.lat + u * dy,
-          lng: vA.lng + u * dx,
-        };
-        const d = haversineMeters(this.currentPos, projCoord);
-        if (d < minSegDist) {
-          minSegDist = d;
-          bestSegIdx = i;
-          bestU = u;
-        }
-      }
-
-      // Vértices à frente do ponto de projeção
-      const verticesRestantes =
-        bestU < 0.95
-          ? caminho.slice(bestSegIdx + 1)
-          : caminho.slice(Math.min(bestSegIdx + 2, caminho.length - 1));
-
-      // Monta polilinha iniciando estritamente na posição interpolada atual (pivô contínuo)
-      const polylinePontos: Coord[] = [{ ...this.currentPos }];
-      for (const pt of verticesRestantes) {
-        const ultimo = polylinePontos[polylinePontos.length - 1];
-        if (haversineMeters(ultimo, pt) >= 0.1) {
-          polylinePontos.push({ lat: pt.lat, lng: pt.lng });
-        }
-      }
-      if (polylinePontos.length < 2) {
-        polylinePontos.push({ ...newPos });
-      }
-
-      this.animPolyline = polylinePontos;
-      this.animSegLengths = [];
-      this.animCumDistances = [0];
-      for (let j = 0; j < polylinePontos.length - 1; j++) {
-        const d = haversineMeters(polylinePontos[j], polylinePontos[j + 1]);
-        this.animSegLengths.push(d);
-        this.animCumDistances.push(this.animCumDistances[j] + d);
-      }
-      this.animTotalDistance = this.animCumDistances[this.animCumDistances.length - 1];
-    } else {
-      this.animPolyline = null;
-      this.animSegLengths = [];
-      this.animCumDistances = [];
-      this.animTotalDistance = 0;
-    }
-
     const startPos = this.animStartPos;
     const targetPos = this.animTargetPos;
     const startBearing = this.animStartBearing;
@@ -336,37 +186,12 @@ export class VehicleMotionController {
 
     const step = (now: number) => {
       const elapsed = now - this.animStartTime;
-      // Movimento estritamente linear (t = elapsed / duration) sem curva de desaceleração para evitar que o pin freie
       const progress = Math.min(Math.max(elapsed / duration, 0), 1);
       const t = progress;
 
-      let lat: number;
-      let lng: number;
-      let bearing: number;
-
-      if (this.animPolyline && this.animPolyline.length >= 2 && this.animTotalDistance > 0.5) {
-        const targetDist = t * this.animTotalDistance;
-        const numPontos = this.animPolyline.length;
-        let j = 0;
-        while (j < numPontos - 2 && this.animCumDistances[j + 1] < targetDist) {
-          j++;
-        }
-        const segLen = this.animSegLengths[j];
-        const localDist = targetDist - this.animCumDistances[j];
-        const localT = segLen > 0 ? Math.min(Math.max(localDist / segLen, 0), 1) : 1;
-
-        lat =
-          this.animPolyline[j].lat +
-          (this.animPolyline[j + 1].lat - this.animPolyline[j].lat) * localT;
-        lng =
-          this.animPolyline[j].lng +
-          (this.animPolyline[j + 1].lng - this.animPolyline[j].lng) * localT;
-        bearing = calcBearing(this.animPolyline[j], this.animPolyline[j + 1]);
-      } else {
-        lat = startPos.lat + (targetPos.lat - startPos.lat) * t;
-        lng = startPos.lng + (targetPos.lng - startPos.lng) * t;
-        bearing = lerpBearing(startBearing, targetBearing, t);
-      }
+      const lat = startPos.lat + (targetPos.lat - startPos.lat) * t;
+      const lng = startPos.lng + (targetPos.lng - startPos.lng) * t;
+      const bearing = lerpBearing(startBearing, targetBearing, t);
 
       this.currentPos = { lat, lng };
       this.currentBearing = bearing;
@@ -381,24 +206,12 @@ export class VehicleMotionController {
         this.rafId = requestAnimationFrame(step);
       } else {
         this.rafId = null;
-        const finalPos =
-          this.animPolyline && this.animPolyline.length >= 2
-            ? this.animPolyline[this.animPolyline.length - 1]
-            : targetPos;
-        const finalBearing =
-          this.animPolyline && this.animPolyline.length >= 2
-            ? calcBearing(
-                this.animPolyline[this.animPolyline.length - 2],
-                this.animPolyline[this.animPolyline.length - 1],
-              )
-            : targetBearing;
-
-        this.currentPos = { ...finalPos };
-        this.currentBearing = finalBearing;
+        this.currentPos = { ...targetPos };
+        this.currentBearing = targetBearing;
         this.onFrame({
-          lat: finalPos.lat,
-          lng: finalPos.lng,
-          bearing: finalBearing,
+          lat: targetPos.lat,
+          lng: targetPos.lng,
+          bearing: targetBearing,
         });
       }
     };

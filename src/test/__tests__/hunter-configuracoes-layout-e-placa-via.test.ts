@@ -184,15 +184,14 @@ describe("Hunter — Layout Canônico de Configurações, Placa Alinhada à Via 
 
     // Seção de Mapa deve estar bloqueada para motorista
     assert.ok(
-      configCode.includes("{!isMotorista && (") &&
-        configCode.includes("Preferências do Mapa e Filtros"),
+      configCode.includes("!isMotorista") && configCode.includes("Preferências do Mapa e Filtros"),
       "Seção 'Preferências do Mapa e Filtros' deve ser inacessível para motoristas",
     );
 
-    // Modo Privativo deve estar bloqueado para motorista
+    // Modo Privativo desativado permanentemente na central de monitoramento
     assert.ok(
-      configCode.includes("{!isMotorista && (") && configCode.includes("Modo Privativo"),
-      "Opção de Modo Privativo deve ser inacessível para motoristas",
+      !configCode.includes("handleAlternarPrivacidade"),
+      "Modo Privativo deve estar desativado na Central de Monitoramento",
     );
 
     // Sincronizar Odômetro e Alterar Senha devem estar presentes

@@ -113,7 +113,7 @@ describe("Hunter — Restrições do Operador, Privacidade e Manual Modular", ()
     );
   });
 
-  it("3. Veículos com privacidade ativa ocultam situação operacional (em rota, parado, estacionado) de quem não for o cliente titular", () => {
+  it("3. Central de Monitoramento: Todos os veículos são monitorados e exibem situação operacional para operadores e clientes", () => {
     const veiculosComPrivacidade: VeiculoGps[] = [
       {
         id: "v-priv-1",
@@ -129,7 +129,7 @@ describe("Hunter — Restrições do Operador, Privacidade e Manual Modular", ()
         bloqueado: false,
         velocidade: 60,
         status_operacional: "em_rota",
-        privacidade_localizacao: true,
+        privacidade_localizacao: false,
       },
       {
         id: "v-priv-2",
@@ -145,22 +145,21 @@ describe("Hunter — Restrições do Operador, Privacidade e Manual Modular", ()
         bloqueado: false,
         velocidade: 0,
         status_operacional: "estacionado",
-        privacidade_localizacao: true,
+        privacidade_localizacao: false,
       },
     ];
 
-    // Para operador: não pode acessar localização nem situação
+    // Para operador: central de monitoramento 24/7 sempre visualiza localização e situação
     assert.strictEqual(
       podeAcessarLocalizacaoVeiculo(sessaoOperador, veiculosComPrivacidade[0]),
-      false,
+      true,
     );
 
     const agrupadoOperador = agruparVeiculosPorCliente(veiculosComPrivacidade, sessaoOperador);
     assert.strictEqual(agrupadoOperador.length, 1);
     assert.strictEqual(agrupadoOperador[0].veiculos.length, 2);
-    // Situação operacional não deve ser computada para operadores
-    assert.strictEqual(agrupadoOperador[0].totalEmRota, 0);
-    assert.strictEqual(agrupadoOperador[0].totalEstacionados, 0);
+    assert.strictEqual(agrupadoOperador[0].totalEmRota, 1);
+    assert.strictEqual(agrupadoOperador[0].totalEstacionados, 1);
 
     // Para o cliente titular: pode acessar
     assert.strictEqual(

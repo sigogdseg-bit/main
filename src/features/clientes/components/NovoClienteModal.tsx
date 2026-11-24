@@ -121,9 +121,7 @@ export function NovoClienteModal({ clienteEdicao, onFechar, onSucesso }: NovoCli
   const [valorMensalidade, setValorMensalidade] = useState(
     clienteEdicao?.valor_mensalidade || 79.9,
   );
-  const [privacidadeLocalizacao, setPrivacidadeLocalizacao] = useState<boolean>(
-    clienteEdicao?.privacidade_localizacao ?? true,
-  );
+  const [privacidadeLocalizacao, setPrivacidadeLocalizacao] = useState<boolean>(false);
   const [taxaInstalacao, setTaxaInstalacao] = useState<number>(() =>
     clienteEdicao?.taxa_instalacao !== undefined
       ? Number(clienteEdicao.taxa_instalacao)
@@ -309,7 +307,7 @@ export function NovoClienteModal({ clienteEdicao, onFechar, onSucesso }: NovoCli
       );
       setTipoRenovacao(clienteEdicao.tipo_renovacao || "mesma_vigencia");
       setMesesRenovacao(clienteEdicao.meses_renovacao || 12);
-      setPrivacidadeLocalizacao(clienteEdicao.privacidade_localizacao ?? true);
+      setPrivacidadeLocalizacao(false);
       setTemFidelidade(clienteEdicao.tem_fidelidade ?? true);
       setRegraHorimetro(clienteEdicao.regra_horimetro || "pos_chave");
       setCriarUsuario(!clienteEdicao.user_id);
@@ -351,7 +349,7 @@ export function NovoClienteModal({ clienteEdicao, onFechar, onSucesso }: NovoCli
       setDataInicioContrato(new Date().toISOString().split("T")[0]);
       setTipoRenovacao("mesma_vigencia");
       setMesesRenovacao(12);
-      setPrivacidadeLocalizacao(true);
+      setPrivacidadeLocalizacao(false);
       setTemFidelidade(true);
       setRegraHorimetro("pos_chave");
       setHorimetroInicial(0);
@@ -1987,77 +1985,7 @@ export function NovoClienteModal({ clienteEdicao, onFechar, onSucesso }: NovoCli
                 </div>
               </div>
 
-              {/* 6. Modo de Privacidade Canônica do Hunter (Padrão ON) */}
-              <div className="pt-3 border-t border-slate-300/60 dark:border-slate-800">
-                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">
-                      <EyeOff className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                          Privacidade da Localização e Telemetria
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-black border uppercase tracking-wider ${
-                            privacidadeLocalizacao
-                              ? "bg-amber-500 text-slate-950 border-amber-400 shadow-xs"
-                              : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700"
-                          }`}
-                        >
-                          {privacidadeLocalizacao ? "Privacidade ON" : "Privacidade OFF"}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                        Se habilitada, a localização geográfica e a movimentação do veículo ficam
-                        sob sigilo confidencial. No mapa e cockpit, é exibida estritamente a
-                        conectividade e a saúde do rastreador.
-                      </p>
-                      {!isSuperAdmin && clienteEdicao?.privacidade_localizacao && (
-                        <p className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 mt-1.5 flex items-center gap-1">
-                          <Lock className="h-3 w-3 shrink-0" />
-                          Privacidade ativa e protegida por governança de segurança.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="shrink-0 pt-1">
-                    <button
-                      type="button"
-                      disabled={!isSuperAdmin && !!clienteEdicao?.privacidade_localizacao}
-                      onClick={() => {
-                        if (!isSuperAdmin && clienteEdicao?.privacidade_localizacao) {
-                          toast.error("Alteração de privacidade restrita à governança autorizada.");
-                          return;
-                        }
-                        setPrivacidadeLocalizacao(!privacidadeLocalizacao);
-                      }}
-                      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        privacidadeLocalizacao ? "bg-amber-500" : "bg-slate-300 dark:bg-slate-700"
-                      } ${
-                        !isSuperAdmin && clienteEdicao?.privacidade_localizacao
-                          ? "opacity-50 cursor-not-allowed"
-                          : "cursor-pointer"
-                      }`}
-                      title={
-                        !isSuperAdmin && clienteEdicao?.privacidade_localizacao
-                          ? "Alteração restrita à governança autorizada"
-                          : "Alternar modo de privacidade"
-                      }
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                          privacidadeLocalizacao ? "translate-x-5" : "translate-x-0"
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* 7. Gestão Contratual, Vigência e Emissão de Contrato */}
+              {/* 6. Gestão Contratual, Vigência e Emissão de Contrato */}
               <div className="space-y-3 pt-3 border-t border-slate-300/60 dark:border-slate-800">
                 <div className="flex items-center justify-between">
                   <div>

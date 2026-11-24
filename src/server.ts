@@ -125,6 +125,36 @@ function getSupabaseServerParams(env: unknown) {
   return { supabaseUrl, supabaseAnonKey, serviceRoleKey };
 }
 
+async function broadcastEventoRealtime(
+  env: unknown,
+  event: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
+    if (!supabaseUrl || !serviceRoleKey) return;
+    await fetch(`${supabaseUrl}/realtime/v1/api/broadcast`, {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            topic: "hunter_telemetria_changes",
+            event,
+            payload,
+          },
+        ],
+      }),
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
 function getGeminiApiKey(env: unknown): string {
   const envObj = (env || {}) as Record<string, string | undefined>;
   let apiKey =
@@ -1702,7 +1732,7 @@ async function handleApiConvites(request: Request, env: unknown): Promise<Respon
           meses_renovacao: 12,
           foro_comarca: "Volta Redonda/RJ",
           tem_fidelidade: true,
-          privacidade_localizacao: true,
+          privacidade_localizacao: false,
         };
 
         let { data: novoCliente, error: errCliente } = await adminClient
@@ -8981,220 +9011,6 @@ async function handleApiRota(request: Request, _env: unknown): Promise<Response 
   );
 }
 
-/**
- * Proxy Seguro de Map Matching (Snap-to-Road) Mapbox API
- * Interpola coordenadas do veículo ao longo da malha viária real com timeout de 1200ms
- * e trava de sanidade de 45m para descarte de desvios anômalos.
- */
-function getMapboxAccessToken(env: unknown): string {
-  const envObj = (env || {}) as Record<string, string | undefined>;
-  let token =
-    envObj.MAPBOX_ACCESS_TOKEN ||
-    envObj.VITE_MAPBOX_ACCESS_TOKEN ||
-    (typeof process !== "undefined" ? process.env?.MAPBOX_ACCESS_TOKEN : undefined) ||
-    (typeof process !== "undefined" ? process.env?.VITE_MAPBOX_ACCESS_TOKEN : undefined) ||
-    "";
-
-  if (!token && typeof process !== "undefined") {
-    try {
-      const fs = (globalThis as any).process?.getBuiltinModule?.("fs");
-      if (fs) {
-        const cwd = process.cwd();
-        for (const file of [".env.local", ".env.production", ".dev.vars"]) {
-          const p = `${cwd}/${file}`;
-          if (fs.existsSync(p)) {
-            const raw = fs.readFileSync(p, "utf-8");
-            for (const line of raw.split("\n")) {
-              const [k, ...v] = line.split("=");
-              if (k && v.length) {
-                const trimmedK = k.trim();
-                const trimmedV = v.join("=").trim();
-                if (
-                  (trimmedK === "MAPBOX_ACCESS_TOKEN" || trimmedK === "VITE_MAPBOX_ACCESS_TOKEN") &&
-                  !token
-                ) {
-                  token = trimmedV;
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-
-  return token;
-}
-
-function calcularDistanciaMetrosHaversine(
-  a: { lat: number; lng: number },
-  b: { lat: number; lng: number },
-): number {
-  const R = 6371000;
-  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
-  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
-  const sinLat = Math.sin(dLat / 2);
-  const sinLng = Math.sin(dLng / 2);
-  const h =
-    sinLat * sinLat +
-    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * sinLng * sinLng;
-  return 2 * R * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
-}
-
-export async function handleApiSnapRoad(request: Request, env: unknown): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (url.pathname !== "/api/mapa/snap-road") {
-    return null;
-  }
-
-  if (request.method !== "POST") {
-    return new Response(JSON.stringify({ ok: false, motivo: "metodo_invalido", vertices: [] }), {
-      status: 405,
-      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-    });
-  }
-
-  const token = getMapboxAccessToken(env);
-  if (!token) {
-    return new Response(JSON.stringify({ ok: false, motivo: "token_ausente", vertices: [] }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-    });
-  }
-
-  let body: any;
-  try {
-    body = await request.json();
-  } catch {
-    return new Response(JSON.stringify({ ok: false, motivo: "payload_invalido", vertices: [] }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-    });
-  }
-
-  const pontos = body?.pontos;
-  if (!Array.isArray(pontos) || pontos.length < 2) {
-    return new Response(
-      JSON.stringify({ ok: false, motivo: "pontos_insuficientes", vertices: [] }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-      },
-    );
-  }
-
-  // Limita entre 2 e 5 pontos mais recentes
-  const pontosProcessar = pontos.slice(-5);
-  for (const p of pontosProcessar) {
-    if (typeof p?.lat !== "number" || isNaN(p.lat) || typeof p?.lng !== "number" || isNaN(p.lng)) {
-      return new Response(
-        JSON.stringify({ ok: false, motivo: "coordenadas_invalidas", vertices: [] }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-        },
-      );
-    }
-  }
-
-  const coordsParam = pontosProcessar.map((p) => `${p.lng},${p.lat}`).join(";");
-  const radiusesParam = pontosProcessar.map(() => "25").join(";");
-  const urlMapbox = `https://api.mapbox.com/matching/v5/mapbox/driving/${coordsParam}?geometries=geojson&overview=full&steps=false&radiuses=${radiusesParam}&access_token=${token}`;
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1200);
-
-    const res = await fetch(urlMapbox, {
-      signal: controller.signal,
-      headers: {
-        Accept: "application/json",
-        "User-Agent": "GDRastreamento-Vehicle-Telemetry/1.8",
-      },
-    });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      return new Response(JSON.stringify({ ok: false, vertices: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-      });
-    }
-
-    const data = (await res.json()) as any;
-    if (
-      !data ||
-      data.code !== "Ok" ||
-      !Array.isArray(data.matchings) ||
-      data.matchings.length === 0
-    ) {
-      return new Response(JSON.stringify({ ok: false, vertices: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-      });
-    }
-
-    const matching = data.matchings[0];
-    const allCoords = matching.geometry?.coordinates as Array<[number, number]>;
-    if (!Array.isArray(allCoords) || allCoords.length < 2) {
-      return new Response(JSON.stringify({ ok: false, vertices: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-      });
-    }
-
-    // Extrai apenas os vértices do último segmento percorrido (do penúltimo ponto até o ponto mais recente)
-    const n = pontosProcessar.length;
-    const penultimoPonto = pontosProcessar[n - 2];
-    const ultimoPonto = pontosProcessar[n - 1];
-
-    let startIdx = 0;
-    if (n > 2) {
-      let menorDist = Infinity;
-      let melhorIdx = 0;
-      for (let i = 0; i < allCoords.length; i++) {
-        const [lng, lat] = allCoords[i];
-        const dist = calcularDistanciaMetrosHaversine({ lat, lng }, penultimoPonto);
-        if (dist < menorDist) {
-          menorDist = dist;
-          melhorIdx = i;
-        }
-      }
-      startIdx = Math.min(melhorIdx, Math.max(0, allCoords.length - 2));
-    }
-
-    const segmentCoords = allCoords.slice(startIdx);
-    const vertices = segmentCoords.map(([lng, lat]) => ({ lat, lng }));
-
-    // Trava de sanidade: se o snap deslocar o ponto final em mais de 45 metros do GPS bruto, descarte
-    const pFinalSnap = vertices[vertices.length - 1];
-    const desvioFinal = calcularDistanciaMetrosHaversine(ultimoPonto, pFinalSnap);
-
-    if (desvioFinal > 45) {
-      return new Response(JSON.stringify({ ok: false, motivo: "desvio_excessivo", vertices: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-      });
-    }
-
-    return new Response(JSON.stringify({ ok: true, vertices }), {
-      status: 200,
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-        ...SECURITY_HEADERS,
-      },
-    });
-  } catch {
-    return new Response(JSON.stringify({ ok: false, vertices: [] }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
-    });
-  }
-}
-
 async function handleStaticPwaAssets(request: Request): Promise<Response | null> {
   const url = new URL(request.url);
 
@@ -11600,6 +11416,20 @@ async function handleApiGateway(request: Request, env: unknown): Promise<Respons
             ultimaRespostaJson = data;
             // Se o comando foi despachado para o socket ativo ou obteve resposta direta do hardware
             if (data && (data.enviado || data.resposta)) {
+              if (body?.veiculoId || body?.veiculo_id) {
+                const vid = body.veiculoId || body.veiculo_id;
+                const cmd = String(body.comando || "");
+                const isBloq = ehComandoBloqueio(cmd);
+                const isDesb = ehComandoDesbloqueio(cmd);
+                if (isBloq || isDesb) {
+                  void broadcastEventoRealtime(env, "veiculo_atualizado", {
+                    veiculoId: vid,
+                    bloqueado: isBloq,
+                    rele_status: isBloq,
+                    timestamp: Date.now(),
+                  });
+                }
+              }
               return new Response(JSON.stringify(data), {
                 status: 200,
                 headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
@@ -12343,12 +12173,6 @@ export default {
     const rotaResponse = await handleApiRota(request, env);
     if (rotaResponse) {
       return rotaResponse;
-    }
-
-    // Intercepta proxy seguro de Map Matching (snap-to-road) Mapbox
-    const snapRoadResponse = await handleApiSnapRoad(request, env);
-    if (snapRoadResponse) {
-      return snapRoadResponse;
     }
 
     // Intercepta rotas de API seguras de gestao de manutencao preventiva
@@ -14278,7 +14102,7 @@ async function handleApiGpsAuditor(request: Request, env: unknown): Promise<Resp
             alerta_acidente: false,
             alerta_tipo: null,
             ativo: true,
-            privacidade_localizacao: true,
+            privacidade_localizacao: false,
             bloqueador_instalado: true,
             tipo_bloqueador: "rele_combustivel",
             bloqueador_detalhes: "Corte eletrônico temporizado de bomba de combustível",
@@ -14324,7 +14148,7 @@ async function handleApiGpsAuditor(request: Request, env: unknown): Promise<Resp
             alerta_acidente: false,
             alerta_tipo: null,
             ativo: true,
-            privacidade_localizacao: true,
+            privacidade_localizacao: false,
             bloqueador_instalado: true,
             tipo_bloqueador: "rele_combustivel",
             bloqueador_detalhes: "Relé auxiliar micro 12V 40A",
@@ -14370,7 +14194,7 @@ async function handleApiGpsAuditor(request: Request, env: unknown): Promise<Resp
             alerta_acidente: false,
             alerta_tipo: null,
             ativo: true,
-            privacidade_localizacao: true,
+            privacidade_localizacao: false,
             bloqueador_instalado: true,
             tipo_bloqueador: "rele_combustivel",
             bloqueador_detalhes: "Corte eletrônico temporizado",

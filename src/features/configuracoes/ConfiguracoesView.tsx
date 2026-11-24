@@ -33,10 +33,8 @@ import {
 import { useGpsRealtime } from "@/features/monitor-gps/hooks/useGpsRealtime";
 import { MudarMinhaSenhaModal } from "@/features/auth/components/MudarMinhaSenhaModal";
 import { AjusteOdometroModal } from "@/features/monitor-gps/components/AjusteOdometroModal";
-import { ModalConfirmarDesligarPrivacidade } from "@/features/monitor-gps/components/ModalConfirmarDesligarPrivacidade";
 import { RelatorioGerencialModal } from "@/features/relatorios/components/RelatorioGerencialModal";
 import { relatorioGerencialConfigService } from "@/features/relatorios/services/relatorioGerencialConfigService";
-import { atualizarPrivacidadeVeiculo } from "@/features/monitor-gps/services/gpsService";
 import { ouvirAtualizacoesAlertasCliente } from "@/features/monitor-gps/services/protecaoVeiculoService";
 import { toast } from "sonner";
 import { Vehicle3DGraphic } from "@/features/monitor-gps/components/Vehicle3DGraphic";
@@ -90,7 +88,6 @@ export function ConfiguracoesView() {
   // Modais State
   const [modalSenhaAberto, setModalSenhaAberto] = useState(false);
   const [modalAjusteOdometroAberto, setModalAjusteOdometroAberto] = useState(false);
-  const [modalConfirmarPrivacidadeAberto, setModalConfirmarPrivacidadeAberto] = useState(false);
   const [modalRelatorioAberto, setModalRelatorioAberto] = useState(false);
   const [modalEnvioWhatsappAberto, setModalEnvioWhatsappAberto] = useState(false);
   const [modalCentralAlertasAberto, setModalCentralAlertasAberto] = useState(false);
@@ -609,43 +606,6 @@ export function ConfiguracoesView() {
     localStorage.setItem("@hunter_filtro_veiculos_ids", JSON.stringify(next));
     window.dispatchEvent(new Event("hunter_filtro_veiculos_alterado"));
     toast.success("Exibindo todos os veículos cadastrados");
-  };
-
-  // Lógica de Privacidade
-  const [salvandoPrivacidade, setSalvandoPrivacidade] = useState(false);
-  const handleAlternarPrivacidade = async () => {
-    if (!veiculoSelecionado) return;
-    const isAtiva = veiculoSelecionado.privacidade_localizacao !== false;
-    if (isAtiva) {
-      setModalConfirmarPrivacidadeAberto(true);
-      return;
-    }
-    await executarAlteracaoPrivacidade(true);
-  };
-
-  const executarAlteracaoPrivacidade = async (novoStatus: boolean) => {
-    if (!veiculoSelecionado) return;
-    setSalvandoPrivacidade(true);
-    const toastId = toast.loading(
-      novoStatus ? "Ativando privacidade..." : "Desmarcando privacidade...",
-    );
-    try {
-      const res = await atualizarPrivacidadeVeiculo(veiculoSelecionado.id, novoStatus);
-      if (res.success) {
-        toast.success(novoStatus ? "Privacidade ativada!" : "Privacidade desmarcada!", {
-          id: toastId,
-        });
-        veiculoSelecionado.privacidade_localizacao = novoStatus;
-      } else {
-        toast.error(`Erro: ${res.error}`, { id: toastId });
-      }
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Erro desconhecido";
-      toast.error(`Erro ao salvar: ${msg}`, { id: toastId });
-    } finally {
-      setSalvandoPrivacidade(false);
-      setModalConfirmarPrivacidadeAberto(false);
-    }
   };
 
   if (!session) return null;
@@ -1383,50 +1343,6 @@ export function ConfiguracoesView() {
                         Calibrar KM do painel físico
                       </span>
                     </button>
-
-                    {/* 2. Modo Privativo: Apenas Clientes e Gestores (Inacessível para Motoristas) */}
-                    {!isMotorista && (
-                      <button
-                        type="button"
-                        onClick={handleAlternarPrivacidade}
-                        disabled={salvandoPrivacidade}
-                        className={`flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border transition group cursor-pointer ${
-                          veiculoSelecionado?.privacidade_localizacao !== false
-                            ? isNeumorph
-                              ? "bg-amber-500/15 dark:bg-amber-950/40 border-amber-400/60 dark:border-amber-500/40 text-amber-900 dark:text-amber-300 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none"
-                              : "bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20"
-                            : isNeumorph
-                              ? "bg-[#eaf0f8] dark:bg-slate-900 border-slate-300/50 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none hover:shadow-[4px_4px_10px_#c3cfe2] active:shadow-[inset_2px_2px_4px_#c8d4e4]"
-                              : "bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-orange-500/50 hover:text-orange-600"
-                        }`}
-                      >
-                        <div
-                          className={`p-2.5 rounded-xl ${
-                            isNeumorph
-                              ? "bg-[#eaf0f8] dark:bg-slate-800 shadow-[2px_2px_4px_#c3cfe2] dark:shadow-none"
-                              : "bg-amber-500/10"
-                          }`}
-                        >
-                          <EyeOff
-                            className={`h-6 w-6 transition-transform group-hover:scale-110 ${
-                              veiculoSelecionado?.privacidade_localizacao !== false
-                                ? "text-amber-600 dark:text-amber-400"
-                                : "text-orange-600 dark:text-orange-400"
-                            }`}
-                          />
-                        </div>
-                        <span className="text-xs font-bold text-center">
-                          Modo Privativo (
-                          {veiculoSelecionado?.privacidade_localizacao !== false
-                            ? "Ligado"
-                            : "Desligado"}
-                          )
-                        </span>
-                        <span className="text-[10px] opacity-60 text-center">
-                          Ocultar localização em tempo real
-                        </span>
-                      </button>
-                    )}
                   </div>
                 </>
               ) : (
@@ -1922,16 +1838,6 @@ export function ConfiguracoesView() {
               // Força recarregamento imediato sem depender do delay do Realtime
               recarregar();
             }}
-          />
-        )}
-        {!isMotorista && !isInstalador && modalConfirmarPrivacidadeAberto && veiculoSelecionado && (
-          <ModalConfirmarDesligarPrivacidade
-            aberto={modalConfirmarPrivacidadeAberto}
-            placa={veiculoSelecionado.placa}
-            identificador={veiculoSelecionado.marca_modelo}
-            carregando={salvandoPrivacidade}
-            onFechar={() => setModalConfirmarPrivacidadeAberto(false)}
-            onConfirmar={() => executarAlteracaoPrivacidade(false)}
           />
         )}
         {modalEnvioWhatsappAberto && (

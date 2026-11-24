@@ -83,7 +83,6 @@ import {
 } from "../utils/vehicle3dIcons";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { podeAcessarLocalizacaoVeiculo } from "../utils/privacidadeLocalizacao";
-import { PainelSaudePrivacidadeRastreador } from "./PainelSaudePrivacidadeRastreador";
 import { supabase } from "@/integrations/supabase/client";
 import type { PostoVigilancia, TurnoVigilancia } from "@/features/vigilantes/types";
 import { isPropriedadeMonitorada } from "../utils/propriedadeMonitoradaUtils";
@@ -888,248 +887,189 @@ export function VehicleTelemetryDrawer({
                 )}
               </div>
 
-              {!temAcessoLocalizacao ? (
-                <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-mono mt-0.5">
-                  <EyeOff className="h-3.5 w-3.5 shrink-0" />
-                  <span className="font-bold">Modo de Privacidade Ativo</span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 hidden sm:inline">
-                    · Localização confidencial
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-[11px] font-mono mt-0.5">
-                  <span className="text-orange-600 dark:text-orange-400 font-black shrink-0">
-                    {veiculo.velocidade || 0} km/h
-                  </span>
+              <div className="flex items-center gap-2 text-[11px] font-mono mt-0.5">
+                <span className="text-orange-600 dark:text-orange-400 font-black shrink-0">
+                  {veiculo.velocidade || 0} km/h
+                </span>
 
-                  {/* Coordenadas e atalhos externos (visíveis a partir de md) */}
-                  <div className="hidden md:flex items-center gap-1.5 text-slate-400">
-                    <span>·</span>
-                    <button
-                      onClick={() => {
-                        copiarCoordenadas();
-                        if (onCentralizarVeiculo) onCentralizarVeiculo(veiculo);
-                      }}
-                      className="hover:text-orange-500 transition py-0.5 flex items-center gap-1 font-mono text-[11px]"
-                      title="Centralizar no mapa e copiar coordenadas"
-                    >
-                      <LocateFixed className="h-3 w-3 text-orange-500" />
-                      <span>
-                        {copiado
-                          ? "Copiado!"
-                          : `${veiculo.latitude.toFixed(4)}, ${veiculo.longitude.toFixed(4)}`}
-                      </span>
-                    </button>
-                    <span>·</span>
-                    <a
-                      href={`https://www.google.com/maps?q=${veiculo.latitude},${veiculo.longitude}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sky-500 hover:underline"
-                    >
-                      Maps
-                    </a>
-                    <span>·</span>
-                    <a
-                      href={`https://waze.com/ul?ll=${veiculo.latitude},${veiculo.longitude}&navigate=yes`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-orange-500 hover:underline"
-                    >
-                      Waze
-                    </a>
-                  </div>
+                {/* Coordenadas e atalhos externos (visíveis a partir de md) */}
+                <div className="hidden md:flex items-center gap-1.5 text-slate-400">
+                  <span>·</span>
+                  <button
+                    onClick={() => {
+                      copiarCoordenadas();
+                      if (onCentralizarVeiculo) onCentralizarVeiculo(veiculo);
+                    }}
+                    className="hover:text-orange-500 transition py-0.5 flex items-center gap-1 font-mono text-[11px]"
+                    title="Centralizar no mapa e copiar coordenadas"
+                  >
+                    <LocateFixed className="h-3 w-3 text-orange-500" />
+                    <span>
+                      {copiado
+                        ? "Copiado!"
+                        : `${veiculo.latitude.toFixed(4)}, ${veiculo.longitude.toFixed(4)}`}
+                    </span>
+                  </button>
+                  <span>·</span>
+                  <a
+                    href={`https://www.google.com/maps?q=${veiculo.latitude},${veiculo.longitude}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-sky-500 hover:underline"
+                  >
+                    Maps
+                  </a>
+                  <span>·</span>
+                  <a
+                    href={`https://waze.com/ul?ll=${veiculo.latitude},${veiculo.longitude}&navigate=yes`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-orange-500 hover:underline"
+                  >
+                    Waze
+                  </a>
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
           {/* Lado Direito: Ações Principais Objetivas + Menu de Módulos */}
           <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 relative">
-            {!temAcessoLocalizacao ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleTestarComunicacao}
-                  disabled={testandoCom}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
-                  title="Testar sinal e latência do rastreador"
-                >
-                  <Radio className="h-3.5 w-3.5" />
-                  <span>
-                    {testandoCom
-                      ? "Testando..."
-                      : ultimoPing !== null
-                        ? `${ultimoPing}ms`
-                        : "Testar Sinal"}
-                  </span>
-                </button>
+            {/* 1. Botão Direto para o Cockpit / Monitor 3D (Desktop / Tablet) */}
+            <button
+              onClick={onToggleRecolhido}
+              className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 shadow-md shadow-orange-500/20 hover:from-orange-400 hover:to-amber-400 transition active:scale-95 cursor-pointer shrink-0"
+              title={
+                isPropriedade
+                  ? "Abrir tela exclusiva de Monitor 3D e Telemetria de Segurança"
+                  : "Abrir tela exclusiva de Cockpit 3D e Telemetria"
+              }
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>{isPropriedade ? "Monitor 3D" : "Cockpit 3D"}</span>
+            </button>
 
-                <button
-                  type="button"
-                  onClick={() => setModalSaudeAberto(true)}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer"
-                  title="Saúde do Rastreador"
-                >
-                  <HeartPulse className="h-3.5 w-3.5 text-orange-500" />
-                  <span className="hidden sm:inline">Saúde</span>
-                </button>
+            {/* 2. Botão Rápido: Refazer Trajeto / Checkpoints */}
+            <button
+              onClick={() => onAbrirPlayback(veiculo)}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition hover:bg-orange-500/25 flex items-center gap-1 active:scale-95 cursor-pointer"
+              title={
+                isPropriedade
+                  ? "Planejamento de Rota de Ronda e Checkpoints"
+                  : "Refazer Trajeto do Dia"
+              }
+            >
+              <Play className="h-4 w-4 fill-current" />
+              <span className="hidden sm:inline">{isPropriedade ? "Checkpoints" : "Trajeto"}</span>
+            </button>
 
-                <button
-                  type="button"
-                  onClick={onToggleRecolhido}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30 transition hover:bg-amber-500/25 cursor-pointer"
-                  title="Abrir diagnóstico do rastreador"
-                >
-                  <ChevronUp className="h-3.5 w-3.5" />
-                  <span className="hidden md:inline">Diagnóstico</span>
-                </button>
-              </>
-            ) : (
-              <>
-                {/* 1. Botão Direto para o Cockpit / Monitor 3D (Desktop / Tablet) */}
-                <button
-                  onClick={onToggleRecolhido}
-                  className="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-orange-500 to-amber-500 text-slate-950 shadow-md shadow-orange-500/20 hover:from-orange-400 hover:to-amber-400 transition active:scale-95 cursor-pointer shrink-0"
-                  title={
-                    isPropriedade
-                      ? "Abrir tela exclusiva de Monitor 3D e Telemetria de Segurança"
-                      : "Abrir tela exclusiva de Cockpit 3D e Telemetria"
+            {/* 3. Botão Crítico: Modo Segurança (Cadeado Digital Anti-Furto) - Apenas veículos */}
+            {!isPropriedade && (
+              <button
+                onClick={() => {
+                  if (!temBloqueador) {
+                    toast.error(
+                      `O veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)} não possui bloqueador instalado. Operação de bloqueio indisponível por segurança.`,
+                    );
+                    return;
                   }
-                >
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>{isPropriedade ? "Monitor 3D" : "Cockpit 3D"}</span>
-                </button>
-
-                {/* 2. Botão Rápido: Refazer Trajeto / Checkpoints */}
-                <button
-                  onClick={() => onAbrirPlayback(veiculo)}
-                  className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition hover:bg-orange-500/25 flex items-center gap-1 active:scale-95 cursor-pointer"
-                  title={
-                    isPropriedade
-                      ? "Planejamento de Rota de Ronda e Checkpoints"
-                      : "Refazer Trajeto do Dia"
+                  if (session?.isAuditor || session?.isSuperAdminAuditor || session?.isReadOnly) {
+                    toast.error(
+                      "Ação bloqueada: Perfil S.adm Auditor possui acesso 100% READ-ONLY. Não pode realizar bloqueio.",
+                    );
+                    return;
                   }
-                >
-                  <Play className="h-4 w-4 fill-current" />
-                  <span className="hidden sm:inline">
-                    {isPropriedade ? "Checkpoints" : "Trajeto"}
-                  </span>
-                </button>
-
-                {/* 3. Botão Crítico: Modo Segurança (Cadeado Digital Anti-Furto) - Apenas veículos */}
-                {!isPropriedade && (
-                  <button
-                    onClick={() => {
-                      if (!temBloqueador) {
-                        toast.error(
-                          `O veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)} não possui bloqueador instalado. Operação de bloqueio indisponível por segurança.`,
-                        );
-                        return;
-                      }
-                      if (
-                        session?.isAuditor ||
-                        session?.isSuperAdminAuditor ||
-                        session?.isReadOnly
-                      ) {
-                        toast.error(
-                          "Ação bloqueada: Perfil S.adm Auditor possui acesso 100% READ-ONLY. Não pode realizar bloqueio.",
-                        );
-                        return;
-                      }
-                      if (isBloqueado) {
-                        if (
-                          window.confirm(
-                            `Confirma desativar o Modo Segurança e liberar a partida do veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}?`,
-                          )
-                        ) {
-                          onBloquearToggle(veiculo.id, false);
-                        }
-                      } else {
-                        setModalBloqueioSeguroAberto(true);
-                      }
-                    }}
-                    disabled={!temBloqueador}
-                    className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 flex items-center gap-1.5 ${
-                      !temBloqueador
-                        ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50"
-                        : isBloqueado
-                          ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40 hover:bg-rose-500/30 animate-pulse cursor-pointer"
-                          : "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/25 cursor-pointer"
-                    }`}
-                    title={
-                      !temBloqueador
-                        ? "Veículo sem bloqueador instalado: operação indisponível por segurança"
-                        : isBloqueado
-                          ? "Modo Segurança Armado: Partida Bloqueada (Clique para Desativar)"
-                          : "Armar Modo de Segurança com Protocolo de Cautela e Parada"
+                  if (isBloqueado) {
+                    if (
+                      window.confirm(
+                        `Confirma desativar o Modo Segurança e liberar a partida do veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}?`,
+                      )
+                    ) {
+                      onBloquearToggle(veiculo.id, false);
                     }
-                  >
-                    <Lock
-                      className={`h-4 w-4 ${
-                        !temBloqueador
-                          ? "text-slate-400"
-                          : isBloqueado
-                            ? "text-rose-500"
-                            : "text-orange-500"
-                      }`}
-                    />
-                    <span className="hidden sm:inline">
-                      {!temBloqueador
-                        ? "Sem Bloqueador"
-                        : isBloqueado
-                          ? "Cadeado Ativo"
-                          : "Modo Segurança"}
-                    </span>
-                  </button>
-                )}
-
-                {/* 3.1 Compartilhamento com Contagem de Links Ativos */}
-                <button
-                  onClick={() => setModalCompartilharAberto(true)}
-                  className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 cursor-pointer flex items-center gap-1 ${
-                    linksCompartilhamentoAtivos > 0
-                      ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/25"
-                      : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
-                  }`}
-                  title={
-                    linksCompartilhamentoAtivos > 0
-                      ? `${linksCompartilhamentoAtivos} link(s) de compartilhamento ativo(s)`
-                      : "Compartilhar localização do veículo"
+                  } else {
+                    setModalBloqueioSeguroAberto(true);
                   }
-                >
-                  <Share2
-                    className={`h-4 w-4 ${linksCompartilhamentoAtivos > 0 ? "text-sky-500" : "text-slate-400"}`}
-                  />
-                  <span className="hidden md:inline">Links</span>
-                  <span
-                    className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-                      linksCompartilhamentoAtivos > 0
-                        ? "bg-sky-500 text-white shadow-xs"
-                        : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                    }`}
-                  >
-                    {linksCompartilhamentoAtivos}
-                  </span>
-                </button>
-
-                {/* 4. Menu Suspenso de Ações e Módulos */}
-                <div className="relative">
-                  <button
-                    ref={btnAcoesRef}
-                    onClick={() => setMenuAcoesAberto(!menuAcoesAberto)}
-                    className="flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer"
-                    title="Abrir módulos e recursos do veículo"
-                  >
-                    <SlidersHorizontal className="h-4 w-4 text-orange-500" />
-                    <span className="hidden md:inline">Ações</span>
-                    <ChevronUp className="h-3 w-3 text-slate-400" />
-                  </button>
-
-                  {menuAcoesAberto && renderMenuAcoes("top")}
-                </div>
-              </>
+                }}
+                disabled={!temBloqueador}
+                className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 flex items-center gap-1.5 ${
+                  !temBloqueador
+                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50"
+                    : isBloqueado
+                      ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40 hover:bg-rose-500/30 animate-pulse cursor-pointer"
+                      : "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/25 cursor-pointer"
+                }`}
+                title={
+                  !temBloqueador
+                    ? "Veículo sem bloqueador instalado: operação indisponível por segurança"
+                    : isBloqueado
+                      ? "Modo Segurança Armado: Partida Bloqueada (Clique para Desativar)"
+                      : "Armar Modo de Segurança com Protocolo de Cautela e Parada"
+                }
+              >
+                <Lock
+                  className={`h-4 w-4 ${
+                    !temBloqueador
+                      ? "text-slate-400"
+                      : isBloqueado
+                        ? "text-rose-500"
+                        : "text-orange-500"
+                  }`}
+                />
+                <span className="hidden sm:inline">
+                  {!temBloqueador
+                    ? "Sem Bloqueador"
+                    : isBloqueado
+                      ? "Cadeado Ativo"
+                      : "Modo Segurança"}
+                </span>
+              </button>
             )}
+
+            {/* 3.1 Compartilhamento com Contagem de Links Ativos */}
+            <button
+              onClick={() => setModalCompartilharAberto(true)}
+              className={`p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold border transition active:scale-95 cursor-pointer flex items-center gap-1 ${
+                linksCompartilhamentoAtivos > 0
+                  ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/25"
+                  : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
+              }`}
+              title={
+                linksCompartilhamentoAtivos > 0
+                  ? `${linksCompartilhamentoAtivos} link(s) de compartilhamento ativo(s)`
+                  : "Compartilhar localização do veículo"
+              }
+            >
+              <Share2
+                className={`h-4 w-4 ${linksCompartilhamentoAtivos > 0 ? "text-sky-500" : "text-slate-400"}`}
+              />
+              <span className="hidden md:inline">Links</span>
+              <span
+                className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                  linksCompartilhamentoAtivos > 0
+                    ? "bg-sky-500 text-white shadow-xs"
+                    : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                }`}
+              >
+                {linksCompartilhamentoAtivos}
+              </span>
+            </button>
+
+            {/* 4. Menu Suspenso de Ações e Módulos */}
+            <div className="relative">
+              <button
+                ref={btnAcoesRef}
+                onClick={() => setMenuAcoesAberto(!menuAcoesAberto)}
+                className="flex items-center gap-1 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer"
+                title="Abrir módulos e recursos do veículo"
+              >
+                <SlidersHorizontal className="h-4 w-4 text-orange-500" />
+                <span className="hidden md:inline">Ações</span>
+                <ChevronUp className="h-3 w-3 text-slate-400" />
+              </button>
+
+              {menuAcoesAberto && renderMenuAcoes("top")}
+            </div>
 
             {/* 5. Fechar Seleção e Limpar Mapa */}
             {onDeselecionarVeiculo && (
@@ -1362,213 +1302,169 @@ export function VehicleTelemetryDrawer({
                 </span>
               )}
             </div>
-            {!temAcessoLocalizacao ? (
-              <div className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-mono mt-0.5">
-                <EyeOff className="h-3.5 w-3.5 shrink-0" />
-                <span className="font-bold">Modo de Privacidade Ativo</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5 flex-wrap">
-                {isPropriedade ? (
-                  <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                    Posto Georreferenciado
+            <div className="flex items-center gap-2 text-xs text-slate-400 font-mono mt-0.5 flex-wrap">
+              {isPropriedade ? (
+                <span className="text-emerald-600 dark:text-emerald-400 font-bold">
+                  Posto Georreferenciado
+                </span>
+              ) : (
+                <>
+                  <span className="text-orange-600 dark:text-orange-400 font-bold">
+                    {veiculo.velocidade || 0} km/h
                   </span>
-                ) : (
-                  <>
-                    <span className="text-orange-600 dark:text-orange-400 font-bold">
-                      {veiculo.velocidade || 0} km/h
+                  <span>·</span>
+                  <span>{veiculo.ignicao ? "Ignição Ligada" : "Ignição Desligada"}</span>
+                </>
+              )}
+              {veiculo.latitude && veiculo.longitude && (
+                <>
+                  <span>·</span>
+                  <button
+                    type="button"
+                    onClick={copiarCoordenadas}
+                    className="hover:text-orange-500 transition cursor-pointer flex items-center gap-0.5"
+                    title="Clique para copiar coordenadas exatas"
+                  >
+                    <LocateFixed className="h-3 w-3 text-orange-500" />
+                    <span>
+                      {veiculo.latitude.toFixed(4)}, {veiculo.longitude.toFixed(4)}
                     </span>
-                    <span>·</span>
-                    <span>{veiculo.ignicao ? "Ignição Ligada" : "Ignição Desligada"}</span>
-                  </>
-                )}
-                {veiculo.latitude && veiculo.longitude && (
-                  <>
-                    <span>·</span>
-                    <button
-                      type="button"
-                      onClick={copiarCoordenadas}
-                      className="hover:text-orange-500 transition cursor-pointer flex items-center gap-0.5"
-                      title="Clique para copiar coordenadas exatas"
-                    >
-                      <LocateFixed className="h-3 w-3 text-orange-500" />
-                      <span>
-                        {veiculo.latitude.toFixed(4)}, {veiculo.longitude.toFixed(4)}
-                      </span>
-                    </button>
-                    <span>·</span>
-                    <a
-                      href={`https://www.google.com/maps?q=${veiculo.latitude},${veiculo.longitude}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-sky-400 text-sky-500 font-medium transition"
-                      title="Abrir no Google Maps"
-                    >
-                      Maps
-                    </a>
-                    <span>·</span>
-                    <a
-                      href={`https://waze.com/ul?ll=${veiculo.latitude},${veiculo.longitude}&navigate=yes`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="hover:text-sky-400 text-sky-500 font-medium transition"
-                      title="Abrir no Waze"
-                    >
-                      Waze
-                    </a>
-                  </>
-                )}
-              </div>
-            )}
+                  </button>
+                  <span>·</span>
+                  <a
+                    href={`https://www.google.com/maps?q=${veiculo.latitude},${veiculo.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-sky-400 text-sky-500 font-medium transition"
+                    title="Abrir no Google Maps"
+                  >
+                    Maps
+                  </a>
+                  <span>·</span>
+                  <a
+                    href={`https://waze.com/ul?ll=${veiculo.latitude},${veiculo.longitude}&navigate=yes`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-sky-400 text-sky-500 font-medium transition"
+                    title="Abrir no Waze"
+                  >
+                    Waze
+                  </a>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Lado Direito: Ações Rápidas do Cockpit */}
         <div className="flex items-center gap-2 w-full md:w-auto justify-end relative">
-          {!temAcessoLocalizacao ? (
-            <>
-              <button
-                type="button"
-                onClick={handleTestarComunicacao}
-                disabled={testandoCom}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white shadow-xs transition active:scale-95 cursor-pointer disabled:opacity-50"
-                title="Testar sinal e latência do rastreador"
-              >
-                <Radio className="h-4 w-4" />
-                <span>
-                  {testandoCom
-                    ? "Testando..."
-                    : ultimoPing !== null
-                      ? `Latência: ${ultimoPing}ms`
-                      : "Testar Sinal e Latência"}
-                </span>
-              </button>
+          <button
+            onClick={() => onAbrirPlayback(veiculo)}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-orange-500/15 hover:bg-orange-500/25 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition active:scale-95 cursor-pointer"
+            title="Refazer Trajeto"
+          >
+            <Play className="h-4 w-4 fill-current" />
+            <span className="hidden sm:inline">Refazer Trajeto</span>
+          </button>
 
-              <button
-                type="button"
-                onClick={() => setModalSaudeAberto(true)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer"
-                title="Saúde do Rastreador"
-              >
-                <HeartPulse className="h-4 w-4 text-orange-500" />
-                <span>Saúde do Rastreador</span>
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => onAbrirPlayback(veiculo)}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-orange-500/15 hover:bg-orange-500/25 text-orange-600 dark:text-orange-400 border border-orange-500/30 transition active:scale-95 cursor-pointer"
-                title="Refazer Trajeto"
-              >
-                <Play className="h-4 w-4 fill-current" />
-                <span className="hidden sm:inline">Refazer Trajeto</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  if (!temBloqueador) {
-                    toast.error(
-                      `O veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)} não possui bloqueador instalado. Operação de bloqueio indisponível por segurança.`,
-                    );
-                    return;
-                  }
-                  if (session?.isAuditor || session?.isSuperAdminAuditor || session?.isReadOnly) {
-                    toast.error(
-                      "Ação bloqueada: Perfil S.adm Auditor possui acesso 100% READ-ONLY. Não pode realizar bloqueio.",
-                    );
-                    return;
-                  }
-                  if (isBloqueado) {
-                    if (
-                      window.confirm(
-                        `Confirma desativar o Modo Segurança e liberar a partida do veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}?`,
-                      )
-                    ) {
-                      onBloquearToggle(veiculo.id, false);
-                    }
-                  } else {
-                    setModalBloqueioSeguroAberto(true);
-                  }
-                }}
-                disabled={!temBloqueador}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition active:scale-95 ${
-                  !temBloqueador
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50"
-                    : isBloqueado
-                      ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40 hover:bg-rose-500/30 animate-pulse cursor-pointer"
-                      : "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/25 cursor-pointer"
-                }`}
-                title={
-                  !temBloqueador
-                    ? "Veículo sem bloqueador instalado: operação indisponível por segurança"
-                    : isBloqueado
-                      ? "Modo Segurança Armado: Partida Bloqueada (Clique para Desativar)"
-                      : "Armar Modo de Segurança com Protocolo de Cautela e Parada"
+          <button
+            onClick={() => {
+              if (!temBloqueador) {
+                toast.error(
+                  `O veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)} não possui bloqueador instalado. Operação de bloqueio indisponível por segurança.`,
+                );
+                return;
+              }
+              if (session?.isAuditor || session?.isSuperAdminAuditor || session?.isReadOnly) {
+                toast.error(
+                  "Ação bloqueada: Perfil S.adm Auditor possui acesso 100% READ-ONLY. Não pode realizar bloqueio.",
+                );
+                return;
+              }
+              if (isBloqueado) {
+                if (
+                  window.confirm(
+                    `Confirma desativar o Modo Segurança e liberar a partida do veículo ${formatarPlacaOuChassi(veiculo.placa, veiculo.chassi)}?`,
+                  )
+                ) {
+                  onBloquearToggle(veiculo.id, false);
                 }
-              >
-                <Lock
-                  className={`h-4 w-4 ${
-                    !temBloqueador
-                      ? "text-slate-400"
-                      : isBloqueado
-                        ? "text-rose-500"
-                        : "text-orange-500"
-                  }`}
-                />
-                <span>
-                  {!temBloqueador
-                    ? "Sem Bloqueador"
-                    : isBloqueado
-                      ? "Cadeado Ativo"
-                      : "Modo Segurança"}
-                </span>
-              </button>
+              } else {
+                setModalBloqueioSeguroAberto(true);
+              }
+            }}
+            disabled={!temBloqueador}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition active:scale-95 ${
+              !temBloqueador
+                ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 cursor-not-allowed opacity-50"
+                : isBloqueado
+                  ? "bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/40 hover:bg-rose-500/30 animate-pulse cursor-pointer"
+                  : "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/25 cursor-pointer"
+            }`}
+            title={
+              !temBloqueador
+                ? "Veículo sem bloqueador instalado: operação indisponível por segurança"
+                : isBloqueado
+                  ? "Modo Segurança Armado: Partida Bloqueada (Clique para Desativar)"
+                  : "Armar Modo de Segurança com Protocolo de Cautela e Parada"
+            }
+          >
+            <Lock
+              className={`h-4 w-4 ${
+                !temBloqueador
+                  ? "text-slate-400"
+                  : isBloqueado
+                    ? "text-rose-500"
+                    : "text-orange-500"
+              }`}
+            />
+            <span>
+              {!temBloqueador ? "Sem Bloqueador" : isBloqueado ? "Cadeado Ativo" : "Modo Segurança"}
+            </span>
+          </button>
 
-              {/* Botão de Compartilhamento com Contagem de Links Ativos no Cockpit 3D */}
-              <button
-                onClick={() => setModalCompartilharAberto(true)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition active:scale-95 cursor-pointer ${
-                  linksCompartilhamentoAtivos > 0
-                    ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/25"
-                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
-                }`}
-                title={
-                  linksCompartilhamentoAtivos > 0
-                    ? `${linksCompartilhamentoAtivos} link(s) de compartilhamento ativo(s) em tempo real`
-                    : "Nenhum link ativo. Clique para criar link de compartilhamento"
-                }
-              >
-                <Share2
-                  className={`h-4 w-4 ${linksCompartilhamentoAtivos > 0 ? "text-sky-500" : "text-slate-400"}`}
-                />
-                <span className="hidden sm:inline">Compartilhar</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
-                    linksCompartilhamentoAtivos > 0
-                      ? "bg-sky-500 text-white shadow-xs"
-                      : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
-                  }`}
-                >
-                  {linksCompartilhamentoAtivos}
-                </span>
-              </button>
+          {/* Botão de Compartilhamento com Contagem de Links Ativos no Cockpit 3D */}
+          <button
+            onClick={() => setModalCompartilharAberto(true)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition active:scale-95 cursor-pointer ${
+              linksCompartilhamentoAtivos > 0
+                ? "bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/25"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700"
+            }`}
+            title={
+              linksCompartilhamentoAtivos > 0
+                ? `${linksCompartilhamentoAtivos} link(s) de compartilhamento ativo(s) em tempo real`
+                : "Nenhum link ativo. Clique para criar link de compartilhamento"
+            }
+          >
+            <Share2
+              className={`h-4 w-4 ${linksCompartilhamentoAtivos > 0 ? "text-sky-500" : "text-slate-400"}`}
+            />
+            <span className="hidden sm:inline">Compartilhar</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                linksCompartilhamentoAtivos > 0
+                  ? "bg-sky-500 text-white shadow-xs"
+                  : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+              }`}
+            >
+              {linksCompartilhamentoAtivos}
+            </span>
+          </button>
 
-              <div className="relative">
-                <button
-                  ref={btnAcoesCockpitRef}
-                  onClick={() => setMenuAcoesAberto(!menuAcoesAberto)}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer"
-                >
-                  <SlidersHorizontal className="h-4 w-4 text-orange-500" />
-                  <span>Ações e Módulos</span>
-                  <ChevronDown className="h-3 w-3 text-slate-400" />
-                </button>
+          <div className="relative">
+            <button
+              ref={btnAcoesCockpitRef}
+              onClick={() => setMenuAcoesAberto(!menuAcoesAberto)}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 transition active:scale-95 cursor-pointer"
+            >
+              <SlidersHorizontal className="h-4 w-4 text-orange-500" />
+              <span>Ações e Módulos</span>
+              <ChevronDown className="h-3 w-3 text-slate-400" />
+            </button>
 
-                {menuAcoesAberto && renderMenuAcoes("bottom")}
-              </div>
-            </>
-          )}
+            {menuAcoesAberto && renderMenuAcoes("bottom")}
+          </div>
         </div>
       </div>
 
@@ -1610,59 +1506,53 @@ export function VehicleTelemetryDrawer({
         </div>
       )}
 
-      {/* Modo de Privacidade Ativo vs Cockpit Completo */}
-      {!temAcessoLocalizacao ? (
-        <PainelSaudePrivacidadeRastreador veiculo={veiculo} statusComunicacao={statusComunicacao} />
-      ) : (
-        <>
-          {/* 2. Resumo Diário Consolidado (exclusivo para veículos automotores) */}
-          {!isPropriedade && (
-            <ResumoDiarioCard
-              veiculoId={veiculo.id}
-              onAbrirTimeline={() => setModalTimelineAberto(true)}
-            />
-          )}
-
-          {/* 3. Mostradores 3D Holográficos: Cockpit 3D (Veicular) ou Monitor 3D (Propriedade Monitorada e Pessoal) */}
-          <div className="w-full flex-1">
-            {isPropriedade ? (
-              <MostradoresMonitor3D
-                veiculo={veiculo}
-                podeVerSensores={podeVerSensores}
-                podeVerEletrica={podeVerEletrica}
-                podeVerSatelites={podeVerSatelites}
-                isEquipeTecnica={isEquipeTecnica}
-                isSuperAdmin={isSuperAdmin}
-                onSolicitarUpgrade={onSolicitarUpgrade}
-                getRumoCardeal={getRumoCardeal}
-                statusComunicacao={statusComunicacao}
-                postoVinculado={postoVinculado}
-                turnoAtivo={turnoAtivo}
-              />
-            ) : (
-              <MostradoresCockpit3D
-                veiculo={veiculo}
-                podeVerSensores={podeVerSensores}
-                podeVerEletrica={podeVerEletrica}
-                podeVerSatelites={podeVerSatelites}
-                podeVerTipoBloqueador={podeVerTipoBloqueador}
-                isEquipeTecnica={isEquipeTecnica}
-                isSuperAdmin={isSuperAdmin}
-                onSolicitarUpgrade={onSolicitarUpgrade}
-                getRumoCardeal={getRumoCardeal}
-                statusComunicacao={statusComunicacao}
-                onConsultarOdometroMcu={handleConsultarOdometroMcu}
-                onCalibrarOdometroMcu={handleCalibrarOdometroMcu}
-                consultandoOdometroMcu={consultandoOdometroMcu}
-                calibrandoOdometroMcu={calibrandoOdometroMcu}
-                odometroMcuLocal={odometroMcuLocal}
-                setOdometroMcuLocal={setOdometroMcuLocal}
-                odometroMcuAtualizadoEmLocal={odometroMcuAtualizadoEmLocal}
-              />
-            )}
-          </div>
-        </>
+      {/* Cockpit 3D e Telemetria Completa da Central de Monitoramento */}
+      {/* 2. Resumo Diário Consolidado (exclusivo para veículos automotores) */}
+      {!isPropriedade && (
+        <ResumoDiarioCard
+          veiculoId={veiculo.id}
+          onAbrirTimeline={() => setModalTimelineAberto(true)}
+        />
       )}
+
+      {/* 3. Mostradores 3D Holográficos: Cockpit 3D (Veicular) ou Monitor 3D (Propriedade Monitorada e Pessoal) */}
+      <div className="w-full flex-1">
+        {isPropriedade ? (
+          <MostradoresMonitor3D
+            veiculo={veiculo}
+            podeVerSensores={podeVerSensores}
+            podeVerEletrica={podeVerEletrica}
+            podeVerSatelites={podeVerSatelites}
+            isEquipeTecnica={isEquipeTecnica}
+            isSuperAdmin={isSuperAdmin}
+            onSolicitarUpgrade={onSolicitarUpgrade}
+            getRumoCardeal={getRumoCardeal}
+            statusComunicacao={statusComunicacao}
+            postoVinculado={postoVinculado}
+            turnoAtivo={turnoAtivo}
+          />
+        ) : (
+          <MostradoresCockpit3D
+            veiculo={veiculo}
+            podeVerSensores={podeVerSensores}
+            podeVerEletrica={podeVerEletrica}
+            podeVerSatelites={podeVerSatelites}
+            podeVerTipoBloqueador={podeVerTipoBloqueador}
+            isEquipeTecnica={isEquipeTecnica}
+            isSuperAdmin={isSuperAdmin}
+            onSolicitarUpgrade={onSolicitarUpgrade}
+            getRumoCardeal={getRumoCardeal}
+            statusComunicacao={statusComunicacao}
+            onConsultarOdometroMcu={handleConsultarOdometroMcu}
+            onCalibrarOdometroMcu={handleCalibrarOdometroMcu}
+            consultandoOdometroMcu={consultandoOdometroMcu}
+            calibrandoOdometroMcu={calibrandoOdometroMcu}
+            odometroMcuLocal={odometroMcuLocal}
+            setOdometroMcuLocal={setOdometroMcuLocal}
+            odometroMcuAtualizadoEmLocal={odometroMcuAtualizadoEmLocal}
+          />
+        )}
+      </div>
 
       {/* Modais de Recursos de Proteção Hunter acionados no Cockpit 3D */}
       {renderModais()}

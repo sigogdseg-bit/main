@@ -113,14 +113,14 @@ html.dark .leaflet-container {
   filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(120%) saturate(30%);
 }
 
-/* Animação canônica de flutuação e levitação do Pino 3D Hunter */
+/* Animação canônica de flutuação e levitação do Pino 3D Hunter - NEUTRALIZADA (Pino Rígido e Cravado no Asfalto) */
 @keyframes hunterPinFloat {
   0%,
   100% {
     transform: translateY(0px);
   }
   50% {
-    transform: translateY(-5px);
+    transform: translateY(0px);
   }
 }
 
@@ -131,16 +131,14 @@ html.dark .leaflet-container {
     opacity: 0.55;
   }
   50% {
-    transform: scale(0.76);
-    opacity: 0.22;
+    transform: scale(1);
+    opacity: 0.55;
   }
 }
 
 .hunter-pin-floating {
-  transform: translateY(0px);
-  @media (prefers-reduced-motion: no-preference) {
-    animation: hunterPinFloat 2.6s ease-in-out infinite;
-  }
+  transform: translateY(0px) !important;
+  animation: none !important;
 }
 
 .hunter-pin-shadow {

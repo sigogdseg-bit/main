@@ -61,6 +61,17 @@ function aplicarVersaoNosCincoArquivos(novaVersao) {
   pkg.version = novaVersao;
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n", "utf-8");
 
+  // 1.1 package-lock.json
+  const lockPath = path.join(ROOT_DIR, "package-lock.json");
+  if (fs.existsSync(lockPath)) {
+    const lock = JSON.parse(fs.readFileSync(lockPath, "utf-8"));
+    lock.version = novaVersao;
+    if (lock.packages && lock.packages[""]) {
+      lock.packages[""].version = novaVersao;
+    }
+    fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2) + "\n", "utf-8");
+  }
+
   // 2. vite.config.ts
   const vitePath = path.join(ROOT_DIR, "vite.config.ts");
   let viteContent = fs.readFileSync(vitePath, "utf-8");

@@ -21,8 +21,8 @@ describe("Hunter — Pino 3D Flutuante Reto e Proteção no Local de Origem (DJR
     });
 
     assert.ok(
-      htmlComPlaca.includes("hunter-pin-floating"),
-      "Deve conter a classe de levitação hunter-pin-floating",
+      !htmlComPlaca.includes("hunter-pin-floating"),
+      "Não deve conter a classe hunter-pin-floating para fixação 100% fiel na via sem flutuação",
     );
     assert.ok(
       htmlComPlaca.includes("hunter-3d-pin-standing"),
@@ -49,8 +49,8 @@ describe("Hunter — Pino 3D Flutuante Reto e Proteção no Local de Origem (DJR
       "Não deve renderizar a placa quando mostrarPlaca for false",
     );
     assert.ok(
-      htmlSemPlaca.includes("hunter-pin-floating"),
-      "Pino continua flutuando perfeitamente",
+      !htmlSemPlaca.includes("hunter-pin-floating"),
+      "Pino deve ficar assentado no solo sem oscilação flutuante",
     );
 
     // Quando em rota / em movimento: o pino NÃO flutua (fica assentado no solo com sombra fixa)

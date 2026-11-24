@@ -447,13 +447,13 @@ export function obterCorStatusVeiculo(
   const ignicao = Boolean(veiculo.ignicao);
   const statusOp = veiculo.status_operacional;
 
-  // 2. Em rota / em trânsito (velocidade > 3 km/h ou status em_rota): Verde canônico
-  if (statusOp === "em_rota" || velocidade > 3) {
+  // 2. Em rota / em trânsito (velocidade > 3 km/h ou status em_rota / em_movimento): Verde canônico
+  if (statusOp === "em_rota" || statusOp === "em_movimento" || velocidade > 3) {
     return "#10B981";
   }
 
-  // 3. Parado com motor ligado (ignição ligada e velocidade <= 3): Âmbar canônico
-  if (statusOp === "parado_ligado" || (ignicao && velocidade <= 3)) {
+  // 3. Parado com motor ligado contínuo (status operacional parado_ligado após histerese de 120s): Âmbar canônico
+  if (statusOp === "parado_ligado") {
     return "#F59E0B";
   }
 
@@ -786,7 +786,7 @@ export function getGlossyPinWithVehicleSvg(
   const miniaturaSvg = getMiniaturaVeiculo3D(tipo, corHex);
 
   return `
-    <svg width="100%" height="100%" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="100%" height="100%" viewBox="0 0 64 60.5" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <!-- Gradiente da Face Frontal 3D da Gota -->
         <linearGradient id="${id}-front" x1="32" y1="4" x2="32" y2="60" gradientUnits="userSpaceOnUse">
@@ -835,7 +835,7 @@ export function getGlossyPinWithVehicleSvg(
         C 41.4 5, 49 12.6, 49 22
         C 49 35, 36.5 50, 32 60.5
         Z
-      " fill="${paleta.flancoEscuro}" opacity="0.6" transform="translate(1.8, 1)" />
+      " fill="${paleta.flancoEscuro}" opacity="0.6" transform="translate(1.5, 0)" />
 
       <!-- 3. Corpo Frontal Principal do Pino 3D com Abertura Anular Central -->
       <path fill-rule="evenodd" clip-rule="evenodd" d="
@@ -1167,7 +1167,9 @@ export function gerarMarcador3DHtml(params: {
           exibirPlaca
             ? `
           <div class="mini-placa-mercosul" style="
+            height: 18px;
             margin-bottom: 2px;
+            box-sizing: border-box;
             background: #FFFFFF;
             border: 1.2px solid ${isSelected ? "#2563EB" : "#0F172A"};
             border-radius: 3.5px;
@@ -1182,7 +1184,7 @@ export function gerarMarcador3DHtml(params: {
             <div style="background: #003399; height: 3.5px; width: 100%; display: flex; align-items: center; justify-content: center; padding: 0 4px;">
               <span style="color: #FFFFFF; font-size: 4px; font-weight: 900; line-height: 3.5px; letter-spacing: 0.5px;">BRASIL</span>
             </div>
-            <div style="color: #0F172A; font-size: 10px; font-weight: 900; padding: 0.5px 5.5px; line-height: 12px; letter-spacing: 0.2px;">
+            <div style="color: #0F172A; font-size: 10px; font-weight: 900; padding: 0 5.5px; line-height: 12px; letter-spacing: 0.2px;">
               ${placaFormatada}
             </div>
           </div>
@@ -1190,11 +1192,11 @@ export function gerarMarcador3DHtml(params: {
             : ""
         }
 
-        <!-- 2. Pino 3D Glossy em pé (100% RETO E VERTICAL) com animação suave de levitação apenas quando parado/estacionado -->
-        <div class="hunter-3d-pin-standing ${!isEmRota ? "hunter-pin-floating" : ""}" style="
+        <!-- 2. Pino 3D Glossy em pé (100% RETO E VERTICAL) sem flutuação vertical artificial -->
+        <div class="hunter-3d-pin-standing" style="
           position: relative;
           width: 44px;
-          height: 48px;
+          height: 50px;
           display: flex;
           align-items: center;
           justify-content: center;
@@ -1204,13 +1206,17 @@ export function gerarMarcador3DHtml(params: {
           ${pinSvg}
         </div>
 
-        <!-- 3. Sombra de contato no solo exatamente sob a ponta do pino -->
-        <div class="${!isEmRota ? "hunter-pin-shadow" : "hunter-pin-shadow-fixed"}" style="
+        <!-- 3. Sombra de contato no solo exatamente sob a ponta do pino (fora do fluxo para 0px de erro) -->
+        <div class="hunter-pin-shadow-fixed" style="
+          position: absolute;
+          bottom: 0px;
+          left: 50%;
+          margin-left: -7px;
           width: 14px;
           height: 4px;
           background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 75%);
           border-radius: 50%;
-          margin-top: -2px;
+          pointer-events: none;
           z-index: 5;
         "></div>
       </div>
@@ -1254,7 +1260,9 @@ export function gerarMarcador3DHtml(params: {
         exibirPlaca
           ? `
         <div class="mini-placa-mercosul" style="
+          height: 18px;
           margin-bottom: 2px;
+          box-sizing: border-box;
           background: #FFFFFF;
           border: 1.2px solid ${isSelected ? "#2563EB" : "#0F172A"};
           border-radius: 3.5px;
@@ -1269,7 +1277,7 @@ export function gerarMarcador3DHtml(params: {
           <div style="background: #003399; height: 3.5px; width: 100%; display: flex; align-items: center; justify-content: center; padding: 0 4px;">
             <span style="color: #FFFFFF; font-size: 4px; font-weight: 900; line-height: 3.5px; letter-spacing: 0.5px;">BRASIL</span>
           </div>
-          <div style="color: #0F172A; font-size: 10px; font-weight: 900; padding: 0.5px 5.5px; line-height: 12px; letter-spacing: 0.2px;">
+          <div style="color: #0F172A; font-size: 10px; font-weight: 900; padding: 0 5.5px; line-height: 12px; letter-spacing: 0.2px;">
             ${placaFormatada}
           </div>
         </div>
@@ -1277,11 +1285,11 @@ export function gerarMarcador3DHtml(params: {
           : ""
       }
 
-      <!-- 2. Pino 3D Glossy com Veículo no Interior em pé na via (flutua apenas quando parado/estacionado) -->
-      <div class="hunter-3d-pin-standing ${!isEmRota ? "hunter-pin-floating" : ""} vehicle-3d-symbol" style="
+      <!-- 2. Pino 3D Glossy com Veículo no Interior em pé na via (sem flutuação vertical) -->
+      <div class="hunter-3d-pin-standing vehicle-3d-symbol" style="
         position: relative;
         width: 50px;
-        height: 52px;
+        height: 50px;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1291,13 +1299,17 @@ export function gerarMarcador3DHtml(params: {
         ${vPinSvg}
       </div>
 
-      <!-- 3. Sombra de contato no solo exatamente sob a ponta do pino -->
-      <div class="${!isEmRota ? "hunter-pin-shadow" : "hunter-pin-shadow-fixed"}" style="
+      <!-- 3. Sombra de contato no solo exatamente sob a ponta do pino (fora do fluxo para 0px de erro) -->
+      <div class="hunter-pin-shadow-fixed" style="
+        position: absolute;
+        bottom: 0px;
+        left: 50%;
+        margin-left: -8px;
         width: 16px;
         height: 4px;
         background: radial-gradient(ellipse at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0) 75%);
         border-radius: 50%;
-        margin-top: -2px;
+        pointer-events: none;
         z-index: 5;
       "></div>
     </div>

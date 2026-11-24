@@ -22,8 +22,7 @@ import {
   atualizarRotacaoElementoMarcador,
 } from "../utils/interpolacaoMapaSuave";
 import { clusterizarVeiculos, gerarMarcadorClusterHtml } from "../utils/clusterVeiculos";
-import { VehicleMotionController, haversineMeters } from "../../../services/vehicleMotionEngine";
-import { requisitarSnapToRoad } from "../../../services/mapMatchingService";
+import { VehicleMotionController } from "../../../services/vehicleMotionEngine";
 
 import type { PostoVigilancia } from "@/features/vigilantes/types";
 
@@ -87,10 +86,6 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
     >(new Map());
     const clusterMarkersRef = useRef<Map<string, L.Marker>>(new Map());
     const vehicleMotionControllersRef = useRef<Map<string, VehicleMotionController>>(new Map());
-    const bufferPontosRecentesRef = useRef<
-      Map<string, Array<{ lat: number; lng: number; timestamp?: number }>>
-    >(new Map());
-    const abortSnapControllersRef = useRef<Map<string, AbortController>>(new Map());
     const [zoomAtual, setZoomAtual] = useState(14);
     const controladorMovimentoRef = useRef<ControladorMovimentoSuave>(
       new ControladorMovimentoSuave(),
@@ -540,8 +535,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           return L.divIcon({
             html: iconeHtml,
             className: "custom-hunter-marker",
-            iconSize: mostrarPlaca ? [56, 72] : [50, 54],
-            iconAnchor: mostrarPlaca ? [28, 72] : [25, 54],
+            iconSize: mostrarPlaca ? [56, 70] : [50, 50],
+            iconAnchor: mostrarPlaca ? [28, 70] : [25, 50],
           });
         };
 
@@ -614,79 +609,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           );
           vehicleMotionControllersRef.current.set(v.id, motionCtrl);
         } else {
-          // Mantém buffer dos últimos 4 pontos válidos por veículo
-          let buffer = bufferPontosRecentesRef.current.get(v.id) || [];
-          const novoPonto = {
-            lat: v.latitude,
-            lng: v.longitude,
-            timestamp: v.ultima_atualizacao ? new Date(v.ultima_atualizacao).getTime() : Date.now(),
-          };
-
-          const ultimoPontoBuffer = buffer[buffer.length - 1];
-          const distAoUltimo = ultimoPontoBuffer
-            ? haversineMeters(ultimoPontoBuffer, novoPonto)
-            : 999;
-
-          if (distAoUltimo >= 1.0) {
-            buffer = [...buffer, novoPonto];
-            if (buffer.length > 4) buffer = buffer.slice(-4);
-            bufferPontosRecentesRef.current.set(v.id, buffer);
-          }
-
-          // Regras estritas de disparo de Map Matching (snap-to-road):
-          // 1. Veículo está selecionado/focado na tela
-          const isFocado =
-            veiculoSelecionadoIdRef.current === v.id ||
-            (Boolean(v.placa) && veiculoSelecionadoRef.current?.placa === v.placa) ||
-            (Boolean((v as any).imei) &&
-              (veiculoSelecionadoRef.current as any)?.imei === (v as any).imei);
-
-          // 2. Em deslocamento viário real (velocidade >= 18 km/h para evitar atração indevida em pátios/estacionamentos)
-          const emMovimento = typeof v.velocidade === "number" && v.velocidade >= 18;
-
-          // 3. Zoom >= 14
-          const zoomAtualNum = mapInstanceRef.current?.getZoom() ?? zoomAtual ?? 0;
-          const zoomAdequado = zoomAtualNum >= 14;
-
-          // 4. Ativo é veículo (nunca disparar para dispositivos portáteis/vigilantes a pé)
-          const tipoNorm = String((v as any).tipo_veiculo || (v as any).tipo || "").toLowerCase();
-          const ehVeiculoValido =
-            !tipoNorm.includes("pessoa") &&
-            !tipoNorm.includes("pedestre") &&
-            !tipoNorm.includes("vigilante") &&
-            !tipoNorm.includes("portatil") &&
-            !tipoNorm.includes("propriedade");
-
-          const deveDispararSnap =
-            isFocado && emMovimento && zoomAdequado && ehVeiculoValido && buffer.length >= 2;
-
-          if (deveDispararSnap) {
-            const ctrlAnterior = abortSnapControllersRef.current.get(v.id);
-            if (ctrlAnterior) ctrlAnterior.abort();
-            const abortCtrl = new AbortController();
-            abortSnapControllersRef.current.set(v.id, abortCtrl);
-
-            const pontosSnapshot = [...buffer];
-            requisitarSnapToRoad(pontosSnapshot, abortCtrl.signal)
-              .then((vertices) => {
-                const mc = vehicleMotionControllersRef.current.get(v.id);
-                if (mc) {
-                  mc.updateTarget(
-                    { lat: v.latitude, lng: v.longitude },
-                    v.ultima_atualizacao,
-                    vertices || undefined,
-                  );
-                }
-              })
-              .catch(() => {
-                const mc = vehicleMotionControllersRef.current.get(v.id);
-                if (mc) {
-                  mc.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
-                }
-              });
-          } else {
-            motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
-          }
+          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
         }
       });
 
@@ -700,12 +623,6 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
             mc.destroy();
             vehicleMotionControllersRef.current.delete(id);
           }
-          const snapCtrl = abortSnapControllersRef.current.get(id);
-          if (snapCtrl) {
-            snapCtrl.abort();
-            abortSnapControllersRef.current.delete(id);
-          }
-          bufferPontosRecentesRef.current.delete(id);
         }
       }
 

@@ -287,13 +287,17 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
       const ignicao = !!v.ignicao_status || velocidade > 3;
       const bloqueado = !!v.bloqueado;
 
+      const statusBanco =
+        v.status_operacional === "em_movimento" ? "em_rota" : v.status_operacional;
       let status_operacional: VeiculoGps["status_operacional"] = "estacionado";
       if (bloqueado) {
         status_operacional = "bloqueado";
+      } else if (statusBanco) {
+        status_operacional = statusBanco;
       } else if (velocidade > 3) {
         status_operacional = "em_rota";
       } else if (ignicao) {
-        status_operacional = "parado_ligado";
+        status_operacional = "em_rota";
       }
 
       // Leitura 100% real de bateria de acordo com o manual do rastreador (sem dados inventados)
@@ -315,13 +319,7 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
         cliente_user_id: v.clientes?.user_id || null,
         cliente_nome: v.clientes?.nome_razao_social || "Cliente",
         cliente_plano: v.clientes?.plano || undefined,
-        privacidade_localizacao:
-          v.privacidade_localizacao !== undefined && v.privacidade_localizacao !== null
-            ? !!v.privacidade_localizacao
-            : v.clientes?.privacidade_localizacao !== undefined &&
-                v.clientes?.privacidade_localizacao !== null
-              ? !!v.clientes.privacidade_localizacao
-              : false,
+        privacidade_localizacao: false,
         placa: v.placa,
         chassi: v.chassi || null,
         marca_modelo: v.marca_modelo,
@@ -544,6 +542,21 @@ export async function alternarBloqueioVeiculo(
       .eq("id", veiculoId);
 
     if (error) throw error;
+
+    // Notifica instantaneamente todos os operadores conectados via broadcast leve (zero postgres_changes)
+    try {
+      const canalBroadcast = supabase.channel("hunter_telemetria_changes");
+      void canalBroadcast.send({
+        type: "broadcast",
+        event: "veiculo_atualizado",
+        payload: {
+          veiculoId,
+          bloqueado: bloquear,
+          rele_status: bloquear,
+          timestamp: Date.now(),
+        },
+      });
+    } catch {}
 
     // 2. DISPARO HTTP DIRETO AO GATEWAY TCP (Canal primário de alta confiabilidade)
     // Suporte universal e dinâmico a modelos: J16 4G (DYD/HFYD/RELAY) e G900L (stop123456/resume123456)
@@ -1429,38 +1442,14 @@ export function consolidarJornadaMultiCiclos(
 }
 
 /**
- * Atualiza o status de privacidade de localização de um veículo.
- * Permissão controlada no frontend (SuperADM e Cliente titular) e blindada via Trigger/RLS no Supabase.
+ * Função de privacidade de localização desativada na Central de Monitoramento 24/7.
+ * Mantida por compatibilidade de assinatura, retornando sucesso imediato.
  */
 export async function atualizarPrivacidadeVeiculo(
-  veiculoId: string,
-  privacidade: boolean,
+  _veiculoId: string,
+  _privacidade: boolean,
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { error } = await supabase
-      .from("veiculos")
-      .update({ privacidade_localizacao: privacidade })
-      .eq("id", veiculoId);
-
-    if (error) {
-      console.error("Erro ao atualizar privacidade do veiculo:", error);
-      if (
-        error.message?.includes("schema cache") ||
-        error.message?.includes("privacidade_localizacao")
-      ) {
-        return {
-          success: false,
-          error:
-            "A coluna 'privacidade_localizacao' precisa ser criada no banco de dados. Execute a migração no SQL Editor do Supabase.",
-        };
-      }
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err?.message || "Erro inesperado ao salvar privacidade." };
-  }
+  return { success: true };
 }
 
 /**

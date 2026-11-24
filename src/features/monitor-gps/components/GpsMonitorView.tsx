@@ -47,11 +47,7 @@ import {
   deveAgruparPorCliente,
   type ClienteAgrupado,
 } from "../utils/agrupamentoClientes";
-import {
-  podeAcessarLocalizacaoVeiculo,
-  podeAlterarPrivacidadeVeiculo,
-} from "../utils/privacidadeLocalizacao";
-import { OverlayPrivacidadeVeiculo } from "./OverlayPrivacidadeVeiculo";
+import { podeAcessarLocalizacaoVeiculo } from "../utils/privacidadeLocalizacao";
 import { LeafletEngine, type LeafletEngineHandle } from "./LeafletEngine";
 import { MapLibre3DEngine, type MapLibre3DEngineHandle } from "./MapLibre3DEngine";
 import {
@@ -100,7 +96,6 @@ import { PainelRotasMonitoradasModal } from "./PainelRotasMonitoradasModal";
 import { AlertasAcidenteBanner } from "./AlertasAcidenteBanner";
 import { UpgradePlanoModal } from "./UpgradePlanoModal";
 import { CentralAlertasModal } from "./CentralAlertasModal";
-import { ModalConfirmarDesligarPrivacidade } from "./ModalConfirmarDesligarPrivacidade";
 import { ModalBloqueioLocalizacaoRastreador } from "@/features/clientes/components/ModalBloqueioLocalizacaoRastreador";
 import {
   verificarStatusFinanceiroCliente,
@@ -111,7 +106,6 @@ import {
   avaliarStatusComunicacao,
   testarComunicacaoRastreador,
   salvarAlertaSeguranca,
-  atualizarPrivacidadeVeiculo,
 } from "../services/gpsService";
 import { detectarSuspeitaJammer } from "../services/anomaliaService";
 import { enviarNotificacaoViaBd } from "@/shared/lib/notificacoesBdService";
@@ -1416,74 +1410,10 @@ export function GpsMonitorView({
     );
   }, [session, veiculoSelecionado, statusFinanceiro?.bloqueioLocalizacao]);
 
-  const [salvandoPrivacidade, setSalvandoPrivacidade] = useState(false);
-  const [modalConfirmarDesligarPrivacidadeAberto, setModalConfirmarDesligarPrivacidadeAberto] =
-    useState(false);
-
-  const podeAlterarPrivacidadeVeiculoSelecionado = useMemo(() => {
-    return podeAlterarPrivacidadeVeiculo(session, veiculoSelecionado);
-  }, [session, veiculoSelecionado]);
-
-  const handleAlternarPrivacidade = async () => {
-    if (!veiculoSelecionado) return;
-    const isAtiva = veiculoSelecionado.privacidade_localizacao !== false;
-    // Exigência canônica Hunter: desligar privacidade requer confirmação prévia explícita
-    if (isAtiva) {
-      setModalConfirmarDesligarPrivacidadeAberto(true);
-      return;
-    }
-    // Para ativar privacidade, pode ativar imediatamente
-    await executarAlteracaoPrivacidade(true);
-  };
-
-  const executarAlteracaoPrivacidade = async (novoStatus: boolean) => {
-    if (!veiculoSelecionado) return;
-    setSalvandoPrivacidade(true);
-    const toastId = toast.loading(
-      novoStatus ? "Ativando privacidade..." : "Desmarcando privacidade...",
-    );
-    try {
-      const res = await atualizarPrivacidadeVeiculo(veiculoSelecionado.id, novoStatus);
-      if (res.success) {
-        toast.success(
-          novoStatus
-            ? "Privacidade ativada! Localização em sigilo confidencial."
-            : "Privacidade desmarcada! Localização disponível na central.",
-          { id: toastId, duration: 4000 },
-        );
-        setVeiculoSelecionado({
-          ...veiculoSelecionado,
-          privacidade_localizacao: novoStatus,
-        });
-        recarregar();
-      } else {
-        toast.error(`Não foi possível alterar a privacidade: ${res.error}`, { id: toastId });
-      }
-    } catch (e: any) {
-      toast.error(`Erro ao salvar privacidade: ${e?.message || "Falha na operação"}`, {
-        id: toastId,
-      });
-    } finally {
-      setSalvandoPrivacidade(false);
-      setModalConfirmarDesligarPrivacidadeAberto(false);
-    }
-  };
-
-  // Regra Hunter: O mapa renderiza ESTRITAMENTE os veículos autorizados e filtrados
+  // Central de Monitoramento: O mapa renderiza os veículos autorizados e filtrados
   const veiculosNoMapa = useMemo(() => {
     if (modoVisaoFrota && veiculosFiltrados.length > 1) {
-      return veiculosFiltrados.map((v) => {
-        const temAcesso = podeAcessarLocalizacaoVeiculo(session, v);
-        if (!temAcesso) {
-          return {
-            ...v,
-            velocidade: 0,
-            ignicao: false,
-            status_operacional: "estacionado" as const,
-          };
-        }
-        return v;
-      });
+      return veiculosFiltrados;
     }
 
     if (!veiculoSelecionado) {
@@ -1494,30 +1424,8 @@ export function GpsMonitorView({
       veiculosFiltrados.find((v) => v.id === veiculoSelecionado.id) || veiculosFiltrados[0] || null;
 
     if (!veiculoAlvo) return [];
-
-    const temAcesso = podeAcessarLocalizacaoVeiculo(
-      session,
-      veiculoAlvo,
-      Boolean(statusFinanceiro?.bloqueioLocalizacao),
-    );
-    if (!temAcesso) {
-      return [
-        {
-          ...veiculoAlvo,
-          velocidade: 0,
-          ignicao: false,
-          status_operacional: "estacionado" as const,
-        },
-      ];
-    }
     return [veiculoAlvo];
-  }, [
-    modoVisaoFrota,
-    veiculosFiltrados,
-    veiculoSelecionado,
-    session,
-    statusFinanceiro?.bloqueioLocalizacao,
-  ]);
+  }, [modoVisaoFrota, veiculosFiltrados, veiculoSelecionado]);
 
   // Contadores operacionais
   // Regra Canônica Hunter: Derivados estritamente dos veículos autorizados e filtrados
@@ -1754,31 +1662,8 @@ export function GpsMonitorView({
                   {veiculoSelecionado.placa}
                 </span>
                 <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold shrink-0">
-                  {temAcessoLocalizacaoVeiculoSelecionado
-                    ? `${veiculoSelecionado.velocidade} km/h`
-                    : "[Sigilo]"}
+                  {veiculoSelecionado.velocidade} km/h
                 </span>
-                {podeAlterarPrivacidadeVeiculoSelecionado && (
-                  <button
-                    onClick={handleAlternarPrivacidade}
-                    disabled={salvandoPrivacidade}
-                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg border text-[10px] font-bold shrink-0 transition ${
-                      veiculoSelecionado.privacidade_localizacao !== false
-                        ? "bg-amber-500/15 border-amber-500/30 text-amber-600 dark:text-amber-400"
-                        : "bg-slate-100 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-                    }`}
-                    title={
-                      veiculoSelecionado.privacidade_localizacao !== false
-                        ? "Privacidade de localização ATIVA. Clique para desmarcar."
-                        : "Privacidade DESMARCADA. Clique para ativar."
-                    }
-                  >
-                    <Shield className="h-3 w-3" />
-                    <span>
-                      {veiculoSelecionado.privacidade_localizacao !== false ? "Privado" : "Público"}
-                    </span>
-                  </button>
-                )}
                 {rotaMonitoradaAtiva && (
                   <button
                     onClick={() => handleEncerrarRotaAtiva(rotaMonitoradaAtiva.id)}
@@ -2004,36 +1889,6 @@ export function GpsMonitorView({
                 )}
               </button>
             </div>
-
-            {/* Alternador de Privacidade para Cliente titular e SuperADM */}
-            {veiculoSelecionado && podeAlterarPrivacidadeVeiculoSelecionado && (
-              <button
-                onClick={handleAlternarPrivacidade}
-                disabled={salvandoPrivacidade}
-                className={`relative flex items-center gap-1.5 px-2.5 py-1 rounded-xl border font-bold transition text-xs shadow-xs ${
-                  veiculoSelecionado.privacidade_localizacao !== false
-                    ? "bg-amber-500/15 hover:bg-amber-500/25 border-amber-500/30 text-amber-600 dark:text-amber-400"
-                    : "bg-orange-500/10 hover:bg-orange-500/20 border-orange-500/30 text-orange-600 dark:text-orange-400"
-                }`}
-                title={
-                  veiculoSelecionado.privacidade_localizacao !== false
-                    ? "Privacidade de localização ativa (sigilo confidencial). Clique para alternar."
-                    : "Privacidade desmarcada (visível na central). Clique para ativar."
-                }
-              >
-                {veiculoSelecionado.privacidade_localizacao !== false ? (
-                  <>
-                    <Shield className="h-3.5 w-3.5 text-amber-500" />
-                    <span>Privacidade ON</span>
-                  </>
-                ) : (
-                  <>
-                    <ShieldCheck className="h-3.5 w-3.5 text-orange-500" />
-                    <span>Privacidade OFF</span>
-                  </>
-                )}
-              </button>
-            )}
 
             {/* Central de Alertas */}
             <button
@@ -2930,11 +2785,6 @@ export function GpsMonitorView({
                                 IMPACTO
                               </span>
                             )}
-                            {!podeVer && (
-                              <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/20 text-amber-700 dark:text-amber-400 font-bold border border-amber-500/30">
-                                PRIVACIDADE
-                              </span>
-                            )}
                           </div>
                           <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
                             {v.marca_modelo} · {v.cliente_nome || "Cliente"}
@@ -3080,14 +2930,8 @@ export function GpsMonitorView({
             </div>
           )}
 
-          {/* Canvas do Mapa com desfoque tático quando em modo de privacidade */}
-          <div
-            className={`w-full h-full relative ${
-              !temAcessoLocalizacaoVeiculoSelecionado
-                ? "filter blur-md select-none pointer-events-none transition-all duration-300"
-                : ""
-            }`}
-          >
+          {/* Canvas do Mapa */}
+          <div className="w-full h-full relative">
             {modoVisualizacao === "2D" ? (
               <LeafletEngine
                 ref={leafletRef}
@@ -3139,24 +2983,6 @@ export function GpsMonitorView({
               </MapErrorBoundary>
             )}
           </div>
-
-          {/* Overlay Canônico de Privacidade Ativa ou Modo Privado Restrito */}
-          {!temAcessoLocalizacaoVeiculoSelecionado && veiculoSelecionado && (
-            <OverlayPrivacidadeVeiculo
-              placa={veiculoSelecionado.placa}
-              marcaModelo={veiculoSelecionado.marca_modelo}
-              clienteNome={veiculoSelecionado.cliente_nome}
-              contexto="mapa"
-              bloqueioAdministrativo={Boolean(statusFinanceiro?.bloqueioLocalizacao)}
-              isMotorista={Boolean(session?.isMotorista || session?.role === "motorista")}
-              onAbrirModalBloqueio={() => setModalBloqueioLocalizacaoAberto(true)}
-              podeAlterar={
-                !statusFinanceiro?.bloqueioLocalizacao && podeAlterarPrivacidadeVeiculoSelecionado
-              }
-              onAlternarPrivacidade={handleAlternarPrivacidade}
-              carregandoAlteracao={salvandoPrivacidade}
-            />
-          )}
         </div>
       </div>
 
@@ -3328,16 +3154,6 @@ export function GpsMonitorView({
           selecionarETestarVeiculo(v);
           setModalCentralAlertasAberto(false);
         }}
-      />
-
-      {/* 8. Modal Canônico de Confirmação para Desligar Privacidade */}
-      <ModalConfirmarDesligarPrivacidade
-        aberto={modalConfirmarDesligarPrivacidadeAberto}
-        onFechar={() => setModalConfirmarDesligarPrivacidadeAberto(false)}
-        onConfirmar={() => executarAlteracaoPrivacidade(false)}
-        placa={veiculoSelecionado?.placa}
-        identificador={veiculoSelecionado?.marca_modelo || veiculoSelecionado?.placa}
-        carregando={salvandoPrivacidade}
       />
 
       {/* 9. Modal Canônico de Bloqueio de Localização por Pendência Financeira ou Administrativa */}

@@ -119,7 +119,7 @@ describe("Hunter — Vehicle Motion Engine e Integração aos Motores de Mapa (L
 
     // Regra 5: iconAnchor com largura/2 e altura
     assert.ok(
-      code.includes("iconAnchor: mostrarPlaca ? [28, 72] : [25, 54]"),
+      code.includes("iconAnchor: mostrarPlaca ? [28, 70] : [25, 50]"),
       "LeafletEngine deve usar [largura / 2, altura] para ancorar a ponta da gota na via",
     );
 

@@ -11,7 +11,7 @@ import * as http from "node:http";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { calcularCrcItuLookup, GpsKalmanFilter2D } from "./hunterOdometriaGeodesica.js";
+import { calcularCrcItuLookup } from "./hunterOdometriaGeodesica.js";
 
 // Carrega variáveis do .env.local
 const env: Record<string, string> = {};
@@ -53,6 +53,19 @@ async function notificarAtualizacaoRealtime(payload: Record<string, unknown>) {
     await canalRealtime.send({
       type: "broadcast",
       event: "telemetria_atualizada",
+      payload,
+    });
+  } catch {
+    // Silencioso em caso de oscilação
+  }
+}
+
+async function notificarVeiculoAtualizadoRealtime(payload: Record<string, unknown>) {
+  if (process.env.GATEWAY_TEST_MODE) return;
+  try {
+    await canalRealtime.send({
+      type: "broadcast",
+      event: "veiculo_atualizado",
       payload,
     });
   } catch {
@@ -113,7 +126,6 @@ interface ConexaoRastreador {
 }
 
 export const conexoesAtivas = new Map<net.Socket, ConexaoRastreador>();
-const kalmanFiltersPorVeiculo = new Map<string, GpsKalmanFilter2D>();
 
 // Variável de ambiente para controle de CRLF no protocolo Coban (padrão: false / sem CRLF)
 const COBAN_USAR_CRLF = process.env.COBAN_USAR_CRLF === "true";
@@ -255,6 +267,42 @@ export const modeloRastreadorPorImei = new Map<string, string>();
 
 export const COBAN_THROTTLE_HYSTERESIS_MS = 120_000; // 120 segundos (2 minutos)
 export const COBAN_THROTTLE_COOLDOWN_MS = 60_000; // 60 segundos cooldown anti-spam
+
+// Histerese temporal de 120 segundos contínuos para status amarelo (parado com ignição ligada)
+export const inicioParadaLigadaPorVeiculo = new Map<string, number>();
+
+export function calcularStatusOperacionalComHisterese(
+  veiculoId: string,
+  ignicao: boolean,
+  velocidade: number,
+  timestamp: number | string = Date.now(),
+): "em_movimento" | "parado_ligado" | "estacionado" {
+  const timestampMs = typeof timestamp === "string" ? new Date(timestamp).getTime() : timestamp;
+  if (!ignicao) {
+    inicioParadaLigadaPorVeiculo.delete(veiculoId);
+    return "estacionado";
+  }
+
+  if (velocidade > 3) {
+    inicioParadaLigadaPorVeiculo.delete(veiculoId);
+    return "em_movimento";
+  }
+
+  // ignicao === true && velocidade <= 3
+  let inicio = inicioParadaLigadaPorVeiculo.get(veiculoId);
+  if (!inicio) {
+    inicio = timestampMs;
+    inicioParadaLigadaPorVeiculo.set(veiculoId, inicio);
+  }
+
+  const tempoParadoSegundos = Math.max(0, (timestampMs - inicio) / 1000);
+  if (tempoParadoSegundos >= 120) {
+    return "parado_ligado";
+  }
+
+  // Menor que 120s parado com ignição ligada (semáforo / fila de trânsito) -> permanece em movimento (verde)
+  return "em_movimento";
+}
 
 // Determina com isolamento estrito se o modelo do rastreador é G900L (ignora espaços e caixa alta)
 export function isModeloG900L(modelo?: string | null): boolean {
@@ -1310,28 +1358,6 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     if (isSouth) latitude = -latitude;
     if (isWest) longitude = -longitude;
 
-    // Filtro de Kalman 2D Discreto: Atenua Jitter e Multipath quando GNSS está fixado
-    let latFiltrada = latitude;
-    let lonFiltrada = longitude;
-
-    if (gpsFixado && latitude !== 0 && longitude !== 0 && conn.veiculoId) {
-      let kalman = kalmanFiltersPorVeiculo.get(conn.veiculoId);
-      if (!kalman) {
-        kalman = new GpsKalmanFilter2D();
-        kalmanFiltersPorVeiculo.set(conn.veiculoId, kalman);
-      }
-      const estimativa = kalman.update(
-        latitude,
-        longitude,
-        velocidade,
-        rumo,
-        dataGps.getTime(),
-        satelites,
-      );
-      latFiltrada = estimativa.lat;
-      lonFiltrada = estimativa.lon;
-    }
-
     // Status da ignição: respeita estritamente o pós-chave físico (ACC/fio laranja) quando reportado pelo hardware.
     // Se o status físico for desconhecido (undefined), infere pelo deslocamento (> 3 km/h).
     const ignicao = conn.ignicaoStatus !== undefined ? conn.ignicaoStatus : velocidade > 3;
@@ -1344,30 +1370,54 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     console.log(`\n📍 [LOCALIZAÇÃO GPS RECEBIDA] IMEI: ${imei}`);
     console.log(`   Veículo: ${conn.placa || "Não identificado"} (${conn.modeloVeiculo || "—"})`);
     console.log(
-      `   Coordenadas: Latitude ${latFiltrada.toFixed(6)}, Longitude ${lonFiltrada.toFixed(6)} (Bruto: ${latitude.toFixed(6)}, ${longitude.toFixed(6)})`,
+      `   Coordenadas (Bruto Real Satélite): Latitude ${latitude.toFixed(6)}, Longitude ${longitude.toFixed(6)}`,
     );
     console.log(
       `   Velocidade: ${velocidade} km/h | Satélites: ${satelites} | Rumo: ${rumo}° | Fix: ${gpsFixado ? "SIM (GNSS)" : "NÃO (LBS)"}`,
     );
     console.log(`   Data/Hora GPS: ${dataGps.toLocaleString("pt-BR")}`);
 
-    // Grava no Supabase se as coordenadas forem válidas
-    if (latitude !== 0 && longitude !== 0 && conn.veiculoId) {
-      conn.ultimoLat = latitude;
-      conn.ultimoLng = longitude;
-      await salvarPosicaoNoHunter({
-        veiculoId: conn.veiculoId,
-        rastreadorId: conn.rastreadorId,
-        latitude: latFiltrada,
-        longitude: lonFiltrada,
-        velocidade,
-        ignicao,
-        satelites,
-        rumo,
-        dataHoraGps: dataGps.toISOString(),
-        sinalGsm: conn.sinalGsm,
-        gpsFixado,
-      });
+    // Validações determinísticas de sanidade: coordenadas válidas e fixadas
+    if (latitude !== 0 && longitude !== 0 && conn.veiculoId && gpsFixado) {
+      // Descarte determinístico de saltos impossíveis (> 50 km em único intervalo)
+      let saltoImpossivel = false;
+      if (conn.ultimoLat && conn.ultimoLng && conn.ultimoLat !== 0 && conn.ultimoLng !== 0) {
+        const dLat = ((latitude - conn.ultimoLat) * Math.PI) / 180;
+        const dLng = ((longitude - conn.ultimoLng) * Math.PI) / 180;
+        const sinLat = Math.sin(dLat / 2);
+        const sinLng = Math.sin(dLng / 2);
+        const h =
+          sinLat * sinLat +
+          Math.cos((conn.ultimoLat * Math.PI) / 180) *
+            Math.cos((latitude * Math.PI) / 180) *
+            sinLng *
+            sinLng;
+        const distM = 2 * 6371000 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+        if (distM > 50000 && velocidade < 300) {
+          console.warn(
+            `⚠️ [SANIDADE GPS] Salto impossível (${distM.toFixed(0)}m). Pacote descartado.`,
+          );
+          saltoImpossivel = true;
+        }
+      }
+
+      if (!saltoImpossivel) {
+        conn.ultimoLat = latitude;
+        conn.ultimoLng = longitude;
+        await salvarPosicaoNoHunter({
+          veiculoId: conn.veiculoId,
+          rastreadorId: conn.rastreadorId,
+          latitude,
+          longitude,
+          velocidade,
+          ignicao,
+          satelites,
+          rumo,
+          dataHoraGps: dataGps.toISOString(),
+          sinalGsm: conn.sinalGsm,
+          gpsFixado,
+        });
+      }
     } else if (!conn.veiculoId) {
       console.warn(
         `⚠️ [AVISO] IMEI ${imei} não está associado a nenhum veículo na tabela veiculos do Hunter!`,
@@ -1862,26 +1912,36 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     if (isSouth) latitude = -latitude;
     if (isWest) longitude = -longitude;
 
-    // Filtro de Kalman 2D Discreto para posição do alarme
-    let latFiltrada = latitude;
-    let lonFiltrada = longitude;
-
-    if (gpsFixado && latitude !== 0 && longitude !== 0 && conn.veiculoId) {
-      let kalman = kalmanFiltersPorVeiculo.get(conn.veiculoId);
-      if (!kalman) {
-        kalman = new GpsKalmanFilter2D();
-        kalmanFiltersPorVeiculo.set(conn.veiculoId, kalman);
+    // Preservação estrita das coordenadas brutas do satélite (sem Kalman)
+    // Validação determinística de sanidade
+    const coordsValidas =
+      latitude !== 0 && longitude !== 0 && !isNaN(latitude) && !isNaN(longitude);
+    if (
+      gpsFixado &&
+      coordsValidas &&
+      conn.ultimoLat &&
+      conn.ultimoLng &&
+      conn.ultimoLat !== 0 &&
+      conn.ultimoLng !== 0
+    ) {
+      const dLat = ((latitude - conn.ultimoLat) * Math.PI) / 180;
+      const dLng = ((longitude - conn.ultimoLng) * Math.PI) / 180;
+      const sinLat = Math.sin(dLat / 2);
+      const sinLng = Math.sin(dLng / 2);
+      const h =
+        sinLat * sinLat +
+        Math.cos((conn.ultimoLat * Math.PI) / 180) *
+          Math.cos((latitude * Math.PI) / 180) *
+          sinLng *
+          sinLng;
+      const distM = 2 * 6371000 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+      if (distM > 50000 && velocidade < 300) {
+        console.warn(
+          `⚠️ [GPS GATEWAY] Descarte de teleporte impossível no alarme 0x16 (${(distM / 1000).toFixed(1)} km) para ${conn.imei}. Mantendo última coordenada válida.`,
+        );
+        latitude = conn.ultimoLat;
+        longitude = conn.ultimoLng;
       }
-      const estimativa = kalman.update(
-        latitude,
-        longitude,
-        velocidade,
-        rumo,
-        dataGps.getTime(),
-        satelites,
-      );
-      latFiltrada = estimativa.lat;
-      lonFiltrada = estimativa.lon;
     }
 
     // Dados de status (indexados com precisão a partir do fim do pacote)
@@ -2039,14 +2099,14 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
       if (latitude !== 0 && longitude !== 0) {
         const ehDerivaEstacionado = alarmCode === 0x09 && !ignicao && velocidade < 5;
         if (!ehDerivaEstacionado) {
-          conn.ultimoLat = latFiltrada;
-          conn.ultimoLng = lonFiltrada;
+          conn.ultimoLat = latitude;
+          conn.ultimoLng = longitude;
         }
         await salvarPosicaoNoHunter({
           veiculoId: conn.veiculoId,
           rastreadorId: conn.rastreadorId,
-          latitude: ehDerivaEstacionado && conn.ultimoLat ? conn.ultimoLat : latFiltrada,
-          longitude: ehDerivaEstacionado && conn.ultimoLng ? conn.ultimoLng : lonFiltrada,
+          latitude: ehDerivaEstacionado && conn.ultimoLat ? conn.ultimoLat : latitude,
+          longitude: ehDerivaEstacionado && conn.ultimoLng ? conn.ultimoLng : longitude,
           velocidade,
           ignicao,
           satelites,
@@ -2136,15 +2196,15 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
         ignicao,
         alarmCode,
         origem: `alarme_0x${protocolo.toString(16)}_cod_0x${alarmCode.toString(16)}`,
-        lat: latFiltrada || latitude,
-        lon: lonFiltrada || longitude,
+        lat: latitude,
+        lon: longitude,
       });
       conn.alimentacaoExternaStatus = alarmCode === 0x02 ? false : alimentacaoExterna;
 
       // Se for alarme de Pânico / SOS, notifica equipe conforme Central de Alertas
       if (alarmCode === 0x01) {
-        const latFinal = latFiltrada || latitude || conn.ultimoLat || 0;
-        const lonFinal = lonFiltrada || longitude || conn.ultimoLng || 0;
+        const latFinal = latitude || conn.ultimoLat || 0;
+        const lonFinal = longitude || conn.ultimoLng || 0;
         const mapsLink =
           latFinal !== 0 && lonFinal !== 0
             ? `https://maps.google.com/?q=${latFinal.toFixed(6)},${lonFinal.toFixed(6)}`
@@ -2614,6 +2674,13 @@ async function salvarPosicaoNoHunter(dados: {
       },
     );
 
+    const statusOperacional = calcularStatusOperacionalComHisterese(
+      dados.veiculoId,
+      dados.ignicao,
+      dados.velocidade,
+      dados.dataHoraGps,
+    );
+
     if (errRpc) {
       console.warn("RPC registrar_posicao_gps_com_odometro falhou no gateway:", errRpc.message);
       // Tentativa de compatibilidade sem p_gps_fixado caso a RPC antiga ainda esteja ativa em cache
@@ -2660,8 +2727,6 @@ async function salvarPosicaoNoHunter(dados: {
           gps_fixado: dados.gpsFixado ?? true,
         });
 
-        const statusOperacional =
-          dados.velocidade > 3 ? "em_movimento" : dados.ignicao ? "parado_ligado" : "estacionado";
         await supabase
           .from("veiculos")
           .update({
@@ -2682,9 +2747,16 @@ async function salvarPosicaoNoHunter(dados: {
       console.log(
         `🚗 [ODÔMETRO DINÂMICO] Veículo ${dados.veiculoId}: Odômetro = ${resRpc.novo_odometro} km (+${resRpc.delta_km} km) | Vel: ${dados.velocidade} km/h | Fix: ${dados.gpsFixado !== false ? "GPS" : "LBS"}`,
       );
+      if (statusOperacional === "em_movimento" && dados.velocidade <= 3 && dados.ignicao) {
+        // Mantém 'em_movimento' no banco durante a histerese de 120s no semáforo
+        await supabase
+          .from("veiculos")
+          .update({ status_operacional: statusOperacional })
+          .eq("id", dados.veiculoId);
+      }
     }
 
-    // 2. Notifica em realtime com vetor de rumo, satélites e sinal GSM
+    // 2. Notifica em realtime com vetor de rumo, satélites, sinal GSM e status operacional com histerese
     await notificarAtualizacaoRealtime({
       veiculoId: dados.veiculoId,
       latitude: dados.latitude,
@@ -2695,6 +2767,8 @@ async function salvarPosicaoNoHunter(dados: {
       satelites: dados.satelites,
       sinalGsm: dados.sinalGsm,
       dataHoraGps: dados.dataHoraGps,
+      statusOperacional,
+      status_operacional: statusOperacional,
       origem: "gps_posicao",
     });
 
@@ -3350,6 +3424,26 @@ const httpServer = http.createServer((req, res) => {
         let respostaHardware: string | null = null;
         if (resEnvio.enviado) {
           respostaHardware = await promessaResposta;
+        }
+
+        if (veiculoId && (resEnvio.enviado || resEnvio.enfileirado)) {
+          const cmdUpper = String(comando).trim().toUpperCase();
+          const isBloq =
+            cmdUpper.startsWith("DYD") ||
+            cmdUpper.startsWith("RELAY,1") ||
+            cmdUpper.includes("STOP");
+          const isDesb =
+            cmdUpper.startsWith("HFYD") ||
+            cmdUpper.startsWith("RELAY,0") ||
+            cmdUpper.includes("RESUME");
+          if (isBloq || isDesb) {
+            void notificarVeiculoAtualizadoRealtime({
+              veiculoId,
+              bloqueado: isBloq,
+              rele_status: isBloq,
+              timestamp: Date.now(),
+            });
+          }
         }
 
         res.writeHead(200, { "Content-Type": "application/json" });

@@ -7,40 +7,22 @@ import {
 import type { UserSession } from "../../features/auth/types";
 import type { VeiculoGps } from "../../features/monitor-gps/types";
 
-describe("Hunter - Modo de Privacidade Canônica (Privacidade ON por Padrão)", () => {
-  const mockVeiculoComPrivacidade: Partial<VeiculoGps> = {
+describe("Hunter - Central de Monitoramento (Função de Privacidade Desativada)", () => {
+  const mockVeiculo1: Partial<VeiculoGps> = {
     id: "veic-001",
     cliente_id: "cli-123",
     cliente_user_id: "user-cli-123",
     placa: "ABC1D23",
     marca_modelo: "Toyota Hilux",
-    privacidade_localizacao: true,
+    privacidade_localizacao: false,
   };
 
-  const mockVeiculoSemPrivacidade: Partial<VeiculoGps> = {
+  const mockVeiculo2: Partial<VeiculoGps> = {
     id: "veic-002",
     cliente_id: "cli-456",
     cliente_user_id: "user-cli-456",
     placa: "XYZ9K88",
     marca_modelo: "VW Gol",
-    privacidade_localizacao: false,
-  };
-
-  const mockVeiculoPadraoIndefinido: Partial<VeiculoGps> = {
-    id: "veic-003",
-    cliente_id: "cli-789",
-    cliente_user_id: "user-cli-789",
-    placa: "HTR4G16",
-    marca_modelo: "Chevrolet S10",
-    privacidade_localizacao: undefined, // Deve assumir TRUE por padrão
-  };
-
-  const mockVeiculoProprioSemPrivacidade: Partial<VeiculoGps> = {
-    id: "veic-004",
-    cliente_id: "cli-123",
-    cliente_user_id: "user-cli-123",
-    placa: "ABC1D99",
-    marca_modelo: "Toyota Corolla",
     privacidade_localizacao: false,
   };
 
@@ -116,126 +98,86 @@ describe("Hunter - Modo de Privacidade Canônica (Privacidade ON por Padrão)", 
     modulos: ["todos"],
   };
 
-  it("1. Deve conceder acesso total ao SuperADM mesmo com privacidade ativada (novaes@adm e novaes@oficial.tec.br)", () => {
-    assert.equal(podeAcessarLocalizacaoVeiculo(sessionSuperAdmin, mockVeiculoComPrivacidade), true);
-    assert.equal(
-      podeAcessarLocalizacaoVeiculo(sessionSuperAdmin, mockVeiculoPadraoIndefinido),
-      true,
-    );
+  const sessionMotorista: UserSession = {
+    userId: "mot-001",
+    email: "mot@dario.local",
+    nome: "Motorista",
+    role: "motorista",
+    clienteId: "cli-123",
+    isSuperAdmin: false,
+    isAdmin: false,
+    isOperador: false,
+    isCliente: false,
+    isInstalador: false,
+    isMotorista: true,
+    modulos: [],
+  };
+
+  it("1. Central de Monitoramento: SuperADM visualiza localização de todos os veículos", () => {
+    assert.equal(podeAcessarLocalizacaoVeiculo(sessionSuperAdmin, mockVeiculo1), true);
+    assert.equal(podeAcessarLocalizacaoVeiculo(sessionSuperAdmin, mockVeiculo2), true);
 
     const sessionNovaesOficial: UserSession = {
       ...sessionSuperAdmin,
       userId: "super-002",
       email: "novaes@oficial.tec.br",
     };
+    assert.equal(podeAcessarLocalizacaoVeiculo(sessionNovaesOficial, mockVeiculo1), true);
+  });
+
+  it("2. Central de Monitoramento: Operadores e Administradores visualizam localização sem bloqueio de privacidade", () => {
+    assert.equal(podeAcessarLocalizacaoVeiculo(sessionOperador, mockVeiculo1), true);
+    assert.equal(podeAcessarLocalizacaoVeiculo(sessionAdminGeral, mockVeiculo1), true);
+  });
+
+  it("3. Central de Monitoramento: Clientes e Motoristas visualizam veículos monitorados", () => {
+    assert.equal(podeAcessarLocalizacaoVeiculo(sessionClienteProprietario, mockVeiculo1), true);
+    assert.equal(podeAcessarLocalizacaoVeiculo(sessionMotorista, mockVeiculo1), true);
+  });
+
+  it("4. Central de Monitoramento: podeAlterarPrivacidadeVeiculo deve retornar SEMPRE FALSE para todos os usuários", () => {
+    // Função de privacidade está desativada no sistema
+    assert.equal(podeAlterarPrivacidadeVeiculo(sessionSuperAdmin, mockVeiculo1), false);
+    assert.equal(podeAlterarPrivacidadeVeiculo(sessionClienteProprietario, mockVeiculo1), false);
+    assert.equal(podeAlterarPrivacidadeVeiculo(sessionOperador, mockVeiculo1), false);
+    assert.equal(podeAlterarPrivacidadeVeiculo(sessionAdminGeral, mockVeiculo1), false);
+    assert.equal(podeAlterarPrivacidadeVeiculo(sessionOutroCliente, mockVeiculo1), false);
+  });
+
+  it("5. Bloqueio Administrativo Financeiro: Inadimplência bloqueia cliente, mas preserva acesso da central", () => {
+    const bloqueioFinanceiroAtivo = true;
+
+    // SuperADM, Administradores e Operadores continuam vendo mesmo com bloqueio financeiro
     assert.equal(
-      podeAcessarLocalizacaoVeiculo(sessionNovaesOficial, mockVeiculoComPrivacidade),
+      podeAcessarLocalizacaoVeiculo(sessionSuperAdmin, mockVeiculo1, bloqueioFinanceiroAtivo),
       true,
+      "SuperADM sempre visualiza",
     );
     assert.equal(
-      podeAlterarPrivacidadeVeiculo(sessionNovaesOficial, mockVeiculoComPrivacidade),
+      podeAcessarLocalizacaoVeiculo(sessionOperador, mockVeiculo1, bloqueioFinanceiroAtivo),
       true,
+      "Operador da central sempre visualiza",
     );
-  });
-
-  it("2. Deve conceder acesso ao Cliente proprietário do veículo", () => {
     assert.equal(
-      podeAcessarLocalizacaoVeiculo(sessionClienteProprietario, mockVeiculoComPrivacidade),
+      podeAcessarLocalizacaoVeiculo(sessionAdminGeral, mockVeiculo1, bloqueioFinanceiroAtivo),
       true,
+      "Administrador sempre visualiza",
     );
-  });
 
-  it("3. Deve BLOQUEAR outro cliente de ver a localização", () => {
+    // Cliente e motorista inadimplentes têm a localização bloqueada
     assert.equal(
-      podeAcessarLocalizacaoVeiculo(sessionOutroCliente, mockVeiculoComPrivacidade),
+      podeAcessarLocalizacaoVeiculo(
+        sessionClienteProprietario,
+        mockVeiculo1,
+        bloqueioFinanceiroAtivo,
+      ),
       false,
+      "Cliente inadimplente tem visualização bloqueada",
     );
-  });
-
-  it("4. Deve BLOQUEAR operadores de ver a localização de veículo com privacidade ativa", () => {
-    assert.equal(podeAcessarLocalizacaoVeiculo(sessionOperador, mockVeiculoComPrivacidade), false);
-    // Também deve bloquear se privacidade_localizacao for undefined (pois o padrão é ON)
     assert.equal(
-      podeAcessarLocalizacaoVeiculo(sessionOperador, mockVeiculoPadraoIndefinido),
+      podeAcessarLocalizacaoVeiculo(sessionMotorista, mockVeiculo1, bloqueioFinanceiroAtivo),
       false,
-    );
-  });
-
-  it("5. Deve BLOQUEAR administradores comuns de ver localização com privacidade ativa", () => {
-    assert.equal(
-      podeAcessarLocalizacaoVeiculo(sessionAdminGeral, mockVeiculoComPrivacidade),
-      false,
-    );
-  });
-
-  it("6. Deve LIBERAR acesso a operadores e administradores quando privacidade_localizacao for explicitamente false", () => {
-    assert.equal(podeAcessarLocalizacaoVeiculo(sessionOperador, mockVeiculoSemPrivacidade), true);
-    assert.equal(podeAcessarLocalizacaoVeiculo(sessionAdminGeral, mockVeiculoSemPrivacidade), true);
-  });
-
-  it("7. Deve PERMITIR que o SuperADM altere/desmarque a privacidade do veículo", () => {
-    assert.equal(podeAlterarPrivacidadeVeiculo(sessionSuperAdmin, mockVeiculoComPrivacidade), true);
-    assert.equal(podeAlterarPrivacidadeVeiculo(sessionSuperAdmin, mockVeiculoSemPrivacidade), true);
-  });
-
-  it("8. Deve PERMITIR que o Cliente titular do veículo marque ou desmarque a privacidade no mapa", () => {
-    assert.equal(
-      podeAlterarPrivacidadeVeiculo(sessionClienteProprietario, mockVeiculoComPrivacidade),
-      true,
-    );
-    assert.equal(
-      podeAlterarPrivacidadeVeiculo(sessionClienteProprietario, mockVeiculoProprioSemPrivacidade),
-      true,
-    );
-  });
-
-  it("9. Deve BLOQUEAR cliente de alterar a privacidade de um veículo que pertence a outro cliente", () => {
-    assert.equal(
-      podeAlterarPrivacidadeVeiculo(sessionClienteProprietario, mockVeiculoSemPrivacidade),
-      false,
-    );
-    assert.equal(
-      podeAlterarPrivacidadeVeiculo(sessionOutroCliente, mockVeiculoComPrivacidade),
-      false,
-    );
-  });
-
-  it("10. Deve BLOQUEAR operadores e administradores comuns de desmarcar ou alterar a privacidade", () => {
-    assert.equal(podeAlterarPrivacidadeVeiculo(sessionOperador, mockVeiculoComPrivacidade), false);
-    assert.equal(
-      podeAlterarPrivacidadeVeiculo(sessionAdminGeral, mockVeiculoComPrivacidade),
-      false,
-    );
-  });
-
-  it("11. Deve PERMITIR que motorista autorizado vinculado ao cliente visualize veículo com privacidade ativa", () => {
-    const sessionMotoristaAutorizado: UserSession = {
-      userId: "mot-001",
-      email: "mot@dario.local",
-      nome: "Motorista Autorizado",
-      role: "motorista",
-      clienteId: "cli-123",
-      isSuperAdmin: false,
-      isAdmin: false,
-      isOperador: false,
-      isCliente: false,
-      isInstalador: false,
-      isMotorista: true,
-      modulos: [],
-    };
-    const sessionMotoristaOutroCliente: UserSession = {
-      ...sessionMotoristaAutorizado,
-      userId: "mot-999",
-      clienteId: "cli-999",
-    };
-
-    assert.equal(
-      podeAcessarLocalizacaoVeiculo(sessionMotoristaAutorizado, mockVeiculoComPrivacidade),
-      true,
-    );
-    assert.equal(
-      podeAcessarLocalizacaoVeiculo(sessionMotoristaOutroCliente, mockVeiculoComPrivacidade),
-      false,
+      "Motorista inadimplente tem visualização bloqueada",
     );
   });
 });
