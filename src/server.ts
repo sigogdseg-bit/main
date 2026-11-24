@@ -14783,10 +14783,73 @@ async function handleApiVigilantes(request: Request, env: unknown): Promise<Resp
     });
   }
 
-  const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
+  const { supabaseUrl, supabaseAnonKey, serviceRoleKey } = getSupabaseServerParams(env);
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
+
+  // GET /api/vigilantes/turnos
+  if (request.method === "GET" && url.pathname === "/api/vigilantes/turnos") {
+    try {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+      if (!token) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Não autorizado: Token de sessão ausente." }),
+          { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: { persistSession: false },
+      });
+      const { data: userData, error: userError } = await userClient.auth.getUser(token);
+      if (userError || !userData?.user) {
+        return new Response(
+          JSON.stringify({ success: false, message: "Sessão inválida ou expirada." }),
+          { status: 401, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data, error, status } = await adminClient
+        .from("turnos_vigilancia")
+        .select("*, vigilante:vigilantes(*), posto:postos_vigilancia(*)")
+        .order("data_turno", { ascending: false })
+        .order("hora_inicio", { ascending: false });
+
+      if (error) {
+        const tabelaAusente =
+          status === 404 ||
+          error.code === "PGRST205" ||
+          error.code === "42P01" ||
+          error.message?.includes("Could not find the table") ||
+          error.message?.includes("does not exist");
+        if (tabelaAusente) {
+          return new Response(JSON.stringify({ success: true, dados: [], tabelaAusente: true }), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+          });
+        }
+        return new Response(JSON.stringify({ success: false, message: error.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
+      }
+
+      return new Response(JSON.stringify({ success: true, dados: data || [] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao carregar turnos de vigilância.",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
 
   // GET /api/vigilantes/postos
   if (request.method === "GET" && url.pathname === "/api/vigilantes/postos") {

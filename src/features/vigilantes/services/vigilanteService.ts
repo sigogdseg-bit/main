@@ -1010,6 +1010,32 @@ let turnosTabelaAusente = false;
 export async function carregarTurnos(): Promise<TurnoVigilancia[]> {
   if (!turnosTabelaAusente) {
     try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess?.session?.access_token;
+
+      if (token) {
+        const res = await fetch("/api/vigilantes/turnos", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const json = await res.json().catch(() => null);
+          if (json?.tabelaAusente) {
+            turnosTabelaAusente = true;
+          } else if (json?.success && Array.isArray(json.dados) && json.dados.length > 0) {
+            return json.dados as TurnoVigilancia[];
+          }
+        }
+        if (res.status !== 404) {
+          // Não recai para o REST direto do Supabase se o Worker já respondeu
+          const raw = localStorage.getItem("gd_turnos_vigilancia");
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) return parsed;
+          }
+          return [];
+        }
+      }
+
       const { data, error, status } = await supabase
         .from("turnos_vigilancia")
         .select("*, vigilante:vigilantes(*), posto:postos_vigilancia(*)")
