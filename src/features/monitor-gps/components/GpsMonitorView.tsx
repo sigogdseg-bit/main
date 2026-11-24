@@ -1534,6 +1534,7 @@ export function GpsMonitorView({
     }
 
     setVeiculoSelecionado(v);
+    setModoVisaoFrota(false);
     if (window.innerWidth < 768) setSidebarAberta(false);
 
     const isPropriedade =
@@ -1584,6 +1585,7 @@ export function GpsMonitorView({
     const v = veiculos.find((item) => item.id === veiculoId);
     if (v) {
       setVisaoAtiva("mapa");
+      setModoVisaoFrota(false);
       setVeiculoSelecionado(v);
       if (window.innerWidth < 768) setSidebarAberta(false);
 
@@ -2270,7 +2272,31 @@ export function GpsMonitorView({
                   {veiculosFiltrados.length > 1 && (
                     <button
                       type="button"
-                      onClick={() => setModoVisaoFrota(!modoVisaoFrota)}
+                      onClick={() => {
+                        const proximo = !modoVisaoFrota;
+                        setModoVisaoFrota(proximo);
+                        if (proximo) {
+                          const alvos = veiculosFiltrados.length > 0 ? veiculosFiltrados : veiculos;
+                          if (modoVisualizacao === "3D") {
+                            maplibreRef.current?.fitBounds(alvos);
+                          } else {
+                            leafletRef.current?.fitBounds(alvos);
+                          }
+                        } else {
+                          // Sai do modo Toda Frota: centraliza e aproxima para zoom automático 17
+                          const alvo =
+                            veiculoSelecionado ||
+                            (veiculosFiltrados.length > 0 ? veiculosFiltrados[0] : null);
+                          if (alvo) {
+                            if (!veiculoSelecionado) setVeiculoSelecionado(alvo);
+                            if (modoVisualizacao === "3D") {
+                              maplibreRef.current?.centralizarVeiculo(alvo);
+                            } else {
+                              leafletRef.current?.centralizarVeiculo(alvo);
+                            }
+                          }
+                        }
+                      }}
                       className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
                         modoVisaoFrota
                           ? "bg-blue-600/15 text-blue-600 dark:text-blue-400"

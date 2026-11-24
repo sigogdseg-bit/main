@@ -118,11 +118,14 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
     const postosRef = useRef(postos);
     postosRef.current = postos;
 
-    // Ajusta a visão para abranger todos os veículos sem deixar nenhum de fora
+    // Ajusta a visão para abranger todos os veículos sem deixar nenhum de fora (Modo Toda Frota)
     const ajustarVisaoFrota = (veiculosAlvo?: VeiculoGps[]) => {
       const map = mapInstanceRef.current;
       const frota = veiculosAlvo && veiculosAlvo.length > 0 ? veiculosAlvo : veiculosRef.current;
       if (!map || frota.length === 0) return;
+
+      selectedIdAnteriorRef.current = null;
+      seguindoCameraRef.current = false;
 
       const pontosValidos = frota.filter((v) => coordenadaValidaMapa(v.latitude, v.longitude));
 
@@ -132,7 +135,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         });
       } else if (pontosValidos.length > 1) {
         const bounds = L.latLngBounds(pontosValidos.map((v) => [v.latitude, v.longitude]));
-        // Padding generoso de 80px para garantir que veículos nas bordas ou distantes nunca fiquem fora da visão
+        // Padding confortável de 80px para garantir enquadramento da frota completa
         map.fitBounds(bounds, { padding: [80, 80], maxZoom: 16, animate: true });
       }
     };
@@ -220,10 +223,10 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
           selectedIdAnteriorRef.current = v.id;
           const motionCtrl = vehicleMotionControllersRef.current.get(v.id);
           const pos = motionCtrl ? motionCtrl.getPosition() : { lat: v.latitude, lng: v.longitude };
-          mapInstanceRef.current.panTo([pos.lat, pos.lng], {
-            animate: true,
-            duration: 1.5,
-            easeLinearity: 1,
+          const maxZ = mapInstanceRef.current.getMaxZoom() ?? 21;
+          const targetZoom = Math.min(17, maxZ);
+          mapInstanceRef.current.flyTo([pos.lat, pos.lng], targetZoom, {
+            duration: 1.2,
           });
         }
       },
@@ -675,7 +678,8 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
       };
     }, []);
 
-    // Centraliza apenas quando o veículo selecionado muda (preserva zoom e arraste livre do usuário)
+    // Centraliza com zoom automático 17 apenas quando o operador troca de veículo selecionado ou sai do modo Toda Frota
+    // Proteção de zoom manual: pacotes GPS subsequentes do mesmo veículo NÃO forçam o zoom de volta para 17
     useEffect(() => {
       const map = mapInstanceRef.current;
       if (!map) return;
@@ -699,10 +703,10 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         selectedIdAnteriorRef.current = veiculoSelecionado.id;
         const motionCtrl = vehicleMotionControllersRef.current.get(veiculoSelecionado.id);
         const pos = motionCtrl ? motionCtrl.getPosition() : { lat, lng: lon };
-        map.panTo([pos.lat, pos.lng], {
-          animate: true,
-          duration: 1.5,
-          easeLinearity: 1,
+        const maxZ = map.getMaxZoom() ?? 21;
+        const targetZoom = Math.min(17, maxZ);
+        map.flyTo([pos.lat, pos.lng], targetZoom, {
+          duration: 1.2,
         });
       }
     }, [veiculoSelecionado]);

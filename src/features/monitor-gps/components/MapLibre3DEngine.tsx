@@ -139,11 +139,14 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
       };
     };
 
-    // Ajusta a visão para abranger todos os veículos sem deixar nenhum de fora
+    // Ajusta a visão para abranger todos os veículos sem deixar nenhum de fora (Modo Toda Frota)
     const ajustarVisaoFrota = (veiculosAlvo?: VeiculoGps[]) => {
       const map = mapInstanceRef.current;
       const frota = veiculosAlvo && veiculosAlvo.length > 0 ? veiculosAlvo : veiculosRef.current;
       if (!map || frota.length === 0) return;
+
+      selectedIdAnteriorRef.current = null;
+      seguindoCameraRef.current = false;
 
       const pontosValidos = frota.filter((v) => coordenadaValidaMapa(v.latitude, v.longitude));
 
@@ -296,9 +299,12 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
           const rumo = motionCtrl ? motionCtrl.getBearing() : v.rumo || 0;
           programmaticFlyUntilRef.current =
             (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1150;
+          const maxZ =
+            (mapInstanceRef.current.getMaxZoom && mapInstanceRef.current.getMaxZoom()) || 22;
+          const targetZoom = Math.min(17.5, maxZ);
           mapInstanceRef.current.flyTo({
             center: [pos.lng, pos.lat],
-            zoom: Math.max(mapInstanceRef.current.getZoom(), 18),
+            zoom: targetZoom,
             pitch: 60,
             bearing: rumo,
             essential: true,
@@ -981,7 +987,8 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
       };
     }, [rotaMonitorada, styleLoaded, veiculoSelecionado, veiculos]);
 
-    // Centraliza com voo 3D apenas quando o veículo selecionado mudar (preserva zoom, pitch e arraste do usuário)
+    // Centraliza com voo 3D e zoom automático 17.5 apenas quando o operador troca de veículo selecionado ou sai do modo Toda Frota
+    // Proteção de zoom manual: pacotes GPS subsequentes do mesmo veículo NÃO forçam o zoom de volta para 17.5
     useEffect(() => {
       const map = mapInstanceRef.current;
       if (!map) return;
@@ -1004,9 +1011,11 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
         const lngAlvo = estado ? estado.visualLng : veiculoSelecionado.longitude;
         programmaticFlyUntilRef.current =
           (typeof performance !== "undefined" ? performance.now() : Date.now()) + 1150;
+        const maxZ = (map.getMaxZoom && map.getMaxZoom()) || 22;
+        const targetZoom = Math.min(17.5, maxZ);
         map.flyTo({
           center: [lngAlvo, latAlvo],
-          zoom: Math.max(map.getZoom(), 18),
+          zoom: targetZoom,
           pitch: 60,
           bearing: veiculoSelecionado.rumo || 0,
           duration: 1000,

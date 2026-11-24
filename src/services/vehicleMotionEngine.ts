@@ -41,6 +41,12 @@ export function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
+export interface Waypoint {
+  pos: Coord;
+  timestamp?: number | string | Date;
+  durationMs: number;
+}
+
 export class VehicleMotionController {
   private currentPos: Coord;
   private currentBearing: number;
@@ -54,11 +60,15 @@ export class VehicleMotionController {
   private animTargetPos: Coord;
   private animStartBearing: number;
   private animTargetBearing: number;
+  private waypointQueue: Waypoint[] = [];
 
   public static readonly MIN_DURATION_MS = 2000;
   public static readonly MAX_DURATION_MS = 13000;
   public static readonly DEFAULT_DURATION_MS = 10000;
   public static readonly DURATION_MS = 10000;
+  // Respeitando MIN_DURATION_MS = 600ms para aceleração de conclusão de trecho/curva
+  public static readonly MIN_WAYPOINT_DURATION_MS = 600;
+  public static readonly MAX_QUEUE_SIZE = 3;
 
   constructor(initialPos: Coord, onFrame: FrameCallback, initialBearing: number = 0) {
     this.currentPos = { ...initialPos };
@@ -82,6 +92,18 @@ export class VehicleMotionController {
     return this.animDurationMs;
   }
 
+  public getQueueLength(): number {
+    return this.waypointQueue.length;
+  }
+
+  public getWaypoints(): Coord[] {
+    return this.waypointQueue.map((wp) => ({ ...wp.pos }));
+  }
+
+  public isAnimating(): boolean {
+    return this.rafId !== null;
+  }
+
   public updateTarget(newPos: Coord, timestamp?: number | string | Date): void {
     // 1. Trava de timestamp obrigatória: se timestamp fornecido for anterior ou igual ao último timestamp processado, ignore
     if (timestamp !== undefined && timestamp !== null) {
@@ -97,8 +119,14 @@ export class VehicleMotionController {
       }
     }
 
-    // 2. Trava de deduplicação de alvo: se o novo destino for idêntico ao alvo em curso e a animação já estiver rodando, ignore
-    const distAlvoAnterior = haversineMeters(this.animTargetPos, newPos);
+    // 2. Trava de deduplicação de alvo: se o novo destino for idêntico ao último alvo planejado e a animação já estiver rodando, ignore
+    const ultimoAlvo =
+      this.waypointQueue.length > 0
+        ? this.waypointQueue[this.waypointQueue.length - 1].pos
+        : this.rafId !== null
+          ? this.animTargetPos
+          : this.currentPos;
+    const distAlvoAnterior = haversineMeters(ultimoAlvo, newPos);
     if (distAlvoAnterior < 1.0 && this.rafId !== null) {
       return;
     }
@@ -123,6 +151,7 @@ export class VehicleMotionController {
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
       }
+      this.waypointQueue = [];
       this.currentPos = { ...newPos };
       this.animStartPos = { ...newPos };
       this.animTargetPos = { ...newPos };
@@ -159,39 +188,67 @@ export class VehicleMotionController {
         : VehicleMotionController.DEFAULT_DURATION_MS;
 
     this.lastPacketTime = agora;
-    this.animDurationMs = duracaoDinamicaMs;
 
     console.log(
       `[VehicleMotion] updateTarget: dist=${dist.toFixed(1)}m | decorrido=${tempoDecorridoMs}ms | duracaoAnim=${duracaoDinamicaMs}ms | timestamp=${timestamp || "N/A"} | lastTs=${this.lastTimestamp}`,
     );
 
-    // 7. Se chegar um novo pacote durante o percurso, cancela o frame anterior (cancelAnimationFrame)
-    // e inicia a nova animação linear a partir da posição exata onde o marcador está naquele milissegundo (pivô contínuo).
+    // 7. Fila Curta de Waypoints: Se a animação anterior já estiver em andamento,
+    // enfileira o novo destino em vez de abortar o trajeto anterior e cortar quarteirão.
     if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
+      this.waypointQueue.push({
+        pos: { ...newPos },
+        timestamp,
+        durationMs: duracaoDinamicaMs,
+      });
+
+      // Se a fila exceder 3 pontos (ex: aba em segundo plano), descarta os mais antigos mantendo apenas os 2 últimos
+      if (this.waypointQueue.length > VehicleMotionController.MAX_QUEUE_SIZE) {
+        this.waypointQueue = this.waypointQueue.slice(-2);
+      }
+
+      // Acelera proporcionalmente a conclusão do trecho atual (respeitando MIN_DURATION_MS = 600ms)
+      // para que o pin passe pelo vértice da esquina antes de dobrar para o próximo ponto.
+      const elapsed = agora - this.animStartTime;
+      const tempoRestante = Math.max(this.animDurationMs - elapsed, 0);
+      const tempoAcelerado = Math.max(
+        Math.min(tempoRestante, Math.round(tempoRestante * 0.4)),
+        VehicleMotionController.MIN_WAYPOINT_DURATION_MS,
+      );
+
+      this.animStartPos = { ...this.currentPos };
+      this.animStartBearing = this.currentBearing;
+      this.animStartTime = agora;
+      this.animDurationMs = tempoAcelerado;
+      const distRestante = haversineMeters(this.animStartPos, this.animTargetPos);
+      if (distRestante >= 1.0) {
+        this.animTargetBearing = calcBearing(this.animStartPos, this.animTargetPos);
+      }
+
+      return;
     }
 
+    // Se o veículo estiver parado ou animação concluída, inicia o trecho imediatamente
+    this.animDurationMs = duracaoDinamicaMs;
     this.animStartPos = { ...this.currentPos };
     this.animTargetPos = { ...newPos };
     this.animStartBearing = this.currentBearing;
     this.animTargetBearing = calcBearing(this.animStartPos, this.animTargetPos);
-    this.animStartTime = typeof performance !== "undefined" ? performance.now() : Date.now();
+    this.animStartTime = agora;
 
-    const startPos = this.animStartPos;
-    const targetPos = this.animTargetPos;
-    const startBearing = this.animStartBearing;
-    const targetBearing = this.animTargetBearing;
-    const duration = this.animDurationMs;
+    this.iniciarLoopAnimacao();
+  }
 
+  private iniciarLoopAnimacao(): void {
     const step = (now: number) => {
       const elapsed = now - this.animStartTime;
+      const duration = this.animDurationMs;
       const progress = Math.min(Math.max(elapsed / duration, 0), 1);
       const t = progress;
 
-      const lat = startPos.lat + (targetPos.lat - startPos.lat) * t;
-      const lng = startPos.lng + (targetPos.lng - startPos.lng) * t;
-      const bearing = lerpBearing(startBearing, targetBearing, t);
+      const lat = this.animStartPos.lat + (this.animTargetPos.lat - this.animStartPos.lat) * t;
+      const lng = this.animStartPos.lng + (this.animTargetPos.lng - this.animStartPos.lng) * t;
+      const bearing = lerpBearing(this.animStartBearing, this.animTargetBearing, t);
 
       this.currentPos = { lat, lng };
       this.currentBearing = bearing;
@@ -205,14 +262,40 @@ export class VehicleMotionController {
       if (progress < 1) {
         this.rafId = requestAnimationFrame(step);
       } else {
-        this.rafId = null;
-        this.currentPos = { ...targetPos };
-        this.currentBearing = targetBearing;
+        // Chegou com precisão ao vértice da esquina/trecho atual
+        this.currentPos = { ...this.animTargetPos };
+        this.currentBearing = this.animTargetBearing;
         this.onFrame({
-          lat: targetPos.lat,
-          lng: targetPos.lng,
-          bearing: targetBearing,
+          lat: this.animTargetPos.lat,
+          lng: this.animTargetPos.lng,
+          bearing: this.animTargetBearing,
         });
+
+        // Se houver waypoints enfileirados, avança para o próximo trecho
+        if (this.waypointQueue.length > 0) {
+          const proximoWp = this.waypointQueue.shift()!;
+          this.animStartPos = { ...this.currentPos };
+          this.animTargetPos = { ...proximoWp.pos };
+          this.animStartBearing = this.currentBearing;
+          const distProx = haversineMeters(this.animStartPos, this.animTargetPos);
+          this.animTargetBearing =
+            distProx >= 1.0
+              ? calcBearing(this.animStartPos, this.animTargetPos)
+              : this.currentBearing;
+          this.animStartTime = typeof performance !== "undefined" ? performance.now() : Date.now();
+          // Se ainda restarem waypoints na fila, mantém ritmo ágil para não acumular latência
+          this.animDurationMs =
+            this.waypointQueue.length > 0
+              ? Math.max(
+                  Math.round(proximoWp.durationMs * 0.5),
+                  VehicleMotionController.MIN_WAYPOINT_DURATION_MS,
+                )
+              : Math.max(proximoWp.durationMs, VehicleMotionController.MIN_WAYPOINT_DURATION_MS);
+
+          this.rafId = requestAnimationFrame(step);
+        } else {
+          this.rafId = null;
+        }
       }
     };
 
@@ -224,5 +307,6 @@ export class VehicleMotionController {
       cancelAnimationFrame(this.rafId);
       this.rafId = null;
     }
+    this.waypointQueue = [];
   }
 }
