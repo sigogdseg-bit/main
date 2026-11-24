@@ -1,9 +1,13 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import {
   VALORES_PADRAO_CANONICO_J16,
   CHECKBOXES_PADRAO_CANONICO_J16,
   obterConfigPadraoSistemaJ16,
+  extrairTelefoneNumeroCenter,
+  atualizarSenhaEmComandoCoban,
 } from "../../features/seguranca/lib/rastreadorJ16Constantes";
 
 describe("Hunter — Padrão do Sistema J16 e Persistência de Configuração", () => {
@@ -213,6 +217,109 @@ describe("Hunter — Padrão do Sistema J16 e Persistência de Configuração", 
       deveProcessar4,
       true,
       "Nova resposta legítima após janela de 4s deve ser processada normalmente",
+    );
+  });
+
+  test("5. extrairTelefoneNumeroCenter isola perfeitamente o número sem contaminar com a senha", () => {
+    // Casos com formatos variados
+    assert.equal(
+      extrairTelefoneNumeroCenter("5524992494030"),
+      "5524992494030",
+      "Número puro deve ser mantido",
+    );
+    assert.equal(
+      extrairTelefoneNumeroCenter("admin#123456#5524992494030#"),
+      "5524992494030",
+      "Deve extrair o telefone sem prefixar a senha antiga",
+    );
+    assert.equal(
+      extrairTelefoneNumeroCenter("admin#654321#24981012184#"),
+      "24981012184",
+      "Deve isolar o telefone com qualquer senha mestre",
+    );
+    assert.equal(
+      extrairTelefoneNumeroCenter("admin#00000000000#"),
+      "00000000000",
+      "Deve isolar número de desativação",
+    );
+    assert.equal(
+      extrairTelefoneNumeroCenter("CENTER,A,5524992494030#"),
+      "5524992494030",
+      "Deve extrair de comando Concox",
+    );
+  });
+
+  test("6. atualizarSenhaEmComandoCoban substitui senhas legadas em comandos Coban", () => {
+    assert.equal(
+      atualizarSenhaEmComandoCoban("time zone123456 0", "654321"),
+      "time zone654321 0",
+      "Deve atualizar senha no time zone",
+    );
+    assert.equal(
+      atualizarSenhaEmComandoCoban("check123456", "998877"),
+      "check998877",
+      "Deve atualizar senha no check",
+    );
+    assert.equal(
+      atualizarSenhaEmComandoCoban("status123456", "998877"),
+      "status998877",
+      "Deve atualizar senha no status",
+    );
+    assert.equal(
+      atualizarSenhaEmComandoCoban("reset123456", "998877"),
+      "reset998877",
+      "Deve atualizar senha no reset",
+    );
+    assert.equal(
+      atualizarSenhaEmComandoCoban("extpower123456 on", "998877"),
+      "extpower998877 on",
+      "Deve atualizar senha no extpower",
+    );
+    assert.equal(
+      atualizarSenhaEmComandoCoban("move123456 0200", "998877"),
+      "move998877 0200",
+      "Deve atualizar senha no move",
+    );
+  });
+
+  test("7. Integridade do código de persistência e geração de comandos em lote com nova senha", () => {
+    const code = fs.readFileSync(
+      path.resolve(process.cwd(), "src/features/seguranca/components/RastreadorJ16View.tsx"),
+      "utf8",
+    );
+
+    // Deve atualizar senhaDispositivoCmd e numeroCenter ao salvar nova senha
+    assert.ok(
+      code.includes("setSenhaDispositivoCmd(`PASSWORD,123456,${senhaLimpa}#`);"),
+      "Deve atualizar setSenhaDispositivoCmd com a nova senha",
+    );
+    assert.ok(
+      code.includes("setNumeroCenter((prev) => {"),
+      "Deve atualizar setNumeroCenter com a nova senha",
+    );
+    assert.ok(
+      code.includes("`admin#${senhaLimpa}#${tel}#`"),
+      "Deve formatar numeroCenter com admin#<novaSenha>#<telefone>#",
+    );
+
+    // aplicarPadraoDoSistema deve preservar a senha customizada
+    assert.ok(
+      code.includes("const configPadrao = obterConfigPadraoSistemaJ16();"),
+      "aplicarPadraoDoSistema deve ler a configuração atual do sistema",
+    );
+    assert.ok(
+      code.includes("const senhaFinal ="),
+      "aplicarPadraoDoSistema deve computar senhaFinal preservando customizada",
+    );
+
+    // lote de comandos deve injetar senhaAtiva no admin# e no PASSWORD
+    assert.ok(
+      code.includes("`admin#${senhaAtiva}#${numParte}#`"),
+      "obterComandosBatchAtivos deve gerar comando admin# com senhaAtiva",
+    );
+    assert.ok(
+      code.includes("`PASSWORD,123456,${senhaAtiva}#`"),
+      "obterComandosBatchAtivos deve gerar PASSWORD com senhaAtiva",
     );
   });
 });

@@ -119,6 +119,9 @@ export const obterConfigPadraoSistemaJ16 = (): {
             parsed.valores?.senhaDispositivoCmd?.includes("672904");
 
           if (isLegado) {
+            const senhaMigrada =
+              parsed.valores?.senhaDispositivoPadrao ||
+              VALORES_PADRAO_CANONICO_J16.senhaDispositivoPadrao;
             const migrado = {
               versao: VERSAO_PADRAO_SISTEMA_J16,
               valores: {
@@ -126,10 +129,11 @@ export const obterConfigPadraoSistemaJ16 = (): {
                 numeroSos: parsed.valores?.numeroSos || VALORES_PADRAO_CANONICO_J16.numeroSos,
                 numeroCenter:
                   parsed.valores?.numeroCenter || VALORES_PADRAO_CANONICO_J16.numeroCenter,
-                senhaDispositivoPadrao:
-                  parsed.valores?.senhaDispositivoPadrao ||
-                  VALORES_PADRAO_CANONICO_J16.senhaDispositivoPadrao,
-                senhaDispositivoCmd: VALORES_PADRAO_CANONICO_J16.senhaDispositivoCmd,
+                senhaDispositivoPadrao: senhaMigrada,
+                senhaDispositivoCmd:
+                  senhaMigrada && senhaMigrada !== "123456"
+                    ? `PASSWORD,123456,${senhaMigrada}#`
+                    : VALORES_PADRAO_CANONICO_J16.senhaDispositivoCmd,
               },
               checkboxes: {
                 ...CHECKBOXES_PADRAO_CANONICO_J16,
@@ -150,6 +154,9 @@ export const obterConfigPadraoSistemaJ16 = (): {
             };
           }
 
+          const senhaRetorno =
+            parsed.valores?.senhaDispositivoPadrao ||
+            VALORES_PADRAO_CANONICO_J16.senhaDispositivoPadrao;
           return {
             valores: {
               ...VALORES_PADRAO_CANONICO_J16,
@@ -160,7 +167,15 @@ export const obterConfigPadraoSistemaJ16 = (): {
               usarIpDireto: true,
               timerMovimento: "30",
               anguloGrau: "20",
-              senhaDispositivoCmd: "PASSWORD,<senha antiga>,<nova senha>#",
+              senhaDispositivoPadrao: senhaRetorno,
+              senhaDispositivoCmd:
+                parsed.valores?.senhaDispositivoCmd &&
+                !parsed.valores.senhaDispositivoCmd.includes("161514") &&
+                !parsed.valores.senhaDispositivoCmd.includes("672904")
+                  ? parsed.valores.senhaDispositivoCmd
+                  : senhaRetorno && senhaRetorno !== "123456"
+                    ? `PASSWORD,123456,${senhaRetorno}#`
+                    : "PASSWORD,<senha antiga>,<nova senha>#",
               timerParado: String(Math.min(3600, Math.max(60, timerParadoNum || 3600))),
               hbtLigado: String(Math.min(300, Math.max(30, hbtLigadoNum || 300))),
               hbtDesligado: String(Math.min(600, Math.max(30, hbtDesligadoNum || 300))),
@@ -182,4 +197,93 @@ export const obterConfigPadraoSistemaJ16 = (): {
     valores: VALORES_PADRAO_CANONICO_J16,
     checkboxes: CHECKBOXES_PADRAO_CANONICO_J16,
   };
+};
+
+/**
+ * Isola com precisão o número de telefone de uma string de telefone administrador,
+ * tratando formatos: "admin#<senha>#<numero>#", "CENTER,A,<numero>#", "5511999998888", etc.
+ * Evita concatenação indevida da senha no número do telefone.
+ */
+export const extrairTelefoneNumeroCenter = (centerVal: string): string => {
+  if (!centerVal) return "";
+  const limpo = centerVal.trim();
+  if (limpo.startsWith("admin#") || limpo.includes("#")) {
+    const partes = limpo.split("#").filter(Boolean);
+    // Formato admin#senha#telefone
+    if (partes.length >= 3) {
+      return partes[2].replace(/\D/g, "");
+    }
+    // Formato admin#telefone
+    if (partes.length >= 2) {
+      const parte1Limpa = partes[1].replace(/\D/g, "");
+      if (parte1Limpa.length >= 10) return parte1Limpa;
+    }
+  }
+  if (limpo.startsWith("CENTER,A,")) {
+    return limpo.replace("CENTER,A,", "").replace(/\D/g, "");
+  }
+  return limpo.replace(/\D/g, "");
+};
+
+/**
+ * Atualiza ou injeta a senha mestre em comandos com sintaxe Coban (G900L).
+ * Preserva o prefixo e sufixos de parâmetros do comando.
+ */
+export const atualizarSenhaEmComandoCoban = (cmd: string, novaSenha: string): string => {
+  if (!cmd) return cmd;
+  const limpo = cmd.trim();
+  const senha = (novaSenha || "123456").trim() || "123456";
+
+  if (/^time\s+zone\w*\s+(-?\d+)/i.test(limpo)) {
+    return limpo.replace(/^time\s+zone\w*/i, `time zone${senha}`);
+  }
+  if (/^check\w*/i.test(limpo)) {
+    return `check${senha}`;
+  }
+  if (/^status\w*/i.test(limpo)) {
+    return `status${senha}`;
+  }
+  if (/^reset\w*/i.test(limpo)) {
+    return `reset${senha}`;
+  }
+  if (/^stop\w*/i.test(limpo)) {
+    return `stop${senha}`;
+  }
+  if (/^resume\w*/i.test(limpo)) {
+    return `resume${senha}`;
+  }
+  if (/^extpower\w*\s+(on|off)/i.test(limpo)) {
+    return limpo.replace(/^extpower\w*/i, `extpower${senha}`);
+  }
+  if (/^lowbattery\w*\s+(on|off)/i.test(limpo)) {
+    return limpo.replace(/^lowbattery\w*/i, `lowbattery${senha}`);
+  }
+  if (/^shock\w*\s+(on|off)/i.test(limpo)) {
+    return limpo.replace(/^shock\w*/i, `shock${senha}`);
+  }
+  if (/^move\w*\s+(\d+)/i.test(limpo)) {
+    return limpo.replace(/^move\w*/i, `move${senha}`);
+  }
+  if (/^acc\w*\s+(on|off)/i.test(limpo)) {
+    return limpo.replace(/^acc\w*/i, `acc${senha}`);
+  }
+  if (/^sleep\w*\s+(\w+)/i.test(limpo)) {
+    return limpo.replace(/^sleep\w*/i, `sleep${senha}`);
+  }
+  if (/^arm\w*/i.test(limpo)) {
+    return `arm${senha}`;
+  }
+  if (/^disarm\w*/i.test(limpo)) {
+    return `disarm${senha}`;
+  }
+  if (/^adminip\w*\s+/i.test(limpo)) {
+    return limpo.replace(/^adminip\w*/i, `adminip${senha}`);
+  }
+  if (/^apn\w*\s+/i.test(limpo)) {
+    return limpo.replace(/^apn\w*/i, `apn${senha}`);
+  }
+  if (/^admin\w*\s+/i.test(limpo)) {
+    return limpo.replace(/^admin\w*/i, `admin${senha}`);
+  }
+  return limpo;
 };

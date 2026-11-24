@@ -676,6 +676,8 @@ import {
   STORAGE_KEY_CONFIG_PADRAO_SISTEMA,
   VERSAO_PADRAO_SISTEMA_J16,
   obterConfigPadraoSistemaJ16,
+  extrairTelefoneNumeroCenter,
+  atualizarSenhaEmComandoCoban,
 } from "../lib/rastreadorJ16Constantes";
 
 export function RastreadorJ16View() {
@@ -1132,8 +1134,28 @@ export function RastreadorJ16View() {
       );
       return;
     }
-    const padraoValores = { ...VALORES_PADRAO_CANONICO_J16 };
-    const padraoCheckboxes = { ...CHECKBOXES_PADRAO_CANONICO_J16 };
+    const configPadrao = obterConfigPadraoSistemaJ16();
+    const padraoValores = { ...configPadrao.valores };
+    const padraoCheckboxes = { ...configPadrao.checkboxes };
+
+    // Preserva a senha customizada salva ou ativa no estado (nunca força regredir para 123456)
+    const senhaSalva = configPadrao.valores.senhaDispositivoPadrao?.trim();
+    const senhaAtiva = senhaDispositivoPadrao?.trim();
+    const senhaFinal =
+      senhaSalva && senhaSalva !== "123456"
+        ? senhaSalva
+        : senhaAtiva && senhaAtiva !== "123456"
+          ? senhaAtiva
+          : senhaSalva || senhaAtiva || "123456";
+
+    padraoValores.senhaDispositivoPadrao = senhaFinal;
+    padraoValores.senhaDispositivoCmd = `PASSWORD,123456,${senhaFinal}#`;
+
+    const telCenter =
+      extrairTelefoneNumeroCenter(
+        padraoValores.numeroCenter || numeroCenter || VALORES_PADRAO_CANONICO_J16.numeroCenter,
+      ) || VALORES_PADRAO_CANONICO_J16.numeroCenter;
+    padraoValores.numeroCenter = `admin#${senhaFinal}#${telCenter}#`;
 
     setServidorDns(padraoValores.servidorDns);
     setPortaTcp(padraoValores.portaTcp);
@@ -1150,7 +1172,7 @@ export function RastreadorJ16View() {
     setAnguloGrau(padraoValores.anguloGrau);
     setNumeroSos(padraoValores.numeroSos);
     setNumeroCenter(padraoValores.numeroCenter);
-    setSenhaDispositivoPadrao(padraoValores.senhaDispositivoPadrao || "123456");
+    setSenhaDispositivoPadrao(senhaFinal);
     setSenhaDispositivoCmd(padraoValores.senhaDispositivoCmd);
     setIgnicaoFisicaCmd(padraoValores.ignicaoFisicaCmd);
     setMedicaoInternaMeterCmd(padraoValores.medicaoInternaMeterCmd);
@@ -1294,6 +1316,28 @@ export function RastreadorJ16View() {
       return;
     }
     setSenhaDispositivoPadrao(senhaLimpa);
+    setSenhaDispositivoCmd(`PASSWORD,123456,${senhaLimpa}#`);
+
+    // Atualiza imediatamente o comando de Administrador (numeroCenter) no lote com a nova senha
+    setNumeroCenter((prev) => {
+      const tel = extrairTelefoneNumeroCenter(prev) || VALORES_PADRAO_CANONICO_J16.numeroCenter;
+      return `admin#${senhaLimpa}#${tel}#`;
+    });
+
+    // Atualiza imediatamente todos os comandos Coban se estiverem ativos
+    setGmtComando((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setStatusComando((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setParamComando((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setRelayConsultaComando((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setResetFinalCmd((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setBateriaCortadaCmd((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setBateriaFracaCmd((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setSenalmCmd((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setAlertaGuinchoCmd((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setAlertaIgnicaoImediataCmd((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setSleepMtkCmd((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+    setDefenseCmd((prev) => atualizarSenhaEmComandoCoban(prev, senhaLimpa));
+
     if (typeof window !== "undefined") {
       try {
         const salvo = localStorage.getItem(STORAGE_KEY_CONFIG_PADRAO_SISTEMA);
@@ -1308,11 +1352,21 @@ export function RastreadorJ16View() {
             parsed = {};
           }
         }
+        const telCenter =
+          extrairTelefoneNumeroCenter(
+            parsed.valores?.numeroCenter ||
+              numeroCenter ||
+              VALORES_PADRAO_CANONICO_J16.numeroCenter,
+          ) || VALORES_PADRAO_CANONICO_J16.numeroCenter;
+
         const novoPadrao = {
           ...parsed,
+          versao: VERSAO_PADRAO_SISTEMA_J16,
           valores: {
             ...(parsed.valores || VALORES_PADRAO_CANONICO_J16),
             senhaDispositivoPadrao: senhaLimpa,
+            senhaDispositivoCmd: `PASSWORD,123456,${senhaLimpa}#`,
+            numeroCenter: `admin#${senhaLimpa}#${telCenter}#`,
           },
           checkboxes: parsed.checkboxes || parametrosHabilitadosBatch,
         };
@@ -1780,47 +1834,31 @@ export function RastreadorJ16View() {
           cmd: valCenter.endsWith("#") ? valCenter : `${valCenter}#`,
           nome: `23. Comando Administrador (${valCenter})`,
         });
-      } else if (valCenter.startsWith("admin#") || valCenter.startsWith("CENTER,A,")) {
-        // Valida se possui partes válidas com número telefônico
-        const partes = valCenter.split("#").filter(Boolean);
-        const numParte = partes[2]?.replace(/\D/g, "") || partes[1]?.replace(/\D/g, "");
+      } else {
+        const numParte = extrairTelefoneNumeroCenter(valCenter);
         if (numParte && numParte.length >= 10) {
           comandos.push({
-            cmd: valCenter.endsWith("#") ? valCenter : `${valCenter}#`,
-            nome: `23. Administrador do Dispositivo (${valCenter})`,
+            cmd: `admin#${senhaAtiva}#${numParte}#`,
+            nome: `23. Administrador do Dispositivo (admin#${senhaAtiva}#${numParte}#)`,
           });
         } else {
           // Se o comando admin# não possui telefone válido, injeta o WhatsApp do cliente
-          const senhaAtiva = partes[1] || senhaDispositivoPadrao.trim() || "123456";
           comandos.push({
             cmd: `admin#${senhaAtiva}#{CLIENTE_TELEFONE}#`,
             nome: "23. Administrador do Dispositivo (WhatsApp do Cliente)",
           });
         }
-      } else if (valCenter) {
-        const numLimpo = valCenter.replace(/\D/g, "");
-        if (numLimpo.length >= 10) {
-          const senhaAtiva = senhaDispositivoPadrao.trim() || "123456";
-          comandos.push({
-            cmd: `admin#${senhaAtiva}#${numLimpo}#`,
-            nome: `23. Administrador do Dispositivo (admin#${senhaAtiva}#${numLimpo}#)`,
-          });
-        }
-      } else {
-        // Se habilitado sem número manual estático, injeta dinamicamente o WhatsApp do cliente
-        const senhaAtiva = senhaDispositivoPadrao.trim() || "123456";
-        comandos.push({
-          cmd: `admin#${senhaAtiva}#{CLIENTE_TELEFONE}#`,
-          nome: "23. Administrador do Dispositivo (WhatsApp do Cliente)",
-        });
       }
     }
 
     // 24. Senha de Proteção / Mestre do Rastreador (PASSWORD - opcional)
     if (parametrosHabilitadosBatch.senhaDispositivo) {
-      const cmdSenha =
-        senhaDispositivoCmd.trim() ||
-        `PASSWORD,123456,${senhaDispositivoPadrao.trim() || "123456"}#`;
+      let cmdSenha = senhaDispositivoCmd.trim();
+      if (!cmdSenha || cmdSenha.includes("<nova senha>") || cmdSenha.startsWith("PASSWORD,")) {
+        cmdSenha = `PASSWORD,123456,${senhaAtiva}#`;
+      } else if (cmdSenha.startsWith("zhencbpwd,")) {
+        cmdSenha = `zhencbpwd,123456,${senhaAtiva}#`;
+      }
       comandos.push({
         cmd: cmdSenha,
         nome: `24. Senha de Proteção (${cmdSenha})`,
@@ -2640,7 +2678,7 @@ export function RastreadorJ16View() {
       upper.startsWith("BEGIN") ||
       upper.startsWith("PASSWORD")
     ) {
-      return sanitizarComandoHardware(cmd);
+      return sanitizarComandoHardware(atualizarSenhaEmComandoCoban(cmd, senha));
     }
 
     // Mapeamento automático de comandos GT06/J16 para sintaxe Coban G900L:
@@ -3061,12 +3099,10 @@ export function RastreadorJ16View() {
 
           // Se for comando de Admin: prioriza o telefone do cliente do rastreador
           if (item.cmd.startsWith("admin#")) {
-            const senhaAtiva = senhaDispositivoPadrao.trim() || "123456";
+            const senhaAtiva = (senhaDispositivoPadrao || "123456").trim() || "123456";
             const foneAdmin =
               telCliente ||
-              (numeroCenter.replace(/\D/g, "").length >= 10
-                ? numeroCenter.replace(/\D/g, "")
-                : "") ||
+              extrairTelefoneNumeroCenter(numeroCenter) ||
               clientesWhatsapp[0]?.telefone ||
               VALORES_PADRAO_CANONICO_J16.numeroCenter;
             if (foneAdmin && foneAdmin.length >= 10) {
@@ -3080,6 +3116,13 @@ export function RastreadorJ16View() {
               );
               continue;
             }
+          }
+
+          if (item.cmd.startsWith("PASSWORD,") || item.cmd.startsWith("zhencbpwd,")) {
+            const prefixo = item.cmd.startsWith("PASSWORD,") ? "PASSWORD" : "zhencbpwd";
+            const senhaAtiva = (senhaDispositivoPadrao || "123456").trim() || "123456";
+            cmdFinal = `${prefixo},123456,${senhaAtiva}#`;
+            nomeFinal = `24. Senha de Proteção (${cmdFinal})`;
           }
 
           setProgressoBatch({
@@ -3147,7 +3190,7 @@ export function RastreadorJ16View() {
       const passAlvo = (apnPass || "1212").trim();
       const ipAlvo = (ipDedicado || "167.234.233.82").trim();
       const portaAlvo = (portaTcp || "7003").trim();
-      const telAdmin = (numeroCenter || "24981012184").replace(/\D/g, "") || "24981012184";
+      const telAdmin = extrairTelefoneNumeroCenter(numeroCenter) || "24981012184";
 
       return [
         {
@@ -3594,26 +3637,26 @@ export function RastreadorJ16View() {
       {
         num: 12,
         titulo: "Celular Administrador (ADMIN / CENTER)",
-        exemplo: `admin#${senhaDispositivoPadrao}#${numeroCenter ? numeroCenter.replace(/\D/g, "") : "5511999998888"}#`,
+        exemplo: `admin#${senhaDispositivoPadrao}#${extrairTelefoneNumeroCenter(numeroCenter) || "5511999998888"}#`,
         desc: "Cadastra o número administrador mestre no hardware do rastreador para autorização e segurança.",
         prioridade: "Segurança",
         categoria: "Segurança",
         presets: [
           {
             label: "Padrão Canônico (admin#<senha>#<numero>#)",
-            valor: `admin#${senhaDispositivoPadrao}#${numeroCenter ? numeroCenter.replace(/\D/g, "") : "5511999998888"}#`,
+            valor: `admin#${senhaDispositivoPadrao}#${extrairTelefoneNumeroCenter(numeroCenter) || "5511999998888"}#`,
           },
           {
             label: "Sintaxe Espaço (admin<senha> <numero>)",
-            valor: `admin${senhaDispositivoPadrao} ${numeroCenter ? numeroCenter.replace(/\D/g, "") : "5511999998888"}`,
+            valor: `admin${senhaDispositivoPadrao} ${extrairTelefoneNumeroCenter(numeroCenter) || "5511999998888"}`,
           },
           {
             label: "Sintaxe Hashtag (admin<senha>#<numero>)",
-            valor: `admin${senhaDispositivoPadrao}#${numeroCenter ? numeroCenter.replace(/\D/g, "") : "5511999998888"}`,
+            valor: `admin${senhaDispositivoPadrao}#${extrairTelefoneNumeroCenter(numeroCenter) || "5511999998888"}`,
           },
           {
             label: "Protocolo Concox (CENTER,A,<numero>#)",
-            valor: `CENTER,A,${numeroCenter ? numeroCenter.replace(/\D/g, "") : "5511999998888"}#`,
+            valor: `CENTER,A,${extrairTelefoneNumeroCenter(numeroCenter) || "5511999998888"}#`,
           },
           { label: "Ver Dono Atual (CENTER#)", valor: "CENTER#" },
           { label: "Ver Todos Parâmetros (PARAM#)", valor: "PARAM#" },
@@ -7826,18 +7869,18 @@ export function RastreadorJ16View() {
                         desc: "Telefone de alerta de emergência",
                       },
                       {
-                        cmd: `admin#${senhaDispositivoPadrao}#${numeroCenter ? numeroCenter.replace(/\D/g, "") : "5511999998888"}#`,
+                        cmd: `admin#${senhaDispositivoPadrao}#${extrairTelefoneNumeroCenter(numeroCenter) || "5511999998888"}#`,
                         label: "CADASTRAR ADMIN (admin#senha#numero#)",
                         desc: "Número administrador mestre que bloqueia comandos de terceiros",
                         cor: "emerald",
                       },
                       {
-                        cmd: `admin${senhaDispositivoPadrao} ${numeroCenter ? numeroCenter.replace(/\D/g, "") : "5511999998888"}`,
+                        cmd: `admin${senhaDispositivoPadrao} ${extrairTelefoneNumeroCenter(numeroCenter) || "5511999998888"}`,
                         label: "CADASTRAR ADMIN ESPAÇO (admin<senha> <numero>)",
                         desc: "Formato alternativo com espaço testado no chip",
                       },
                       {
-                        cmd: `CENTER,A,${numeroCenter ? numeroCenter.replace(/\D/g, "") : "24988887777"}#`,
+                        cmd: `CENTER,A,${extrairTelefoneNumeroCenter(numeroCenter) || "24988887777"}#`,
                         label: "CADASTRAR DONO (CENTER)",
                         desc: "Número central administrador Concox",
                       },
@@ -8164,7 +8207,7 @@ export function RastreadorJ16View() {
                     administrador (
                     <code>
                       admin#{novaSenhaForm || "NOVA_SENHA"}#
-                      {numeroCenter ? numeroCenter.replace(/\D/g, "") : "numero"}#
+                      {extrairTelefoneNumeroCenter(numeroCenter) || "numero"}#
                     </code>
                     ), no corte de motor (<code>DYD</code>), na liberação (<code>HFYD</code>) e na
                     consulta de status.
