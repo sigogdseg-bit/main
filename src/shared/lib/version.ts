@@ -7,7 +7,7 @@
 // D = Correções / Refinamentos
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const APP_VERSION_NUMERO = "1.0.1.42";
+export const APP_VERSION_NUMERO = "1.0.1.43";
 export const APP_BUILD_DATE = "21/11/2026";
 export const APP_NOME = "GD Segurança";
 export const APP_SLOGAN = "Segurança Privada e Rastreamento Tático Veicular e Patrimonial";

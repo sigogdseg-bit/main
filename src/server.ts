@@ -2898,7 +2898,10 @@ async function handleApiAdminUsuarios(request: Request, env: unknown): Promise<R
 
 async function handleApiClientes(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
-  if (url.pathname !== "/api/clientes/meu-status") {
+  if (
+    url.pathname !== "/api/clientes/meu-status" &&
+    url.pathname !== "/api/clientes/status-financeiro"
+  ) {
     if (url.pathname !== "/api/clientes" && url.pathname !== "/api/clientes/listar") {
       return null;
     }
@@ -3087,6 +3090,250 @@ async function handleApiClientes(request: Request, env: unknown): Promise<Respon
         JSON.stringify({
           success: false,
           message: err?.message || "Erro ao obter status do cliente.",
+        }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
+  if (url.pathname === "/api/clientes/status-financeiro") {
+    try {
+      const requestedClienteId = url.searchParams.get("clienteId")?.trim() || null;
+      const isMotoristaParam = url.searchParams.get("isMotorista") === "1";
+      const roleNorm = String(profile?.role || "").toLowerCase();
+      const isStaff = roleNorm === "superadmin" || roleNorm === "admin" || roleNorm === "operador";
+      const isMotorista = isMotoristaParam || roleNorm === "motorista";
+
+      const statusPadrao = {
+        bloqueado: false,
+        bloqueioLocalizacao: false,
+        bloqueioLogin: false,
+        diasAtraso: 0,
+        totalDevido: 0,
+        qtdFaturasVencidas: 0,
+        avisoVencimentoProximo: false,
+        avisoNotificacaoDia1a4: false,
+        statusBloqueioLocalizacaoManual: "automatico" as const,
+        statusBloqueioAcessoManual: "automatico" as const,
+        isMotorista,
+      };
+
+      let resolvedClienteId: string | null = isStaff ? requestedClienteId : null;
+
+      if (isMotorista && !resolvedClienteId) {
+        const { data: mot } = await adminClient
+          .from("motoristas")
+          .select("cliente_id")
+          .eq("user_id", userData.user.id)
+          .maybeSingle();
+        if (mot?.cliente_id) {
+          resolvedClienteId = mot.cliente_id;
+        }
+      }
+
+      const buscarClienteComDefesa = async (campo: "user_id" | "id", valor: string) => {
+        const res = await adminClient
+          .from("clientes")
+          .select("id, status, status_bloqueio_localizacao, status_bloqueio_acesso")
+          .eq(campo, valor)
+          .maybeSingle();
+
+        if (res.error && (res.error.code === "PGRST204" || res.error.code === "42703")) {
+          const fallback = await adminClient
+            .from("clientes")
+            .select("id, status")
+            .eq(campo, valor)
+            .maybeSingle();
+          return fallback.data;
+        }
+        return res.data;
+      };
+
+      let clienteData: any = null;
+      if (resolvedClienteId) {
+        clienteData = await buscarClienteComDefesa("id", resolvedClienteId);
+      } else if (!isMotorista) {
+        clienteData = await buscarClienteComDefesa("user_id", userData.user.id);
+        if (!clienteData && profile?.cliente_id) {
+          clienteData = await buscarClienteComDefesa("id", profile.cliente_id);
+        }
+        if (clienteData) {
+          resolvedClienteId = clienteData.id;
+        }
+      }
+
+      if (!resolvedClienteId || !clienteData) {
+        return new Response(JSON.stringify({ success: true, status: statusPadrao }), {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
+      }
+
+      if (clienteData.status === "aguardando_instalacao") {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: {
+              ...statusPadrao,
+              clienteId: resolvedClienteId,
+              clienteStatus: clienteData.status || null,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const { data: veicsDoCliente } = await adminClient
+        .from("veiculos")
+        .select("id")
+        .eq("cliente_id", resolvedClienteId)
+        .eq("ativo", true)
+        .limit(1);
+
+      if (!veicsDoCliente || veicsDoCliente.length === 0) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: {
+              ...statusPadrao,
+              clienteId: resolvedClienteId,
+              clienteStatus: clienteData.status || null,
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const statusLocManual =
+        clienteData.status_bloqueio_localizacao === "bloqueado" ||
+        clienteData.status_bloqueio_localizacao === "liberado"
+          ? clienteData.status_bloqueio_localizacao
+          : "automatico";
+
+      const statusAcessoManual =
+        clienteData.status_bloqueio_acesso === "bloqueado" ||
+        clienteData.status_bloqueio_acesso === "liberado"
+          ? clienteData.status_bloqueio_acesso
+          : "automatico";
+
+      const { data: mensalidades, error: mensErr } = await adminClient
+        .from("mensalidades")
+        .select("id, mes_referencia, ano_referencia, valor, data_vencimento, status")
+        .eq("cliente_id", resolvedClienteId)
+        .neq("status", "pago")
+        .order("data_vencimento", { ascending: true });
+
+      const hoje = new Date().toISOString().split("T")[0];
+      const hojeMs = new Date(hoje).getTime();
+
+      let totalDevido = 0;
+      let qtdFaturasVencidas = 0;
+      let maiorDiasAtraso = 0;
+      let faturaVencidaMaisAntiga: any = undefined;
+      let faturaAVencer: any = undefined;
+      let avisoVencimentoProximo = false;
+
+      if (!mensErr && mensalidades && mensalidades.length > 0) {
+        for (const m of mensalidades) {
+          const v = Number(m.valor || 0);
+          const dataVenc = m.data_vencimento;
+
+          if (dataVenc < hoje) {
+            totalDevido += v;
+            qtdFaturasVencidas += 1;
+
+            const vencMs = new Date(dataVenc).getTime();
+            const dias = Math.max(1, Math.floor((hojeMs - vencMs) / (1000 * 60 * 60 * 24)));
+            if (dias > maiorDiasAtraso) {
+              maiorDiasAtraso = dias;
+            }
+
+            if (!faturaVencidaMaisAntiga) {
+              faturaVencidaMaisAntiga = {
+                id: m.id,
+                mes: m.mes_referencia,
+                ano: m.ano_referencia,
+                valor: v,
+                dataVencimento: dataVenc,
+                diasAtraso: dias,
+              };
+            }
+          } else if (!avisoVencimentoProximo) {
+            const vencMs = new Date(dataVenc).getTime();
+            const diffDias = Math.ceil((vencMs - hojeMs) / (1000 * 60 * 60 * 24));
+
+            if (diffDias >= 0 && diffDias <= 5) {
+              avisoVencimentoProximo = true;
+              faturaAVencer = {
+                id: m.id,
+                mes: m.mes_referencia,
+                ano: m.ano_referencia,
+                valor: v,
+                dataVencimento: dataVenc,
+                diasParaVencer: diffDias,
+              };
+            }
+          }
+        }
+      }
+
+      const avisoNotificacaoDia1a4 = maiorDiasAtraso >= 1 && maiorDiasAtraso <= 4;
+      const bloqueioLocalizacao =
+        statusLocManual === "bloqueado"
+          ? true
+          : statusLocManual === "liberado"
+            ? false
+            : maiorDiasAtraso >= 5;
+      const bloqueioLogin =
+        statusAcessoManual === "bloqueado"
+          ? true
+          : statusAcessoManual === "liberado"
+            ? false
+            : maiorDiasAtraso >= 7;
+
+      const payload = isMotorista
+        ? {
+            bloqueado: bloqueioLogin,
+            bloqueioLocalizacao,
+            bloqueioLogin,
+            diasAtraso: 0,
+            totalDevido: 0,
+            qtdFaturasVencidas: 0,
+            faturaVencidaMaisAntiga: undefined,
+            avisoVencimentoProximo: false,
+            avisoNotificacaoDia1a4: false,
+            statusBloqueioLocalizacaoManual: statusLocManual,
+            statusBloqueioAcessoManual: statusAcessoManual,
+            isMotorista: true,
+            clienteId: resolvedClienteId,
+          }
+        : {
+            bloqueado: bloqueioLogin,
+            bloqueioLocalizacao,
+            bloqueioLogin,
+            diasAtraso: maiorDiasAtraso,
+            totalDevido,
+            qtdFaturasVencidas,
+            faturaVencidaMaisAntiga,
+            avisoVencimentoProximo,
+            faturaAVencer,
+            avisoNotificacaoDia1a4,
+            statusBloqueioLocalizacaoManual: statusLocManual,
+            statusBloqueioAcessoManual: statusAcessoManual,
+            isMotorista: false,
+            clienteId: resolvedClienteId,
+            clienteStatus: clienteData.status || null,
+          };
+
+      return new Response(JSON.stringify({ success: true, status: payload }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: err?.message || "Erro ao consultar status financeiro.",
         }),
         { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
       );
@@ -4207,7 +4454,7 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
   }
 
   // GET /api/veiculos?clienteId=xxx
-  if (request.method === "GET") {
+  if (request.method === "GET" && url.pathname === "/api/veiculos") {
     try {
       const clienteId = url.searchParams.get("clienteId");
       if (!clienteId) {
@@ -7086,6 +7333,158 @@ async function handleApiMensalidades(request: Request, env: unknown): Promise<Re
         JSON.stringify({
           sucesso: false,
           erro: err?.message || "Falha ao listar faturas pendentes de baixa.",
+        }),
+        { status: 500, headers: corsHeaders },
+      );
+    }
+  }
+
+  // GET /api/mensalidades
+  if (url.pathname === "/api/mensalidades" && request.method === "GET") {
+    try {
+      const authHeader = request.headers.get("Authorization") || "";
+      const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+      if (!token) {
+        return new Response(
+          JSON.stringify({ sucesso: false, erro: "Não autorizado: Token de sessão ausente." }),
+          { status: 401, headers: corsHeaders },
+        );
+      }
+
+      const { supabaseAnonKey } = getSupabaseServerParams(env);
+      const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: { persistSession: false },
+      });
+      const { data: userData, error: userError } = await userClient.auth.getUser(token);
+      if (userError || !userData?.user) {
+        return new Response(JSON.stringify({ sucesso: false, erro: "Sessão inválida." }), {
+          status: 401,
+          headers: corsHeaders,
+        });
+      }
+
+      const { data: profile } = await adminClient
+        .from("profiles")
+        .select("role, cliente_id")
+        .eq("id", userData.user.id)
+        .maybeSingle();
+
+      const roleNorm = String(profile?.role || "").toLowerCase();
+      const isStaff = roleNorm === "superadmin" || roleNorm === "admin" || roleNorm === "operador";
+
+      let clienteIdFiltro = url.searchParams.get("clienteId")?.trim() || null;
+
+      if (!isStaff) {
+        if (roleNorm === "motorista") {
+          return new Response(JSON.stringify({ sucesso: true, dados: [] }), {
+            status: 200,
+            headers: corsHeaders,
+          });
+        }
+        let ownClienteId: string | null = profile?.cliente_id || null;
+        if (!ownClienteId) {
+          const { data: cli } = await adminClient
+            .from("clientes")
+            .select("id")
+            .eq("user_id", userData.user.id)
+            .maybeSingle();
+          ownClienteId = cli?.id || null;
+        }
+        if (!ownClienteId && userData.user.email) {
+          const { data: cliEmail } = await adminClient
+            .from("clientes")
+            .select("id")
+            .ilike("email", userData.user.email.trim())
+            .maybeSingle();
+          ownClienteId = cliEmail?.id || null;
+        }
+        if (!ownClienteId) {
+          return new Response(JSON.stringify({ sucesso: true, dados: [] }), {
+            status: 200,
+            headers: corsHeaders,
+          });
+        }
+        clienteIdFiltro = ownClienteId;
+      }
+
+      let query = adminClient.from("mensalidades").select(
+        `
+          id,
+          cliente_id,
+          mes_referencia,
+          ano_referencia,
+          numero_parcela,
+          total_parcelas,
+          valor,
+          data_vencimento,
+          status,
+          data_pagamento,
+          comprovante_url,
+          created_at,
+          updated_at,
+          clientes (
+            id,
+            nome_razao_social,
+            documento,
+            telefone,
+            email
+          )
+        `,
+      );
+
+      if (clienteIdFiltro) {
+        query = query.eq("cliente_id", clienteIdFiltro);
+      }
+
+      let { data, error } = await query.order("data_vencimento", { ascending: true });
+
+      if (error) {
+        let fbQuery = adminClient.from("mensalidades").select(
+          `
+            id,
+            cliente_id,
+            mes_referencia,
+            ano_referencia,
+            valor,
+            data_vencimento,
+            status,
+            data_pagamento,
+            comprovante_url,
+            created_at,
+            updated_at,
+            clientes (
+              id,
+              nome_razao_social,
+              documento,
+              telefone,
+              email
+            )
+          `,
+        );
+        if (clienteIdFiltro) {
+          fbQuery = fbQuery.eq("cliente_id", clienteIdFiltro);
+        }
+        const fb = await fbQuery.order("data_vencimento", { ascending: true });
+        data = fb.data as any;
+        error = fb.error;
+      }
+
+      if (error) {
+        return new Response(JSON.stringify({ sucesso: false, erro: error.message }), {
+          status: 500,
+          headers: corsHeaders,
+        });
+      }
+
+      return new Response(JSON.stringify({ sucesso: true, dados: data || [] }), {
+        status: 200,
+        headers: corsHeaders,
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({
+          sucesso: false,
+          erro: err?.message || "Falha ao listar mensalidades.",
         }),
         { status: 500, headers: corsHeaders },
       );

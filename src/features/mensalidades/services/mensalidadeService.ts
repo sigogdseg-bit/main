@@ -12,6 +12,42 @@ export async function listarMensalidades(
   clienteIdFiltro?: string | null,
 ): Promise<MensalidadeItem[]> {
   try {
+    const hojeStr = new Date().toISOString().split("T")[0];
+    const normalizarLista = (rows: any[]) =>
+      enriquecerNumeracaoParcelasMensalidades(
+        (rows || []).map((m: any) => {
+          let statusAtualizado = m.status;
+          if (statusAtualizado === "pendente" && m.data_vencimento < hojeStr) {
+            statusAtualizado = "vencido";
+          }
+
+          return {
+            ...m,
+            status: statusAtualizado,
+            valor: Number(m.valor || 0),
+          } as MensalidadeItem;
+        }),
+      );
+
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess?.session?.access_token;
+
+    if (token) {
+      const qs = clienteIdFiltro ? `?clienteId=${encodeURIComponent(clienteIdFiltro)}` : "";
+      const res = await fetch(`/api/mensalidades${qs}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json?.sucesso && Array.isArray(json.dados)) {
+          return normalizarLista(json.dados);
+        }
+      }
+      if (res.status !== 404) {
+        return [];
+      }
+    }
+
     let query = supabase.from("mensalidades").select(
       `
         id,
@@ -80,22 +116,7 @@ export async function listarMensalidades(
       return [];
     }
 
-    const hojeStr = new Date().toISOString().split("T")[0];
-
-    const normalizadas = (data || []).map((m: any) => {
-      let statusAtualizado = m.status;
-      if (statusAtualizado === "pendente" && m.data_vencimento < hojeStr) {
-        statusAtualizado = "vencido";
-      }
-
-      return {
-        ...m,
-        status: statusAtualizado,
-        valor: Number(m.valor || 0),
-      } as MensalidadeItem;
-    });
-
-    return enriquecerNumeracaoParcelasMensalidades(normalizadas);
+    return normalizarLista(data || []);
   } catch (err) {
     console.error("Excecao ao listar mensalidades:", err);
     return [];
@@ -1097,6 +1118,41 @@ export async function verificarStatusFinanceiroCliente(
   };
 
   try {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess?.session?.access_token;
+
+    if (token) {
+      const params = new URLSearchParams();
+      if (clienteIdInformado) params.set("clienteId", clienteIdInformado);
+      if (isMotorista) params.set("isMotorista", "1");
+      const qs = params.toString();
+      const res = await fetch(`/api/clientes/status-financeiro${qs ? `?${qs}` : ""}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json().catch(() => null);
+        if (json?.success && json?.status) {
+          const st = json.status as StatusFinanceiroCliente;
+          if (
+            !isMotorista &&
+            st.avisoNotificacaoDia1a4 &&
+            st.faturaVencidaMaisAntiga &&
+            st.clienteId
+          ) {
+            dispararNotificacaoAutomaticaAtrasoCliente(
+              st.clienteId,
+              st.diasAtraso,
+              st.faturaVencidaMaisAntiga,
+            ).catch(() => {});
+          }
+          return st;
+        }
+      }
+      if (res.status !== 404) {
+        return statusPadrao;
+      }
+    }
+
     let resolvedClienteId: string | null = clienteIdInformado || null;
 
     // 1. Se for motorista e não tiver clienteId informado, consulta vínculo na tabela motoristas
