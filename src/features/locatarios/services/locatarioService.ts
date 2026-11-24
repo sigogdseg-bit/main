@@ -30,6 +30,8 @@ export async function listarLocatarios(clienteId?: string): Promise<LocatarioCli
         if (json.success && Array.isArray(json.locatarios)) {
           return json.locatarios;
         }
+      } else if (res.status >= 500) {
+        return [];
       }
     }
 

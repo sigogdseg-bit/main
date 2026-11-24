@@ -3461,6 +3461,20 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
       const { data: locs, error: errLocs } = await query;
       if (errLocs) {
+        if (
+          errLocs.code === "PGRST205" ||
+          errLocs.code === "42P01" ||
+          errLocs.message?.includes("Could not find the table") ||
+          errLocs.message?.includes("does not exist")
+        ) {
+          return new Response(
+            JSON.stringify({ success: true, locatarios: [], tabelaPendente: true }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+            },
+          );
+        }
         return new Response(JSON.stringify({ success: false, message: errLocs.message }), {
           status: 500,
           headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
@@ -3833,7 +3847,11 @@ async function handleApiLocatarios(request: Request, env: unknown): Promise<Resp
 
 async function handleApiVeiculos(request: Request, env: unknown): Promise<Response | null> {
   const url = new URL(request.url);
-  if (!url.pathname.startsWith("/api/veiculos") && !url.pathname.startsWith("/api/instalacoes")) {
+  if (
+    !url.pathname.startsWith("/api/veiculos") &&
+    !url.pathname.startsWith("/api/instalacoes") &&
+    url.pathname !== "/api/alertas-seguranca"
+  ) {
     return null;
   }
 
