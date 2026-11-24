@@ -171,3 +171,85 @@ export async function copiarComandosDispositivo(
   }
   return { sucesso: true, total: comandos.length, texto };
 }
+
+/**
+ * Converte comando GT06/J16 ou comando nativo para a sintaxe do G900L (Coban) com injeção de senha mestre.
+ */
+export function converterComandoParaModeloHardwareG900L(
+  cmd: string,
+  senhaMestre: string = "123456",
+): string {
+  const senha = (senhaMestre || "123456").trim() || "123456";
+  const upper = cmd.trim().toUpperCase().replace(/#+$/, "");
+
+  // Comandos incompatíveis de MCU/MTK são descartados no perfil G900L
+  if (upper.startsWith("SZCS#") || upper.startsWith("CXCS#")) {
+    return "";
+  }
+
+  // Comandos já formatados nativamente
+  if (
+    upper.startsWith("ADMINIP") ||
+    upper.startsWith("APN") ||
+    upper.startsWith("FIX") ||
+    upper.startsWith("HBT") ||
+    upper.startsWith("TIME ZONE") ||
+    upper.startsWith("CHECK" + senha) ||
+    upper.startsWith("STATUS" + senha) ||
+    upper.startsWith("RESET" + senha) ||
+    upper.startsWith("STOP" + senha) ||
+    upper.startsWith("RESUME" + senha) ||
+    upper.startsWith("EXTPOWER") ||
+    upper.startsWith("LOWBATTERY") ||
+    upper.startsWith("SHOCK") ||
+    upper.startsWith("MOVE") ||
+    upper.startsWith("ACC" + senha) ||
+    upper.startsWith("NOACC" + senha) ||
+    upper.startsWith("SLEEP" + senha) ||
+    upper.startsWith("ARM" + senha) ||
+    upper.startsWith("DISARM" + senha) ||
+    upper.startsWith("ANGLE" + senha) ||
+    upper.startsWith("VIBRATE" + senha) ||
+    upper.startsWith("KC" + senha) ||
+    upper.startsWith("BEGIN" + senha) ||
+    upper.startsWith("PASSWORD" + senha)
+  ) {
+    return sanitizarComandoHardware(cmd);
+  }
+
+  if (upper.startsWith("TIMER,") || upper.startsWith("TIMER#") || upper === "TIMER") {
+    const partes = cmd.replace(/#+$/, "").split(",");
+    const mov = partes[1] ? String(parseInt(partes[1], 10) || 20).padStart(3, "0") : "020";
+    return `fix${mov}s060m***n${senha}`;
+  }
+
+  if (upper.startsWith("ANGLE") || upper.includes("ANGLEVALUE")) {
+    const match = cmd.match(/\d+$/);
+    const graus = match ? parseInt(match[0], 10) : 25;
+    const grausFinal = Math.max(25, graus);
+    return `ANGLE${senha} ${grausFinal}`;
+  }
+
+  if (upper.startsWith("SLEEP") || upper.includes("DISSLP")) {
+    const off = upper.includes("OFF") || upper.includes("=1");
+    return `sleep${senha} ${off ? "off" : "on"}`;
+  }
+
+  if (upper === "RELAY,1" || upper.startsWith("DYD") || upper.startsWith("STOP")) {
+    return `stop${senha}`;
+  }
+
+  if (upper === "RELAY,0" || upper.startsWith("HFYD") || upper.startsWith("RESUME")) {
+    return `resume${senha}`;
+  }
+
+  if (upper === "PARAM" || upper.startsWith("PARAM#") || upper.startsWith("CHECK")) {
+    return `check${senha}`;
+  }
+
+  if (upper === "STATUS" || upper.startsWith("STATUS#") || upper.startsWith("STATUS1")) {
+    return `status${senha}`;
+  }
+
+  return sanitizarComandoHardware(cmd);
+}

@@ -233,4 +233,46 @@ describe("Hunter GPS Gateway — Hotfix de Segurança e Protocolo GT06 0x80", ()
 
     conexoesAtivas.delete(socket);
   });
+
+  it("e) Geração correta de comandos G900L com injeção de senha mestre", async () => {
+    const { converterComandoParaModeloHardwareG900L } =
+      await import("../../../src/features/seguranca/lib/comandosDispositivoHelper.js");
+
+    const senha = "123456";
+
+    // 1. Timer Movimento + Parado: fix020s060m***n123456
+    const cmdTimer = converterComandoParaModeloHardwareG900L("TIMER,20,3600#", senha);
+    assert.equal(cmdTimer, `fix020s060m***n${senha}`);
+
+    // Preserva se já gerado no formato nativo
+    const cmdFixNativo = converterComandoParaModeloHardwareG900L("fix020s060m***n123456", senha);
+    assert.equal(cmdFixNativo, "fix020s060m***n123456");
+
+    // 2. Ângulo de Curva: ANGLE123456 25 (mínimo 25°)
+    const cmdAngle = converterComandoParaModeloHardwareG900L("ANGLEVALUE=10-020", senha);
+    assert.equal(cmdAngle, `ANGLE${senha} 25`);
+
+    const cmdAngleNativo = converterComandoParaModeloHardwareG900L("ANGLE123456 25", senha);
+    assert.equal(cmdAngleNativo, "ANGLE123456 25");
+
+    // 3. Sono Profundo Parado: sleep123456 on / off
+    const cmdSleep = converterComandoParaModeloHardwareG900L("MTK_DISSLP=0", senha);
+    assert.equal(cmdSleep, `sleep${senha} on`);
+
+    const cmdSleepOff = converterComandoParaModeloHardwareG900L("MTK_DISSLP=1", senha);
+    assert.equal(cmdSleepOff, `sleep${senha} off`);
+
+    // 4. Bloqueio / Desbloqueio: stop123456 / resume123456
+    const cmdStop = converterComandoParaModeloHardwareG900L("RELAY,1", senha);
+    assert.equal(cmdStop, `stop${senha}`);
+
+    const cmdResume = converterComandoParaModeloHardwareG900L("RELAY,0", senha);
+    assert.equal(cmdResume, `resume${senha}`);
+
+    // 5. Comandos incompatíveis de MCU/MTK (SZCS# e CXCS#) retornam vazio para G900L
+    assert.equal(converterComandoParaModeloHardwareG900L("SZCS#ACCLINE=1", senha), "");
+    assert.equal(converterComandoParaModeloHardwareG900L("SZCS#GT06METER=1", senha), "");
+    assert.equal(converterComandoParaModeloHardwareG900L("SZCS#GT06IEXVOL=2", senha), "");
+    assert.equal(converterComandoParaModeloHardwareG900L("CXCS#ACCLINE", senha), "");
+  });
 });

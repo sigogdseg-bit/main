@@ -72,11 +72,11 @@ export function sanitizarComandoHardware(cmd: string): string {
     // ou sintaxe específica de telemetria Coban (fix030s***n, time zone, etc.)
     const semHashUpper = upper.replace(/#+$/, "");
     const isCobanComSenha =
-      /^(ADMINIP|APN|HBT|CHECK|STATUS|IMEI|GPRS|STOP|RESUME|RESET|EXTPOWER|LOWBATTERY|SHOCK|MOVE|ACC|SLEEP|SPEED|BEGIN|DEACTIVATE|PASSWORD)\d{4,6}(\s|$)/i.test(
+      /^(ADMINIP|APN|HBT|CHECK|STATUS|IMEI|GPRS|STOP|RESUME|RESET|EXTPOWER|LOWBATTERY|SHOCK|MOVE|ACC|NOACC|SLEEP|SPEED|BEGIN|DEACTIVATE|PASSWORD|ANGLE|KC|AUTHNUM|NOADMIN|ADMIN|IPAPN|VIBRATE)\d{4,6}(\s|$)/i.test(
         semHashUpper,
       );
     const isCobanSintaxe =
-      /^(FIX\d{3}s\*\*\*n|NOFIX|TIME\s*ZONE\d*|G\d{4,6}#?|LESS\s*GPRS|NOGPRS|TCP|UDP|ARM|DISARM)/i.test(
+      /^(FIX\d{3}[A-Z0-9*]+|NOFIX|TIME\s*ZONE\d*|G\d{4,6}#?|LESS\s*GPRS|NOGPRS|TCP|UDP|ARM|DISARM|VIBRATE|IPAPN|AUTHNUM)/i.test(
         semHashUpper,
       );
     const isCobanCurto =

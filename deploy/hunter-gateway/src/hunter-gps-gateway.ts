@@ -737,6 +737,7 @@ export async function enviarComandoParaRastreador(
   const isCorte =
     comandoAscii.startsWith("DYD") ||
     comandoAscii.startsWith("RELAY,1") ||
+    cmdUpper.startsWith("STOP") ||
     cmdUpper === "J" ||
     cmdUpper.endsWith(",J") ||
     cmdUpper.endsWith(",J;") ||
@@ -746,6 +747,7 @@ export async function enviarComandoParaRastreador(
   const isDesbloqueio =
     comandoAscii.startsWith("HFYD") ||
     comandoAscii.startsWith("RELAY,0") ||
+    cmdUpper.startsWith("RESUME") ||
     cmdUpper === "K" ||
     cmdUpper.endsWith(",K") ||
     cmdUpper.endsWith(",K;") ||
@@ -851,6 +853,16 @@ export async function enviarComandoParaRastreador(
         comando: comandoAscii,
         timestamp: Date.now(),
       });
+      if (!ehCobanAscii || conn.protocoloTransporte === "gt06") {
+        void notificarComandoConsoleRealtime({
+          imei,
+          direcao: "TX",
+          protocolo: "0x80",
+          ascii: comandoAscii,
+          hex: pkt.toString("hex"),
+          timestamp: Date.now(),
+        });
+      }
       console.log(
         `📡 [COMANDO ENVIADO ${ehCobanAscii && conn.protocoloTransporte !== "gt06" ? "COBAN" : "GT06"}] IMEI ${imei}: "${comandoAscii}" (${pkt.toString("hex")})`,
       );
@@ -869,6 +881,27 @@ export async function enviarComandoParaRastreador(
 
 // Escuta em tempo real de comandos e consultas de telemetria
 const canalComandos = supabase.channel("hunter_gateway_comandos");
+
+export async function notificarComandoConsoleRealtime(payload: {
+  imei: string;
+  direcao: "TX" | "RX";
+  protocolo: "0x80" | "0x15" | "0x21";
+  ascii: string;
+  hex: string;
+  timestamp: number;
+}) {
+  if (process.env.GATEWAY_TEST_MODE) return;
+  try {
+    await canalComandos.send({
+      type: "broadcast",
+      event: "console_tcp_evento",
+      payload,
+    });
+  } catch {
+    // Silencioso em caso de oscilação transitória
+  }
+}
+
 canalComandos
   .on("broadcast", { event: "comando_bloqueio" }, async (payload: any) => {
     const { imei, bloquear, veiculoId } = payload.payload || {};
@@ -1520,6 +1553,18 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     // Notifica imediatamente listeners síncronos aguardando pela rota HTTP
     if (imei && respostaAscii) {
       notificarRespostaHardwareJ16(imei, respostaAscii);
+    }
+
+    // Notifica broadcast do Console TCP em tempo real (RX 0x15 / 0x21)
+    if (imei) {
+      void notificarComandoConsoleRealtime({
+        imei,
+        direcao: "RX",
+        protocolo: protocolo === 0x15 ? "0x15" : "0x21",
+        ascii: respostaAscii || buf.toString("hex"),
+        hex: buf.toString("hex"),
+        timestamp: Date.now(),
+      });
     }
 
     if (!process.env.GATEWAY_TEST_MODE && process.env.NODE_ENV !== "test") {

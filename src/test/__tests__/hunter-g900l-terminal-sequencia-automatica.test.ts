@@ -44,50 +44,36 @@ describe("HUNTER-GUARDIAN — Sequência Automática e Catálogo de Comandos G90
     );
   });
 
-  it("2. Deve comutar o catálogo de comandos para os 10 comandos TCP Coban quando G900L estiver ativo", () => {
+  it("2. Deve comutar o catálogo de comandos para os 19 comandos nativos G900L quando G900L estiver ativo", () => {
     assert.ok(
       content.includes("Catálogo de Comandos do Hardware G900L (Coban)"),
       "Título da seção deve comutar dinamicamente para G900L",
     );
+    assert.ok(content.includes("1. Consultar Parâmetros (check)"), "Catálogo deve incluir check");
+    assert.ok(content.includes("2. Consultar IP e APN (IPAPN)"), "Catálogo deve incluir IPAPN");
+    assert.ok(content.includes("3. Timer Movimento e Parado (fix)"), "Catálogo deve incluir fix");
     assert.ok(
-      content.includes("Localização em Tempo Real (B) [TCP]"),
-      "Catálogo deve incluir comando TCP B",
+      content.includes("4. Inflexão de Curva (ANGLE - Mín. 25°)"),
+      "Catálogo deve incluir ANGLE 25",
+    );
+    assert.ok(content.includes("5. Sono Profundo ao Parar (sleep)"), "Catálogo deve incluir sleep");
+    assert.ok(content.includes("6. Heartbeat Periódico (hbt)"), "Catálogo deve incluir hbt");
+    assert.ok(content.includes("7. Bloqueio Veicular Relé (stop)"), "Catálogo deve incluir stop");
+    assert.ok(
+      content.includes("8. Desbloqueio Veicular Relé (resume)"),
+      "Catálogo deve incluir resume",
+    );
+    assert.ok(content.includes("9. Configurar APN de Dados (apn)"), "Catálogo deve incluir apn");
+    assert.ok(
+      content.includes("10. Servidor IP e Porta (adminip)"),
+      "Catálogo deve incluir adminip",
     );
     assert.ok(
-      content.includes("Intervalo em Movimento 30s (C,30s) [TCP]"),
-      "Catálogo deve incluir comando TCP C,30s",
-    );
-    assert.ok(
-      content.includes("Intervalo em Movimento 10s (C,10s) [TCP]"),
-      "Catálogo deve incluir comando TCP C,10s",
-    );
-    assert.ok(
-      content.includes("Parar Envio Contínuo (A) [TCP]"),
-      "Catálogo deve incluir comando TCP A",
-    );
-    assert.ok(
-      content.includes("Bloqueio Veicular Relé (J) [TCP]"),
-      "Catálogo deve incluir comando TCP J",
-    );
-    assert.ok(
-      content.includes("Desbloqueio Veicular Relé (K) [TCP]"),
-      "Catálogo deve incluir comando TCP K",
-    );
-    assert.ok(
-      content.includes("Armar Alarme de Segurança (L) [TCP]"),
-      "Catálogo deve incluir comando TCP L",
-    );
-    assert.ok(content.includes("Desarmar Alarme (M) [TCP]"), "Catálogo deve incluir comando TCP M");
-    assert.ok(
-      content.includes("Cancelar Alarmes Ativos (E) [TCP]"),
-      "Catálogo deve incluir comando TCP E",
-    );
-    assert.ok(
-      content.includes("Alerta de Limite de Velocidade 80 km/h (H,080) [TCP]"),
-      "Catálogo deve incluir comando TCP H,080",
+      content.includes("11. Fuso Horário Brasília (time zone)"),
+      "Catálogo deve incluir time zone",
     );
 
-    // Valida que o catálogo Coban NÃO expõe comandos exclusivos de SMS
+    // Valida que o catálogo Coban NÃO expõe comandos obsoletos ou incompatíveis de MCU/MTK
     assert.ok(
       !content.includes("[Exclusivo SMS]"),
       "Catálogo de ações não deve listar comandos exclusivos de SMS",

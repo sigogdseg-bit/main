@@ -706,21 +706,8 @@ export function RastreadorJ16View() {
   const STORAGE_KEY_BATCH_PARAMS = "hunter_j16_batch_params_habilitados";
   const STORAGE_KEY_COMANDOS_EDITADOS = "hunter_j16_comandos_editados";
 
-  // Seleção múltipla de dispositivos (Persistido no localStorage - respeita o estado deixado pelo usuário)
+  // Seleção múltipla de dispositivos: Inicia SEMPRE com 0 selecionados por segurança operacional na Central
   const [selectedImeis, setSelectedImeis] = useState<Set<string>>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const salvo = localStorage.getItem("hunter_j16_selected_imeis");
-        if (salvo) {
-          const parsed = JSON.parse(salvo);
-          if (Array.isArray(parsed)) {
-            return new Set(parsed);
-          }
-        }
-      } catch (err) {
-        console.warn("Falha ao recuperar selectedImeis do localStorage", err);
-      }
-    }
     return new Set<string>();
   });
   const [modoVisualizacao, setModoVisualizacao] = useState<"tabela" | "cards">("tabela");
@@ -2448,6 +2435,31 @@ export function RastreadorJ16View() {
         },
       )
       .on(
+        "broadcast",
+        { event: "console_tcp_evento" },
+        (data: {
+          payload?: {
+            imei?: string;
+            direcao?: "TX" | "RX";
+            protocolo?: "0x80" | "0x15" | "0x21";
+            ascii?: string;
+            hex?: string;
+            timestamp?: number;
+          };
+        }) => {
+          const { imei, direcao, protocolo, ascii, hex } = data.payload || {};
+          if (imei) {
+            const rotulo =
+              direcao === "TX" ? "TX GT06 (0x80)" : `RX Hardware (${protocolo || "0x15/0x21"})`;
+            adicionarLog(
+              direcao === "TX" ? "envio" : "resposta",
+              `📡 [${rotulo}] IMEI: ${imei} | "${ascii || ""}" (Hex: ${hex || "—"})`,
+              imei,
+            );
+          }
+        },
+      )
+      .on(
         "postgres_changes",
         {
           event: "INSERT",
@@ -2537,15 +2549,32 @@ export function RastreadorJ16View() {
         next.delete(imei);
       } else {
         next.add(imei);
+        // Pré-seleciona automaticamente o perfil de hardware do rastreador escolhido
+        const disp = dispositivos.find((d) => d.imei === imei);
+        if (disp) {
+          const ehG900L = (disp.modelo || "").toLowerCase().includes("g900");
+          if (ehG900L) {
+            aplicarPerfilModelo("g900l");
+          } else if ((disp.modelo || "").toLowerCase().includes("j16")) {
+            aplicarPerfilModelo("j16");
+          }
+        }
       }
       return next;
     });
   };
 
-  // Selecionar ou desmarcar todos os visíveis
+  // Selecionar ou desmarcar todos os visíveis (exige confirmação se houver mais de 1 alvo)
   const toggleSelectAll = () => {
     const todosVisiveisImeis = dispositivosFiltrados.map((d) => d.imei);
     const todosJaSelecionados = todosVisiveisImeis.every((imei) => selectedImeis.has(imei));
+
+    if (!todosJaSelecionados && todosVisiveisImeis.length > 1) {
+      const confirmou = window.confirm(
+        `⚠️ ATENÇÃO: Você está prestes a selecionar ${todosVisiveisImeis.length} rastreadores simultaneamente para envio de comandos em lote.\n\nConfirma a seleção de múltiplos alvos?`,
+      );
+      if (!confirmou) return;
+    }
 
     setSelectedImeis((prev) => {
       const next = new Set(prev);
@@ -2579,6 +2608,11 @@ export function RastreadorJ16View() {
     const senha = (senhaMestre || "123456").trim() || "123456";
     const upper = cmd.trim().toUpperCase().replace(/#+$/, "");
 
+    // Comandos incompatíveis de MCU/MTK são descartados no perfil G900L
+    if (upper.startsWith("SZCS#") || upper.startsWith("CXCS#")) {
+      return "";
+    }
+
     // Se o comando já está formatado com sintaxe nativa Coban (ex: adminip..., apn..., fix..., hbt..., status..., check..., reset...), preserva diretamente
     if (
       upper.startsWith("ADMINIP") ||
@@ -2596,9 +2630,15 @@ export function RastreadorJ16View() {
       upper.startsWith("SHOCK") ||
       upper.startsWith("MOVE") ||
       upper.startsWith("ACC") ||
+      upper.startsWith("NOACC") ||
       upper.startsWith("SLEEP") ||
       upper.startsWith("ARM") ||
-      upper.startsWith("DISARM")
+      upper.startsWith("DISARM") ||
+      upper.startsWith("ANGLE") ||
+      upper.startsWith("VIBRATE") ||
+      upper.startsWith("KC") ||
+      upper.startsWith("BEGIN") ||
+      upper.startsWith("PASSWORD")
     ) {
       return sanitizarComandoHardware(cmd);
     }
@@ -2624,8 +2664,8 @@ export function RastreadorJ16View() {
 
     if (upper.startsWith("TIMER,") || upper.startsWith("TIMER#") || upper === "TIMER") {
       const partes = cmd.replace(/#+$/, "").split(",");
-      const mov = partes[1] ? String(parseInt(partes[1], 10) || 30).padStart(3, "0") : "030";
-      return `fix${mov}s***n${senha}`;
+      const mov = partes[1] ? String(parseInt(partes[1], 10) || 20).padStart(3, "0") : "020";
+      return `fix${mov}s060m***n${senha}`;
     }
 
     if (upper.startsWith("HBT,") || upper.startsWith("HBT#") || upper === "HBT") {
@@ -2635,7 +2675,19 @@ export function RastreadorJ16View() {
     }
 
     if (upper.startsWith("GMT,") || upper.startsWith("GMT#") || upper === "GMT") {
-      return `time zone${senha} 0`;
+      return `time zone${senha} -3`;
+    }
+
+    if (upper.startsWith("ANGLE") || upper.includes("ANGLEVALUE")) {
+      const match = cmd.match(/\d+$/);
+      const graus = match ? parseInt(match[0], 10) : 25;
+      const grausFinal = Math.max(25, graus);
+      return `ANGLE${senha} ${grausFinal}`;
+    }
+
+    if (upper.startsWith("SLEEP") || upper.includes("DISSLP")) {
+      const off = upper.includes("OFF") || upper.includes("=1");
+      return `sleep${senha} ${off ? "off" : "on"}`;
     }
 
     if (upper === "PARAM" || upper.startsWith("PARAM#") || upper.startsWith("CHECK")) {
@@ -2656,14 +2708,14 @@ export function RastreadorJ16View() {
       upper === "URL" ||
       upper.startsWith("URL#")
     ) {
-      return `G${senha}#`;
+      return `check${senha}`;
     }
 
-    if (upper === "RELAY,1" || upper.startsWith("DYD")) {
+    if (upper === "RELAY,1" || upper.startsWith("DYD") || upper.startsWith("STOP")) {
       return `stop${senha}`;
     }
 
-    if (upper === "RELAY,0" || upper.startsWith("HFYD")) {
+    if (upper === "RELAY,0" || upper.startsWith("HFYD") || upper.startsWith("RESUME")) {
       return `resume${senha}`;
     }
 
@@ -2842,28 +2894,6 @@ export function RastreadorJ16View() {
         );
         return;
       }
-    }
-
-    // Se for um comando exclusivo de SMS do G900L, alerta e não envia pelo socket TCP
-    const cmdUpper = comandoTexto.trim().toUpperCase();
-    const isCobanExclusivoSms =
-      cmdUpper.startsWith("BEGIN") ||
-      cmdUpper.startsWith("ADMINIP") ||
-      cmdUpper.startsWith("APN123456") ||
-      cmdUpper.startsWith("TIME ZONE") ||
-      cmdUpper.startsWith("GPRS123456") ||
-      cmdUpper.startsWith("RESET123456");
-
-    if (isCobanExclusivoSms && filtroModelo === "g900l") {
-      toast.info(
-        `ℹ️ Comando Exclusivo SMS: "${comandoTexto}" é destinado à configuração inicial por SMS do chip celular e não opera no socket TCP (porta 7003). Para controle online em tempo real, utilize os comandos TCP (B, C, J, K, etc.).`,
-        { duration: 6000 },
-      );
-      adicionarLog(
-        "info",
-        `ℹ️ [COMANDO SMS] "${comandoTexto}" é uma instrução exclusiva de SMS celular. Não despachado via socket TCP.`,
-      );
-      return;
     }
 
     const imeisArray = Array.from(selectedImeis);
@@ -3112,104 +3142,261 @@ export function RastreadorJ16View() {
     const senhaAtiva = (senhaDispositivoPadrao || "123456").trim() || "123456";
 
     if (filtroModelo === "g900l") {
+      const apnAlvo = (apnNome || "voxter.br").trim();
+      const userAlvo = (apnUser || "algar").trim();
+      const passAlvo = (apnPass || "1212").trim();
+      const ipAlvo = (ipDedicado || "167.234.233.82").trim();
+      const portaAlvo = (portaTcp || "7003").trim();
+      const telAdmin = (numeroCenter || "24981012184").replace(/\D/g, "") || "24981012184";
+
       return [
-        // ── COMANDOS TCP/GPRS (ENVIADOS PELO TERMINAL NA PORTA 7003) ──
         {
           num: 1,
-          titulo: "Localização em Tempo Real (B) [TCP]",
-          exemplo: "B",
-          desc: "Solicita a posição GPS atual do veículo instantaneamente pelo rádio 4G via canal TCP.",
-          prioridade: "Diagnóstico",
-          categoria: "Telemetria TCP",
-          presets: [{ label: "Localizar Agora (B)", valor: "B" }],
+          titulo: "1. Consultar Parâmetros (check)",
+          exemplo: `check${senhaAtiva}`,
+          desc: "Consulta e retorna todos os parâmetros operacionais, bateria, status GPS e GSM do G900L.",
+          prioridade: "Obrigatório",
+          categoria: "Auditoria",
+          presets: [{ label: `check${senhaAtiva}`, valor: `check${senhaAtiva}` }],
         },
         {
           num: 2,
-          titulo: "Intervalo em Movimento 30s (C,30s) [TCP]",
-          exemplo: "C,30s",
-          desc: "Configura a transmissão periódica contínua a cada 30 segundos enquanto o veículo estiver se movendo.",
-          prioridade: "Recomendado",
-          categoria: "Telemetria TCP",
-          presets: [
-            { label: "30 segundos (Padrão GD - C,30s)", valor: "C,30s" },
-            { label: "10 segundos (Alta Precisão - C,10s)", valor: "C,10s" },
-            { label: "60 segundos (Econômico - C,60s)", valor: "C,60s" },
-          ],
+          titulo: "2. Consultar IP e APN (IPAPN)",
+          exemplo: `IPAPN${senhaAtiva}`,
+          desc: "Consulta a configuração atual de IP do servidor e dados da APN de internet.",
+          prioridade: "Diagnóstico",
+          categoria: "Auditoria",
+          presets: [{ label: `IPAPN${senhaAtiva}`, valor: `IPAPN${senhaAtiva}` }],
         },
         {
           num: 3,
-          titulo: "Intervalo em Movimento 10s (C,10s) [TCP]",
-          exemplo: "C,10s",
-          desc: "Transmissão contínua em alta fidelidade a cada 10 segundos para perseguição ou monitoramento crítico.",
-          prioridade: "Recomendado",
-          categoria: "Telemetria TCP",
-          presets: [{ label: "10 segundos (C,10s)", valor: "C,10s" }],
+          titulo: "3. Timer Movimento e Parado (fix)",
+          exemplo: `fix020s060m***n${senhaAtiva}`,
+          desc: "Configura a periodicidade de transmissão em movimento (segundos) e parado (minutos).",
+          prioridade: "Obrigatório",
+          categoria: "Telemetria",
+          presets: [
+            {
+              label: `fix020s060m***n${senhaAtiva} (20s mov / 60m parado - Padrão)`,
+              valor: `fix020s060m***n${senhaAtiva}`,
+            },
+            {
+              label: `fix015s010m***n${senhaAtiva} (15s mov / 10m parado - Alta Precisão)`,
+              valor: `fix015s010m***n${senhaAtiva}`,
+            },
+            {
+              label: `fix030s060m***n${senhaAtiva} (30s mov / 60m parado - Econômico)`,
+              valor: `fix030s060m***n${senhaAtiva}`,
+            },
+          ],
         },
         {
           num: 4,
-          titulo: "Parar Envio Contínuo (A) [TCP]",
-          exemplo: "A",
-          desc: "Cancela a transmissão contínua de telemetria, mantendo apenas pings periódicos de repouso.",
-          prioridade: "Opcional",
-          categoria: "Telemetria TCP",
-          presets: [{ label: "Parar Envio (A)", valor: "A" }],
+          titulo: "4. Inflexão de Curva (ANGLE - Mín. 25°)",
+          exemplo: `ANGLE${senhaAtiva} 25`,
+          desc: "Transmite pacote extra em curvas quando a guinada atinge a angulação especificada (mín. recomendado 25°).",
+          prioridade: "Recomendado",
+          categoria: "Telemetria",
+          presets: [
+            {
+              label: `ANGLE${senhaAtiva} 25 (25° - Mínimo Recomendado)`,
+              valor: `ANGLE${senhaAtiva} 25`,
+            },
+            { label: `ANGLE${senhaAtiva} 30 (30° - Curva Ampla)`, valor: `ANGLE${senhaAtiva} 30` },
+          ],
         },
         {
           num: 5,
-          titulo: "Bloqueio Veicular Relé (J) [TCP]",
-          exemplo: "J",
-          desc: "Aciona o corte de combustível/ignição do veículo pelo relé do G900L via comando TCP direto.",
-          prioridade: "Segurança",
-          categoria: "Cadeado Digital",
-          presets: [{ label: "Bloquear Veículo (J)", valor: "J" }],
+          titulo: "5. Sono Profundo ao Parar (sleep)",
+          exemplo: `sleep${senhaAtiva} on`,
+          desc: "Coloca o microcontrolador em modo econômico quando a ignição é desligada.",
+          prioridade: "Recomendado",
+          categoria: "Hardware",
+          presets: [
+            { label: `sleep${senhaAtiva} on (Ativar Sono Parado)`, valor: `sleep${senhaAtiva} on` },
+            { label: `sleep${senhaAtiva} off (Desativar Sono)`, valor: `sleep${senhaAtiva} off` },
+          ],
         },
         {
           num: 6,
-          titulo: "Desbloqueio Veicular Relé (K) [TCP]",
-          exemplo: "K",
-          desc: "Restaura a passagem de corrente do relé permitindo a partida normal do veículo via comando TCP.",
-          prioridade: "Segurança",
-          categoria: "Cadeado Digital",
-          presets: [{ label: "Desbloquear Veículo (K)", valor: "K" }],
+          titulo: "6. Heartbeat Periódico (hbt)",
+          exemplo: `hbt${senhaAtiva} 300`,
+          desc: "Transmissão do pacote de pulso de vida (keep-alive) a cada 300 segundos (5 minutos).",
+          prioridade: "Obrigatório",
+          categoria: "Conectividade",
+          presets: [
+            { label: `hbt${senhaAtiva} 300 (300 segundos - 5m)`, valor: `hbt${senhaAtiva} 300` },
+            { label: `hbt${senhaAtiva} 180 (180 segundos - 3m)`, valor: `hbt${senhaAtiva} 180` },
+          ],
         },
         {
           num: 7,
-          titulo: "Armar Alarme de Segurança (L) [TCP]",
-          exemplo: "L",
-          desc: "Ativa o alarme antifurto de ignição, sensor de vibração e deslocamento indevido via TCP.",
+          titulo: "7. Bloqueio Veicular Relé (stop)",
+          exemplo: `stop${senhaAtiva}`,
+          desc: "Aciona o corte de combustível ou ignição pelo relé do rastreador G900L.",
           prioridade: "Segurança",
           categoria: "Cadeado Digital",
-          presets: [{ label: "Armar Alarme (L)", valor: "L" }],
+          presets: [{ label: `stop${senhaAtiva} (Cortar Ignição)`, valor: `stop${senhaAtiva}` }],
         },
         {
           num: 8,
-          titulo: "Desarmar Alarme (M) [TCP]",
-          exemplo: "M",
-          desc: "Desativa o monitoramento de sensores de violação do veículo via canal TCP.",
+          titulo: "8. Desbloqueio Veicular Relé (resume)",
+          exemplo: `resume${senhaAtiva}`,
+          desc: "Restaura o circuito do relé permitindo a partida normal do veículo.",
           prioridade: "Segurança",
           categoria: "Cadeado Digital",
-          presets: [{ label: "Desarmar Alarme (M)", valor: "M" }],
+          presets: [
+            { label: `resume${senhaAtiva} (Restaurar Corrente)`, valor: `resume${senhaAtiva}` },
+          ],
         },
         {
           num: 9,
-          titulo: "Cancelar Alarmes Ativos (E) [TCP]",
-          exemplo: "E",
-          desc: "Cancela e silencia alertas e disparos de sirene ou pânico ativos no microcontrolador via TCP.",
-          prioridade: "Segurança",
-          categoria: "Cadeado Digital",
-          presets: [{ label: "Cancelar Alarmes (E)", valor: "E" }],
+          titulo: "9. Configurar APN de Dados (apn)",
+          exemplo: `apn${senhaAtiva} ${apnAlvo} ${userAlvo} ${passAlvo}`,
+          desc: "Cadastra o ponto de acesso da operadora do chip M2M para navegação celular.",
+          prioridade: "Obrigatório",
+          categoria: "Conectividade",
+          presets: [
+            {
+              label: `Chip Atual (${apnAlvo})`,
+              valor: `apn${senhaAtiva} ${apnAlvo} ${userAlvo} ${passAlvo}`,
+            },
+            {
+              label: "Algar M2M (voxter.br algar 1212)",
+              valor: `apn${senhaAtiva} voxter.br algar 1212`,
+            },
+            {
+              label: "Claro M2M (m2m.claro.com.br)",
+              valor: `apn${senhaAtiva} m2m.claro.com.br claro claro`,
+            },
+          ],
         },
         {
           num: 10,
-          titulo: "Alerta de Limite de Velocidade 80 km/h (H,080) [TCP]",
-          exemplo: "H,080",
-          desc: "Configura alerta automático quando a velocidade do veículo ultrapassar 80 km/h.",
-          prioridade: "Recomendado",
-          categoria: "Telemetria TCP",
+          titulo: "10. Servidor IP e Porta (adminip)",
+          exemplo: `adminip${senhaAtiva} ${ipAlvo} ${portaAlvo}`,
+          desc: "Define o endereço IP e a porta TCP de destino dos pacotes telemétricos.",
+          prioridade: "Obrigatório",
+          categoria: "Conectividade",
           presets: [
-            { label: "80 km/h (H,080)", valor: "H,080" },
-            { label: "100 km/h (H,100)", valor: "H,100" },
-            { label: "120 km/h (H,120)", valor: "H,120" },
+            {
+              label: `Oracle Porta 7003 (${ipAlvo} ${portaAlvo})`,
+              valor: `adminip${senhaAtiva} ${ipAlvo} ${portaAlvo}`,
+            },
+            {
+              label: "DNS Oficial (gps.oficial.tec.br 7003)",
+              valor: `adminip${senhaAtiva} gps.oficial.tec.br 7003`,
+            },
+          ],
+        },
+        {
+          num: 11,
+          titulo: "11. Fuso Horário Brasília (time zone)",
+          exemplo: `time zone${senhaAtiva} -3`,
+          desc: "Ajusta o relógio interno do dispositivo para o fuso oficial de Brasília (UTC -3).",
+          prioridade: "Recomendado",
+          categoria: "Hardware",
+          presets: [
+            {
+              label: `time zone${senhaAtiva} -3 (Brasília UTC-3)`,
+              valor: `time zone${senhaAtiva} -3`,
+            },
+            { label: `time zone${senhaAtiva} 0 (UTC 0)`, valor: `time zone${senhaAtiva} 0` },
+          ],
+        },
+        {
+          num: 12,
+          titulo: "12. Telefone Administrador (admin)",
+          exemplo: `admin${senhaAtiva} ${telAdmin}`,
+          desc: "Cadastra ou gerencia o número autorizado a receber alertas de emergência.",
+          prioridade: "Segurança",
+          categoria: "Segurança",
+          presets: [
+            { label: `admin${senhaAtiva} ${telAdmin}`, valor: `admin${senhaAtiva} ${telAdmin}` },
+            {
+              label: `noadmin${senhaAtiva} ${telAdmin}`,
+              valor: `noadmin${senhaAtiva} ${telAdmin}`,
+            },
+            { label: `authnum${senhaAtiva} (Consultar)`, valor: `authnum${senhaAtiva}` },
+          ],
+        },
+        {
+          num: 13,
+          titulo: "13. Alerta de Ignição ACC (acc)",
+          exemplo: `acc${senhaAtiva}`,
+          desc: "Ativa o alerta sonoro e telemétrico de ignição ligada sem autorização.",
+          prioridade: "Segurança",
+          categoria: "Segurança",
+          presets: [
+            { label: `acc${senhaAtiva} (Ativar Alerta Ignição)`, valor: `acc${senhaAtiva}` },
+            { label: `noacc${senhaAtiva} (Desativar Alerta)`, valor: `noacc${senhaAtiva}` },
+          ],
+        },
+        {
+          num: 14,
+          titulo: "14. Alerta Bateria Cortada (extpower)",
+          exemplo: `extpower${senhaAtiva} on`,
+          desc: "Dispara alerta imediato se o chicote principal do veículo for desconectado.",
+          prioridade: "Segurança",
+          categoria: "Segurança",
+          presets: [
+            { label: `extpower${senhaAtiva} on (Ativar)`, valor: `extpower${senhaAtiva} on` },
+            { label: `extpower${senhaAtiva} off (Desativar)`, valor: `extpower${senhaAtiva} off` },
+          ],
+        },
+        {
+          num: 15,
+          titulo: "15. Alerta de Vibração e Choque (vibrate)",
+          exemplo: `vibrate${senhaAtiva} 1`,
+          desc: "Dispara alerta caso o acelerômetro detecte impacto ou tentativa de arrombamento.",
+          prioridade: "Segurança",
+          categoria: "Segurança",
+          presets: [
+            { label: `vibrate${senhaAtiva} 1 (Ativar Vibração)`, valor: `vibrate${senhaAtiva} 1` },
+            { label: `vibrate${senhaAtiva} 0 (Desativar)`, valor: `vibrate${senhaAtiva} 0` },
+          ],
+        },
+        {
+          num: 16,
+          titulo: "16. Alarme Anti-Furto (KC)",
+          exemplo: `KC${senhaAtiva} 1`,
+          desc: "Arma o modo de defesa inteligente contra movimentação não autorizada.",
+          prioridade: "Segurança",
+          categoria: "Segurança",
+          presets: [
+            { label: `KC${senhaAtiva} 1 (Armar)`, valor: `KC${senhaAtiva} 1` },
+            { label: `KC${senhaAtiva} 0 (Desarmar)`, valor: `KC${senhaAtiva} 0` },
+          ],
+        },
+        {
+          num: 17,
+          titulo: "17. Reinicialização de Hardware (reset)",
+          exemplo: `reset${senhaAtiva}`,
+          desc: "Reinicia os subsistemas de rádio celular e o microcontrolador sem perder configurações.",
+          prioridade: "Diagnóstico",
+          categoria: "Hardware",
+          presets: [{ label: `reset${senhaAtiva} (Reiniciar)`, valor: `reset${senhaAtiva}` }],
+        },
+        {
+          num: 18,
+          titulo: "18. Troca de Senha Mestre (password)",
+          exemplo: `password${senhaAtiva} 123456`,
+          desc: "Altera a senha mestra de autenticação do hardware G900L.",
+          prioridade: "Segurança",
+          categoria: "Segurança",
+          presets: [
+            { label: `password${senhaAtiva} 123456`, valor: `password${senhaAtiva} 123456` },
+          ],
+        },
+        {
+          num: 19,
+          titulo: "19. Inicialização de Fábrica (begin)",
+          exemplo: `begin${senhaAtiva}`,
+          desc: "Restaura todos os parâmetros e registradores do G900L para os padrões de fábrica.",
+          prioridade: "Opcional",
+          categoria: "Hardware",
+          presets: [
+            { label: `begin${senhaAtiva} (Reset de Fábrica)`, valor: `begin${senhaAtiva}` },
           ],
         },
       ];
@@ -4767,15 +4954,21 @@ export function RastreadorJ16View() {
                 },
                 {
                   id: "anguloGrau",
-                  label: "Grau de Curva (°)",
+                  label: filtroModelo === "g900l" ? "Grau de Curva G900L (°)" : "Grau de Curva (°)",
                   valor: anguloGrau,
                   setValor: setAnguloGrau,
-                  presets: [
-                    { label: "Padrão Ouro (20°)", valor: "20" },
-                    { label: "Curva Moderada (15°)", valor: "15" },
-                    { label: "Sensível (10°)", valor: "10" },
-                    { label: "Amplo (30°)", valor: "30" },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          { label: "25° (Mínimo Recomendado G900L)", valor: "25" },
+                          { label: "30° (Curva Ampla G900L)", valor: "30" },
+                        ]
+                      : [
+                          { label: "Padrão Ouro (20°)", valor: "20" },
+                          { label: "Curva Moderada (15°)", valor: "15" },
+                          { label: "Sensível (10°)", valor: "10" },
+                          { label: "Amplo (30°)", valor: "30" },
+                        ],
                 },
                 {
                   id: "numeroSos",
@@ -5115,137 +5308,154 @@ export function RastreadorJ16View() {
                     },
                   ],
                 },
-              ].map(
-                (campo: {
-                  id: string;
-                  label: string;
-                  valor: string;
-                  setValor: (v: string) => void;
-                  placeholder?: string;
-                  presets?: { label: string; valor: string }[];
-                }) => {
-                  const isFieldCopied = copiadoId === campo.id;
-                  const isHabilitado = parametrosHabilitadosBatch[campo.id] ?? false;
-                  const isVazioObrigatorio =
-                    (campo.id === "numeroSos" || campo.id === "numeroCenter") &&
-                    isHabilitado &&
-                    !campo.valor.trim() &&
-                    !dispositivoUnicoSelecionado?.clienteTelefone;
+              ]
+                .filter((campo) => {
+                  if (filtroModelo === "g900l") {
+                    const idsIncompativeis = [
+                      "ignicaoFisica",
+                      "anguloHabilitar",
+                      "anguloIntervalo",
+                      "medicaoInternaMeter",
+                      "voltagemOdometroIexvol",
+                      "sleepMtk",
+                      "sleepGps",
+                      "ledsDiagnostico",
+                    ];
+                    if (idsIncompativeis.includes(campo.id)) return false;
+                  }
+                  return true;
+                })
+                .map(
+                  (campo: {
+                    id: string;
+                    label: string;
+                    valor: string;
+                    setValor: (v: string) => void;
+                    placeholder?: string;
+                    presets?: { label: string; valor: string }[];
+                  }) => {
+                    const isFieldCopied = copiadoId === campo.id;
+                    const isHabilitado = parametrosHabilitadosBatch[campo.id] ?? false;
+                    const isVazioObrigatorio =
+                      (campo.id === "numeroSos" || campo.id === "numeroCenter") &&
+                      isHabilitado &&
+                      !campo.valor.trim() &&
+                      !dispositivoUnicoSelecionado?.clienteTelefone;
 
-                  const isDinamicamenteCliente =
-                    (campo.id === "numeroSos" || campo.id === "numeroCenter") &&
-                    isHabilitado &&
-                    !campo.valor.trim() &&
-                    Boolean(dispositivoUnicoSelecionado?.clienteTelefone);
+                    const isDinamicamenteCliente =
+                      (campo.id === "numeroSos" || campo.id === "numeroCenter") &&
+                      isHabilitado &&
+                      !campo.valor.trim() &&
+                      Boolean(dispositivoUnicoSelecionado?.clienteTelefone);
 
-                  return (
-                    <div
-                      key={campo.id}
-                      className={`p-2.5 rounded-2xl border transition-all ${
-                        isHabilitado
-                          ? "bg-slate-50/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
-                          : "bg-slate-100/40 dark:bg-slate-950/40 border-slate-200/50 dark:border-slate-800/40 opacity-60"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-1.5 mb-1.5">
-                        <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">
-                          <input
-                            type="checkbox"
-                            checked={isHabilitado}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              if (campo.id === "ipDedicado" && checked) {
-                                setUsarIpDireto(true);
+                    return (
+                      <div
+                        key={campo.id}
+                        className={`p-2.5 rounded-2xl border transition-all ${
+                          isHabilitado
+                            ? "bg-slate-50/70 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800"
+                            : "bg-slate-100/40 dark:bg-slate-950/40 border-slate-200/50 dark:border-slate-800/40 opacity-60"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                          <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-slate-700 dark:text-slate-300 truncate">
+                            <input
+                              type="checkbox"
+                              checked={isHabilitado}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                if (campo.id === "ipDedicado" && checked) {
+                                  setUsarIpDireto(true);
+                                  setParametrosHabilitadosBatch((prev) => ({
+                                    ...prev,
+                                    ipDedicado: true,
+                                    servidorDns: false,
+                                  }));
+                                  return;
+                                }
+                                if (campo.id === "servidorDns" && checked) {
+                                  setUsarIpDireto(false);
+                                  setParametrosHabilitadosBatch((prev) => ({
+                                    ...prev,
+                                    servidorDns: true,
+                                    ipDedicado: false,
+                                  }));
+                                  return;
+                                }
                                 setParametrosHabilitadosBatch((prev) => ({
                                   ...prev,
-                                  ipDedicado: true,
-                                  servidorDns: false,
+                                  [campo.id]: checked,
                                 }));
-                                return;
-                              }
-                              if (campo.id === "servidorDns" && checked) {
-                                setUsarIpDireto(false);
-                                setParametrosHabilitadosBatch((prev) => ({
-                                  ...prev,
-                                  servidorDns: true,
-                                  ipDedicado: false,
-                                }));
-                                return;
-                              }
-                              setParametrosHabilitadosBatch((prev) => ({
-                                ...prev,
-                                [campo.id]: checked,
-                              }));
-                            }}
-                            className="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 cursor-pointer"
-                          />
-                          <span className="truncate">{campo.label}</span>
-                        </label>
-                        <span
-                          className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider shrink-0 ${
-                            !isHabilitado
-                              ? "bg-slate-200 dark:bg-slate-800 text-slate-400"
+                              }}
+                              className="h-3.5 w-3.5 rounded border-slate-300 dark:border-slate-700 text-orange-600 focus:ring-orange-500 cursor-pointer"
+                            />
+                            <span className="truncate">{campo.label}</span>
+                          </label>
+                          <span
+                            className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded tracking-wider shrink-0 ${
+                              !isHabilitado
+                                ? "bg-slate-200 dark:bg-slate-800 text-slate-400"
+                                : isVazioObrigatorio
+                                  ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
+                                  : isDinamicamenteCliente
+                                    ? "bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30"
+                                    : "bg-orange-500/15 text-orange-600 dark:text-orange-400"
+                            }`}
+                          >
+                            {!isHabilitado
+                              ? "Pular"
                               : isVazioObrigatorio
-                                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30"
-                                : isDinamicamenteCliente
-                                  ? "bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30"
-                                  : "bg-orange-500/15 text-orange-600 dark:text-orange-400"
-                          }`}
-                        >
-                          {!isHabilitado
-                            ? "Pular"
-                            : isVazioObrigatorio
-                              ? "WhatsApp do Cliente"
-                              : isDinamicamenteCliente
                                 ? "WhatsApp do Cliente"
-                                : "Enviar"}
-                        </span>
-                      </div>
-                      <div className="relative flex items-center">
-                        <input
-                          type="text"
-                          value={campo.valor}
-                          placeholder={campo.placeholder}
-                          disabled={!isHabilitado}
-                          onChange={(e) => campo.setValor(e.target.value)}
-                          className="w-full pl-3 pr-8 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-orange-500 disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-slate-400 placeholder:italic"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => copiarTexto(campo.valor, campo.label, campo.id)}
-                          className="absolute right-1.5 p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer active:scale-95"
-                          title={`Copiar ${campo.label}`}
-                        >
-                          {isFieldCopied ? (
-                            <Check className="h-3.5 w-3.5 text-orange-500" />
-                          ) : (
-                            <Copy className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </div>
-                      {campo.presets && campo.presets.length > 0 && (
-                        <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                          {campo.presets.map((preset) => (
-                            <button
-                              key={preset.label}
-                              type="button"
-                              disabled={!isHabilitado}
-                              onClick={() => campo.setValor(preset.valor)}
-                              className={`text-[9px] font-semibold px-2 py-0.5 rounded-md transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-                                campo.valor === preset.valor
-                                  ? "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30"
-                                  : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700"
-                              }`}
-                            >
-                              {preset.label}
-                            </button>
-                          ))}
+                                : isDinamicamenteCliente
+                                  ? "WhatsApp do Cliente"
+                                  : "Enviar"}
+                          </span>
                         </div>
-                      )}
-                    </div>
-                  );
-                },
-              )}
+                        <div className="relative flex items-center">
+                          <input
+                            type="text"
+                            value={campo.valor}
+                            placeholder={campo.placeholder}
+                            disabled={!isHabilitado}
+                            onChange={(e) => campo.setValor(e.target.value)}
+                            className="w-full pl-3 pr-8 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-mono text-slate-800 dark:text-slate-200 focus:outline-hidden focus:border-orange-500 disabled:opacity-50 disabled:cursor-not-allowed placeholder:text-slate-400 placeholder:italic"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => copiarTexto(campo.valor, campo.label, campo.id)}
+                            className="absolute right-1.5 p-1 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition cursor-pointer active:scale-95"
+                            title={`Copiar ${campo.label}`}
+                          >
+                            {isFieldCopied ? (
+                              <Check className="h-3.5 w-3.5 text-orange-500" />
+                            ) : (
+                              <Copy className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                        {campo.presets && campo.presets.length > 0 && (
+                          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                            {campo.presets.map((preset) => (
+                              <button
+                                key={preset.label}
+                                type="button"
+                                disabled={!isHabilitado}
+                                onClick={() => campo.setValor(preset.valor)}
+                                className={`text-[9px] font-semibold px-2 py-0.5 rounded-md transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                                  campo.valor === preset.valor
+                                    ? "bg-orange-500/20 text-orange-600 dark:text-orange-400 border border-orange-500/30"
+                                    : "bg-slate-200/80 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700"
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  },
+                )}
             </div>
 
             {/* SUB-BARRA: ATALHOS RÁPIDOS E ORIENTAÇÃO */}
