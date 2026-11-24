@@ -244,10 +244,15 @@ export function PainelRotasMonitoradasModal({
                             {isEditando ? (
                               <div className="space-y-3">
                                 <div className="space-y-1">
-                                  <label className="text-[11px] font-bold text-slate-400">
+                                  <label
+                                    htmlFor="rota-monitorada-nome"
+                                    className="text-[11px] font-bold text-slate-400"
+                                  >
                                     Nome da Rota
                                   </label>
                                   <input
+                                    id="rota-monitorada-nome"
+                                    name="rota-monitorada-nome"
                                     type="text"
                                     value={nomeEditado}
                                     onChange={(e) => setNomeEditado(e.target.value)}
@@ -256,9 +261,9 @@ export function PainelRotasMonitoradasModal({
                                 </div>
 
                                 <div className="space-y-1">
-                                  <label className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                                  <span className="block text-[11px] font-bold text-slate-500 dark:text-slate-400">
                                     Tolerância de Desvio Permitida
-                                  </label>
+                                  </span>
                                   <div className="flex items-center gap-2">
                                     {[100, 250, 500, 1000].map((tol) => (
                                       <button

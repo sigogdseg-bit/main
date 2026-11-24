@@ -23,7 +23,11 @@ import {
   Compass,
 } from "lucide-react";
 import type { AlertaSeguranca } from "../types";
-import { carregarAlertasSeguranca, reconhecerAlertaSeguranca } from "../services/gpsService";
+import {
+  carregarAlertasSeguranca,
+  reconhecerAlertaSeguranca,
+  ultimoCarregamentoAlertasTeveErro,
+} from "../services/gpsService";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { dispararNotificacaoNativaAlerta } from "@/shared/lib/webPushService";
@@ -136,15 +140,25 @@ export function AlertasAcidenteBanner({
         realtimeAtivo = status === "SUBSCRIBED";
       });
 
-    // 3. Reconciliação longa (5 min) quando Realtime conectado, ou fallback 30s apenas se WS offline
+    // 3. Reconciliação longa (5 min) quando Realtime conectado, ou fallback com backoff em caso de erro 500/404
     let ultimoSyncAlertas = Date.now();
+    let falhasConsecutivas = 0;
     const timer = setInterval(() => {
       if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
       const agora = Date.now();
-      const intervaloNecessario = realtimeAtivo ? 300000 : 30000;
+      const baseMs = realtimeAtivo ? 300000 : 30000;
+      const intervaloNecessario =
+        falhasConsecutivas > 0
+          ? Math.min(baseMs * Math.pow(2, falhasConsecutivas), 300000)
+          : baseMs;
       if (agora - ultimoSyncAlertas < intervaloNecessario) return;
       ultimoSyncAlertas = agora;
       carregarAlertasSeguranca().then((res) => {
+        if (ultimoCarregamentoAlertasTeveErro()) {
+          falhasConsecutivas = Math.min(falhasConsecutivas + 1, 4);
+          return;
+        }
+        falhasConsecutivas = 0;
         setAlertas(
           res.filter(
             (a) => !a.reconhecido && (isEquipeTecnica || !ehAlertaRestritoEquipeTecnica(a.tipo)),

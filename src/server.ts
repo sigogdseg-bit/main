@@ -4238,6 +4238,104 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
     }
   }
 
+  // GET /api/alertas-seguranca - Consulta segura de alertas com Service Role (imune a recursão RLS no navegador)
+  if (request.method === "GET" && url.pathname === "/api/alertas-seguranca") {
+    try {
+      const veiculoIdParam = url.searchParams.get("veiculoId");
+      let query = adminClient
+        .from("alertas_seguranca")
+        .select(
+          `
+          id,
+          veiculo_id,
+          cliente_id,
+          tipo,
+          gravidade,
+          latitude,
+          longitude,
+          velocidade,
+          vibracao_g,
+          inclinacao_graus,
+          detalhes,
+          reconhecido,
+          created_at,
+          veiculos (
+            placa,
+            marca_modelo,
+            ultima_latitude,
+            ultima_longitude
+          ),
+          clientes (
+            nome_razao_social,
+            documento,
+            telefone,
+            email,
+            plano
+          )
+        `,
+        )
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (veiculoIdParam) {
+        query = query.eq("veiculo_id", veiculoIdParam);
+      }
+
+      if (role === "cliente") {
+        const { data: cliRow } = await adminClient
+          .from("clientes")
+          .select("id")
+          .eq("user_id", userData.user.id)
+          .maybeSingle();
+        query = query.eq("cliente_id", cliRow?.id || userData.user.id);
+      } else if (role === "locatario") {
+        const { data: locRow } = await adminClient
+          .from("locatarios_cliente")
+          .select("id, ativo, veiculos_permitidos")
+          .eq("user_id", userData.user.id)
+          .maybeSingle();
+        const permitidos =
+          locRow?.ativo && Array.isArray(locRow.veiculos_permitidos)
+            ? locRow.veiculos_permitidos
+            : [];
+        if (permitidos.length === 0) {
+          return new Response(JSON.stringify({ success: true, alertas: [] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+          });
+        }
+        query = query.in("veiculo_id", permitidos);
+      }
+
+      const { data: alertasData, error: errAlertas } = await query;
+      if (errAlertas) {
+        return new Response(JSON.stringify({ success: false, message: errAlertas.message }), {
+          status: 500,
+          headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+        });
+      }
+
+      const ehEquipeTecnica = role === "superadmin" || role === "adm" || role === "operador";
+      const alertasFiltrados = (alertasData || []).filter((a: any) => {
+        if (ehEquipeTecnica) return true;
+        const tipoLower = String(a.tipo || "").toLowerCase();
+        return (
+          tipoLower !== "corte_nao_autorizado_sms" && tipoLower !== "desbloqueio_nao_autorizado_sms"
+        );
+      });
+
+      return new Response(JSON.stringify({ success: true, alertas: alertasFiltrados }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    } catch (err: any) {
+      return new Response(
+        JSON.stringify({ success: false, message: err?.message || "Erro ao consultar alertas." }),
+        { status: 500, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    }
+  }
+
   // POST /api/veiculos/metrica - Alternar entre Odômetro (KM) e Horímetro (Horas de Uso)
   if (request.method === "POST" && url.pathname === "/api/veiculos/metrica") {
     try {

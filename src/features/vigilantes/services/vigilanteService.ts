@@ -1002,21 +1002,35 @@ export async function excluirCheckpoint(id: string): Promise<boolean> {
   return true;
 }
 
+let turnosTabelaAusente = false;
+
 /**
  * Busca turnos ativos ou agendados
  */
 export async function carregarTurnos(): Promise<TurnoVigilancia[]> {
-  try {
-    const { data, error } = await supabase
-      .from("turnos_vigilancia")
-      .select("*, vigilante:vigilantes(*), posto:postos_vigilancia(*)")
-      .order("data_turno", { ascending: false })
-      .order("hora_inicio", { ascending: false });
-    if (!error && data && data.length > 0) {
-      return data as TurnoVigilancia[];
+  if (!turnosTabelaAusente) {
+    try {
+      const { data, error, status } = await supabase
+        .from("turnos_vigilancia")
+        .select("*, vigilante:vigilantes(*), posto:postos_vigilancia(*)")
+        .order("data_turno", { ascending: false })
+        .order("hora_inicio", { ascending: false });
+      if (!error && data && data.length > 0) {
+        return data as TurnoVigilancia[];
+      }
+      if (
+        error &&
+        (status === 404 ||
+          error.code === "PGRST205" ||
+          error.code === "42P01" ||
+          error.message?.includes("Could not find the table") ||
+          error.message?.includes("does not exist"))
+      ) {
+        turnosTabelaAusente = true;
+      }
+    } catch {
+      /* ignore */
     }
-  } catch {
-    /* ignore */
   }
 
   // Fallback localStorage

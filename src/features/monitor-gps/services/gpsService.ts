@@ -807,51 +807,102 @@ export async function carregarPontosViagem(
   }
 }
 
-export async function carregarAlertasSeguranca(veiculoId?: string): Promise<AlertaSeguranca[]> {
-  try {
-    let query = supabase
-      .from("alertas_seguranca")
-      .select(
-        `
-        id,
-        veiculo_id,
-        cliente_id,
-        tipo,
-        gravidade,
-        latitude,
-        longitude,
-        velocidade,
-        vibracao_g,
-        inclinacao_graus,
-        detalhes,
-        reconhecido,
-        created_at,
-        veiculos (
-          placa,
-          marca_modelo,
-          ultima_latitude,
-          ultima_longitude
-        ),
-        clientes (
-          nome_razao_social,
-          documento,
-          telefone,
-          email,
-          plano
-        )
-      `,
-      )
-      .order("created_at", { ascending: false })
-      .limit(30);
+let ultimoCarregamentoAlertasFalhou = false;
 
-    if (veiculoId) {
-      query = query.eq("veiculo_id", veiculoId);
+export function ultimoCarregamentoAlertasTeveErro(): boolean {
+  return ultimoCarregamentoAlertasFalhou;
+}
+
+export async function carregarAlertasSeguranca(veiculoId?: string): Promise<AlertaSeguranca[]> {
+  ultimoCarregamentoAlertasFalhou = false;
+  try {
+    let alertasRaw: any[] | null = null;
+
+    // 1. Prioridade máxima: Rota segura de backend (/api/alertas-seguranca) com Service Role
+    // Evita recursão infinita de RLS em joins com veiculos/clientes no navegador
+    try {
+      const sess = await supabase.auth.getSession();
+      const token = sess.data.session?.access_token;
+      if (token && typeof window !== "undefined") {
+        const endpoint = veiculoId
+          ? `/api/alertas-seguranca?veiculoId=${encodeURIComponent(veiculoId)}`
+          : "/api/alertas-seguranca";
+        let res = await fetch(endpoint, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.status === 401) {
+          const { data: refreshed } = await supabase.auth.refreshSession();
+          const novoToken = refreshed?.session?.access_token;
+          if (novoToken) {
+            res = await fetch(endpoint, {
+              method: "GET",
+              headers: { Authorization: `Bearer ${novoToken}` },
+            });
+          } else {
+            window.dispatchEvent(new CustomEvent("hunter:sessao-401"));
+          }
+        }
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.alertas)) {
+            alertasRaw = json.alertas;
+          }
+        }
+      }
+    } catch {
+      /* fallback direto ao Supabase */
     }
 
-    const { data, error } = await query;
-    if (error || !data) return [];
+    if (!alertasRaw) {
+      let query = supabase
+        .from("alertas_seguranca")
+        .select(
+          `
+          id,
+          veiculo_id,
+          cliente_id,
+          tipo,
+          gravidade,
+          latitude,
+          longitude,
+          velocidade,
+          vibracao_g,
+          inclinacao_graus,
+          detalhes,
+          reconhecido,
+          created_at,
+          veiculos (
+            placa,
+            marca_modelo,
+            ultima_latitude,
+            ultima_longitude
+          ),
+          clientes (
+            nome_razao_social,
+            documento,
+            telefone,
+            email,
+            plano
+          )
+        `,
+        )
+        .order("created_at", { ascending: false })
+        .limit(30);
 
-    return data.map((a: any) => {
+      if (veiculoId) {
+        query = query.eq("veiculo_id", veiculoId);
+      }
+
+      const { data, error } = await query;
+      if (error || !data) {
+        ultimoCarregamentoAlertasFalhou = true;
+        return [];
+      }
+      alertasRaw = data;
+    }
+
+    return alertasRaw.map((a: any) => {
       const latValida =
         a.latitude !== null && a.latitude !== undefined && Math.abs(Number(a.latitude)) > 0.0001;
       const lonValida =
@@ -889,6 +940,7 @@ export async function carregarAlertasSeguranca(veiculoId?: string): Promise<Aler
       };
     });
   } catch (err) {
+    ultimoCarregamentoAlertasFalhou = true;
     console.warn("Erro ao buscar alertas de segurança:", err);
     return [];
   }

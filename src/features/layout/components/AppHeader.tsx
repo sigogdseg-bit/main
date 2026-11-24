@@ -305,6 +305,9 @@ export function AppHeader() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <select
+              id="header-modo-perfil-emulado"
+              name="header-modo-perfil-emulado"
+              aria-label="Trocar perfil emulado"
               value={modoAtivo}
               onChange={(e) => {
                 const novoModo = e.target.value as ModoPerfilEmulado;

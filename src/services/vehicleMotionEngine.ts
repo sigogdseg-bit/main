@@ -47,6 +47,8 @@ export interface Waypoint {
   durationMs: number;
 }
 
+const IS_DEV_MODE = Boolean((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV);
+
 export class VehicleMotionController {
   private currentPos: Coord;
   private currentBearing: number;
@@ -110,10 +112,16 @@ export class VehicleMotionController {
       const tsMs = typeof timestamp === "number" ? timestamp : new Date(timestamp).getTime();
 
       if (!isNaN(tsMs) && tsMs > 0) {
-        if (tsMs <= this.lastTimestamp) {
-          console.warn(
-            `[VehicleMotion] ⚠️ Pacote ignorado por trava de timestamp (antigo/fora de ordem): ts=${tsMs} <= lastTs=${this.lastTimestamp}`,
-          );
+        if (tsMs === this.lastTimestamp) {
+          // Mesmo pacote reenviado por re-render ou reconciliação: ignora silenciosamente
+          return;
+        }
+        if (tsMs < this.lastTimestamp) {
+          if (IS_DEV_MODE) {
+            console.warn(
+              `[VehicleMotion] ⚠️ Pacote ignorado por trava de timestamp (antigo/fora de ordem): ts=${tsMs} < lastTs=${this.lastTimestamp}`,
+            );
+          }
           return;
         }
       }
@@ -134,9 +142,11 @@ export class VehicleMotionController {
     // 3. Trava de zona morta: menor que 3 metros do destino e da posição atual ignora (evita tremor com carro parado)
     const dist = haversineMeters(this.currentPos, newPos);
     if (dist < 3 && distAlvoAnterior < 3) {
-      console.log(
-        `[VehicleMotion] ⏸️ Pacote ignorado por zona morta (< 3m): dist=${dist.toFixed(1)}m`,
-      );
+      if (IS_DEV_MODE) {
+        console.log(
+          `[VehicleMotion] ⏸️ Pacote ignorado por zona morta (< 3m): dist=${dist.toFixed(1)}m`,
+        );
+      }
       return;
     }
 
@@ -144,9 +154,11 @@ export class VehicleMotionController {
 
     // 4. Trava de teleporte: maior que 2000 metros move instantaneamente sem animar
     if (dist > 2000) {
-      console.warn(
-        `[VehicleMotion] 🚀 Trava de teleporte acionada (> 2000m): dist=${dist.toFixed(1)}m. Movendo instantaneamente sem animar.`,
-      );
+      if (IS_DEV_MODE) {
+        console.warn(
+          `[VehicleMotion] 🚀 Trava de teleporte acionada (> 2000m): dist=${dist.toFixed(1)}m. Movendo instantaneamente sem animar.`,
+        );
+      }
       if (this.rafId !== null) {
         cancelAnimationFrame(this.rafId);
         this.rafId = null;
@@ -189,9 +201,11 @@ export class VehicleMotionController {
 
     this.lastPacketTime = agora;
 
-    console.log(
-      `[VehicleMotion] updateTarget: dist=${dist.toFixed(1)}m | decorrido=${tempoDecorridoMs}ms | duracaoAnim=${duracaoDinamicaMs}ms | timestamp=${timestamp || "N/A"} | lastTs=${this.lastTimestamp}`,
-    );
+    if (IS_DEV_MODE) {
+      console.log(
+        `[VehicleMotion] updateTarget: dist=${dist.toFixed(1)}m | decorrido=${tempoDecorridoMs}ms | duracaoAnim=${duracaoDinamicaMs}ms | timestamp=${timestamp || "N/A"} | lastTs=${this.lastTimestamp}`,
+      );
+    }
 
     // 7. Fila Curta de Waypoints: Se a animação anterior já estiver em andamento,
     // enfileira o novo destino em vez de abortar o trajeto anterior e cortar quarteirão.

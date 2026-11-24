@@ -63,6 +63,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
     }>({});
     const clusterMarkersRef = useRef<{ [id: string]: any }>({});
     const vehicleMotionControllersRef = useRef<Map<string, VehicleMotionController>>(new Map());
+    const ultimaAssinaturaMotionRef = useRef<Map<string, string>>(new Map());
     const [zoomAtual, setZoomAtual] = useState(15);
     const controladorMovimentoRef = useRef<ControladorMovimentoSuave>(
       new ControladorMovimentoSuave(),
@@ -589,8 +590,16 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
             anguloRumo,
           );
           vehicleMotionControllersRef.current.set(v.id, motionCtrl);
+          ultimaAssinaturaMotionRef.current.set(
+            v.id,
+            `${v.ultima_atualizacao ?? ""}|${v.latitude}|${v.longitude}`,
+          );
         } else {
-          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
+          const assinatura = `${v.ultima_atualizacao ?? ""}|${v.latitude}|${v.longitude}`;
+          if (ultimaAssinaturaMotionRef.current.get(v.id) !== assinatura) {
+            ultimaAssinaturaMotionRef.current.set(v.id, assinatura);
+            motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
+          }
         }
 
         if (entry && entry.tipo === tipoEsperado && entry.marker) {
@@ -673,6 +682,7 @@ export const MapLibre3DEngine = forwardRef<MapLibre3DEngineHandle, MapLibre3DEng
           const entry = markersRef.current[id];
           if (entry?.marker) entry.marker.remove();
           delete markersRef.current[id];
+          ultimaAssinaturaMotionRef.current.delete(id);
           const mc = vehicleMotionControllersRef.current.get(id);
           if (mc) {
             mc.destroy();

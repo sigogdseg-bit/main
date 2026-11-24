@@ -86,6 +86,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
     >(new Map());
     const clusterMarkersRef = useRef<Map<string, L.Marker>>(new Map());
     const vehicleMotionControllersRef = useRef<Map<string, VehicleMotionController>>(new Map());
+    const ultimaAssinaturaMotionRef = useRef<Map<string, string>>(new Map());
     const [zoomAtual, setZoomAtual] = useState(14);
     const controladorMovimentoRef = useRef<ControladorMovimentoSuave>(
       new ControladorMovimentoSuave(),
@@ -611,8 +612,16 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
             anguloRumo,
           );
           vehicleMotionControllersRef.current.set(v.id, motionCtrl);
+          ultimaAssinaturaMotionRef.current.set(
+            v.id,
+            `${v.ultima_atualizacao ?? ""}|${v.latitude}|${v.longitude}`,
+          );
         } else {
-          motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
+          const assinatura = `${v.ultima_atualizacao ?? ""}|${v.latitude}|${v.longitude}`;
+          if (ultimaAssinaturaMotionRef.current.get(v.id) !== assinatura) {
+            ultimaAssinaturaMotionRef.current.set(v.id, assinatura);
+            motionCtrl.updateTarget({ lat: v.latitude, lng: v.longitude }, v.ultima_atualizacao);
+          }
         }
       });
 
@@ -621,6 +630,7 @@ export const LeafletEngine = forwardRef<LeafletEngineHandle, LeafletEngineProps>
         if (!idsVeiculosAtivos.has(id)) {
           markersGroup.removeLayer(dados.marker);
           markersMapRef.current.delete(id);
+          ultimaAssinaturaMotionRef.current.delete(id);
           const mc = vehicleMotionControllersRef.current.get(id);
           if (mc) {
             mc.destroy();

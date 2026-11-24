@@ -1113,6 +1113,9 @@ export function VehicleTelemetryDrawer({
           {veiculos && veiculos.length > 1 && onSelectVeiculo && (
             <div className="relative">
               <select
+                id="cockpit-seletor-veiculo"
+                name="cockpit-seletor-veiculo"
+                aria-label="Trocar de veículo no Cockpit"
                 value={veiculo.id}
                 onChange={(e) => {
                   const v = veiculos.find((x) => x.id === e.target.value);

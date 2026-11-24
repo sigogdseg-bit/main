@@ -283,13 +283,16 @@ export function GpsMonitorView({
   useEffect(() => {
     let ativo = true;
     carregarPostosVigilancia().then((res) => {
-      if (ativo && Array.isArray(res)) {
-        setPostosVigilancia(res.filter((p) => p.ativo));
-      }
-    });
-    carregarTurnos().then((res) => {
-      if (ativo && Array.isArray(res)) {
-        setTurnosVigilancia(res);
+      if (!ativo || !Array.isArray(res)) return;
+      const postosAtivos = res.filter((p) => p.ativo);
+      setPostosVigilancia(postosAtivos);
+      // Só consulta turnos de vigilância quando existirem postos ativos no mapa
+      if (postosAtivos.length > 0) {
+        carregarTurnos().then((turnosRes) => {
+          if (ativo && Array.isArray(turnosRes)) {
+            setTurnosVigilancia(turnosRes);
+          }
+        });
       }
     });
     return () => {
@@ -2239,6 +2242,9 @@ export function GpsMonitorView({
                   </div>
                   <div className="relative">
                     <select
+                      id="monitor-filtro-cliente"
+                      name="monitor-filtro-cliente"
+                      aria-label="Filtrar frota por cliente"
                       value={clienteFiltroSelecionado}
                       onChange={(e) => {
                         const novoCliente = e.target.value;
@@ -2299,6 +2305,9 @@ export function GpsMonitorView({
                   </div>
                   <div className="relative">
                     <select
+                      id="monitor-filtro-usuario"
+                      name="monitor-filtro-usuario"
+                      aria-label="Filtrar frota por usuário"
                       value={locatarioFiltroSelecionado}
                       onChange={(e) => {
                         const novoLoc = e.target.value;
@@ -2340,6 +2349,9 @@ export function GpsMonitorView({
                 <div className="relative flex-1">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
                   <input
+                    id="monitor-busca-veiculos"
+                    name="monitor-busca-veiculos"
+                    aria-label="Buscar placa, modelo ou cliente"
                     type="text"
                     placeholder="Buscar placa, modelo, cliente..."
                     value={busca}
