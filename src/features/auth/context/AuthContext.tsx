@@ -403,32 +403,66 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     });
 
-    // 3. Ao retornar de tela bloqueada ou app em segundo plano, revalida sessão sem desconectar
+    // 3. Ao retornar de tela bloqueada, app em segundo plano, retorno de rede ou 401: força refresh do JWT
+    let refreshEmCurso = false;
+    const forcarRefreshSessao = async () => {
+      if (refreshEmCurso || logoutExplicitoRef.current) return;
+      refreshEmCurso = true;
+      try {
+        const { data, error } = await supabase.auth.refreshSession();
+        if (!error && data?.session) {
+          await recarregarSessao();
+        } else {
+          const ok = await restaurarSupabaseToken();
+          if (ok) {
+            await recarregarSessao();
+          }
+        }
+      } catch {
+        // Falha silenciosa em hiato de rede: mantém cache ativo sem deslogar
+      } finally {
+        refreshEmCurso = false;
+      }
+    };
+
     const handleVisibilityChange = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        // Tenta renovar o token silenciosamente. Se falhar, mantém cache.
         supabase.auth
           .getSession()
           .then(({ data }) => {
             if (data?.session) {
               recarregarSessao();
+            } else {
+              void forcarRefreshSessao();
             }
-            // Se data.session é null, NÃO desloga — pode ser um hiato temporário de rede
           })
           .catch(() => {
-            // Erro de rede ao voltar do background — ignora silenciosamente
+            void forcarRefreshSessao();
           });
       }
+    };
+
+    const handleOnlineOu401 = () => {
+      void forcarRefreshSessao();
     };
 
     if (typeof document !== "undefined") {
       document.addEventListener("visibilitychange", handleVisibilityChange);
     }
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnlineOu401);
+      window.addEventListener("hunter:sessao-401", handleOnlineOu401);
+    }
 
     return () => {
+      clearTimeout(watchdog);
       subscription.unsubscribe();
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibilityChange);
+      }
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", handleOnlineOu401);
+        window.removeEventListener("hunter:sessao-401", handleOnlineOu401);
       }
     };
   }, []);

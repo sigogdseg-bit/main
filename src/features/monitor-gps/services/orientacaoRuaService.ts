@@ -3,7 +3,18 @@
 
 import type { VeiculoGps } from "../types";
 
+const MAX_CACHE_RUMO_ESTACIONADO = 500;
 const cacheRumoEstacionado = new Map<string, number>();
+
+function salvarCacheRumo(chave: string, valor: number): void {
+  if (cacheRumoEstacionado.size >= MAX_CACHE_RUMO_ESTACIONADO) {
+    const primeiraChave = cacheRumoEstacionado.keys().next().value;
+    if (primeiraChave !== undefined) {
+      cacheRumoEstacionado.delete(primeiraChave);
+    }
+  }
+  cacheRumoEstacionado.set(chave, valor);
+}
 
 /**
  * Calcula o azimute em graus (0 a 360) entre duas coordenadas geográficas
@@ -51,7 +62,7 @@ export function obterRumoVeiculo(veiculo: VeiculoGps): number {
     if (veiculo.rumo) {
       if (veiculo.rumo > 0) {
         const r = normalizarGraus(veiculo.rumo);
-        cacheRumoEstacionado.set(chave, r);
+        salvarCacheRumo(chave, r);
         try {
           if (typeof localStorage !== "undefined") {
             localStorage.setItem(`sigo_rumo_estacionado_${chave}`, String(r));
@@ -68,7 +79,7 @@ export function obterRumoVeiculo(veiculo: VeiculoGps): number {
   if (veiculo.rumo) {
     if (veiculo.rumo > 0) {
       const r = normalizarGraus(veiculo.rumo);
-      cacheRumoEstacionado.set(chave, r);
+      salvarCacheRumo(chave, r);
       return r;
     }
   }
@@ -84,7 +95,7 @@ export function obterRumoVeiculo(veiculo: VeiculoGps): number {
       if (salvo !== null) {
         const r = Number(salvo);
         if (!isNaN(r)) {
-          cacheRumoEstacionado.set(chave, r);
+          salvarCacheRumo(chave, r);
           return r;
         }
       }
@@ -204,7 +215,7 @@ export async function buscarOrientacaoViaMaisProxima(veiculo: VeiculoGps): Promi
 export function definirRumoVeiculoEstacionado(veiculo: VeiculoGps, rumo: number) {
   const chave = veiculo.placa || veiculo.id;
   const normalizado = normalizarGraus(rumo);
-  cacheRumoEstacionado.set(chave, normalizado);
+  salvarCacheRumo(chave, normalizado);
   try {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(`sigo_rumo_estacionado_${chave}`, String(normalizado));

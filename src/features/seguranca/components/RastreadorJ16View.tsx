@@ -970,6 +970,8 @@ export function RastreadorJ16View() {
   const [abaPrincipal, setAbaPrincipal] = useState<"remoto" | "usb" | "simulador" | "comparativo">(
     "remoto",
   );
+  const abaPrincipalRef = useRef(abaPrincipal);
+  abaPrincipalRef.current = abaPrincipal;
   const [origemParametrosComparativo, setOrigemParametrosComparativo] = useState<{
     nome: string;
     timestamp: string;
@@ -2485,6 +2487,7 @@ export function RastreadorJ16View() {
             timestamp?: number;
           };
         }) => {
+          if (abaPrincipalRef.current !== "remoto") return;
           const { imei, direcao, protocolo, ascii, hex } = data.payload || {};
           if (imei) {
             const rotulo =

@@ -450,7 +450,18 @@ export async function consultarVeiculoPorToken(token: string): Promise<{
 // ─────────────────────────────────────────────────────────────────────────────
 // Cache em memória de geocodificação reversa para performance e economia de rede
 // ─────────────────────────────────────────────────────────────────────────────
+const MAX_CACHE_GEOCODIFICACAO = 500;
 const cacheGeocodificacao = new Map<string, string>();
+
+function salvarCacheGeocodificacao(chave: string, valor: string): void {
+  if (cacheGeocodificacao.size >= MAX_CACHE_GEOCODIFICACAO) {
+    const primeiraChave = cacheGeocodificacao.keys().next().value;
+    if (primeiraChave !== undefined) {
+      cacheGeocodificacao.delete(primeiraChave);
+    }
+  }
+  cacheGeocodificacao.set(chave, valor);
+}
 
 /**
  * Converte latitude e longitude em endereço legível no Brasil com cache
@@ -488,7 +499,7 @@ export async function obterEnderecoPorCoordenadas(
       const dataApi = await resApi.json();
       if (dataApi && dataApi.success && dataApi.endereco && dataApi.endereco.trim().length > 3) {
         const endFinal = dataApi.endereco.trim();
-        cacheGeocodificacao.set(chaveCache, endFinal);
+        salvarCacheGeocodificacao(chaveCache, endFinal);
         return endFinal;
       }
     }
@@ -531,7 +542,7 @@ export async function obterEnderecoPorCoordenadas(
         }
 
         if (formatado.trim().length > 3) {
-          cacheGeocodificacao.set(chaveCache, formatado.trim());
+          salvarCacheGeocodificacao(chaveCache, formatado.trim());
           return formatado.trim();
         }
       }
@@ -541,7 +552,7 @@ export async function obterEnderecoPorCoordenadas(
   }
 
   const fallbackAmigavel = "Localização em monitoramento";
-  cacheGeocodificacao.set(chaveCache, fallbackAmigavel);
+  salvarCacheGeocodificacao(chaveCache, fallbackAmigavel);
   return fallbackAmigavel;
 }
 

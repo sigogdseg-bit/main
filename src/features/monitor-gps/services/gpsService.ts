@@ -99,7 +99,14 @@ function inferirTipoPorModelo(modelo?: string): any {
   return "carro";
 }
 
+let ultimoCarregamentoVeiculosFalhou = false;
+
+export function ultimoCarregamentoVeiculosTeveErro(): boolean {
+  return ultimoCarregamentoVeiculosFalhou;
+}
+
 export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
+  ultimoCarregamentoVeiculosFalhou = false;
   try {
     let veiculosData: any[] | null = null;
 
@@ -109,12 +116,30 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
       const sess = await supabase.auth.getSession();
       const token = sess.data.session?.access_token;
       if (token && typeof window !== "undefined") {
-        const res = await fetch("/api/veiculos/monitor", {
+        let res = await fetch("/api/veiculos/monitor", {
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
           },
         });
+        if (res.status === 401) {
+          try {
+            const { data: refreshed } = await supabase.auth.refreshSession();
+            const novoToken = refreshed?.session?.access_token;
+            if (novoToken) {
+              res = await fetch("/api/veiculos/monitor", {
+                method: "GET",
+                headers: {
+                  Authorization: `Bearer ${novoToken}`,
+                },
+              });
+            } else {
+              window.dispatchEvent(new CustomEvent("hunter:sessao-401"));
+            }
+          } catch {
+            window.dispatchEvent(new CustomEvent("hunter:sessao-401"));
+          }
+        }
         if (res.ok) {
           const json = await res.json();
           if (json.success && Array.isArray(json.veiculos)) {
@@ -245,14 +270,19 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
 
         if (errSemTipo || !semTipo) {
           // Tentativa 3: Seleção direta em veiculos sem join com clientes (100% imune a erros RLS de clientes)
-          const { data: semJoin } = await supabase
+          const { data: semJoin, error: errSemJoin } = await supabase
             .from("veiculos")
             .select("*")
             .eq("ativo", true)
             .not("placa", "in", '("HTR4G16","HUN1T26")')
             .order("placa", { ascending: true });
 
-          veiculosData = semJoin || [];
+          if (errSemJoin || !semJoin) {
+            ultimoCarregamentoVeiculosFalhou = true;
+            veiculosData = [];
+          } else {
+            veiculosData = semJoin;
+          }
         } else {
           veiculosData = semTipo;
         }

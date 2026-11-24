@@ -100,6 +100,7 @@ export function AlertasAcidenteBanner({
     });
 
     // 2. Escuta reativa via Supabase Realtime (Anti-Polling total)
+    let realtimeAtivo = false;
     const canal = supabase
       .channel("sigo_guardiao_alertas_seguranca_realtime")
       .on(
@@ -131,10 +132,18 @@ export function AlertasAcidenteBanner({
           });
         },
       )
-      .subscribe();
+      .subscribe((status) => {
+        realtimeAtivo = status === "SUBSCRIBED";
+      });
 
-    // 3. Intervalo de segurança periódico (fallback para descontinuidade de rede)
+    // 3. Reconciliação longa (5 min) quando Realtime conectado, ou fallback 30s apenas se WS offline
+    let ultimoSyncAlertas = Date.now();
     const timer = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      const agora = Date.now();
+      const intervaloNecessario = realtimeAtivo ? 300000 : 30000;
+      if (agora - ultimoSyncAlertas < intervaloNecessario) return;
+      ultimoSyncAlertas = agora;
       carregarAlertasSeguranca().then((res) => {
         setAlertas(
           res.filter(

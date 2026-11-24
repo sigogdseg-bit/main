@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { VeiculoGps } from "../types";
-import { carregarVeiculosGps, alternarBloqueioVeiculo } from "../services/gpsService";
+import {
+  carregarVeiculosGps,
+  alternarBloqueioVeiculo,
+  ultimoCarregamentoVeiculosTeveErro,
+} from "../services/gpsService";
 import { toast } from "sonner";
 
 export interface PatchTelemetriaTempoReal {
@@ -176,10 +180,75 @@ export function aplicarPatchTempoRealNaLista(
   return { lista: novaLista, alterado: true };
 }
 
+export interface EstadoPulsoCentralInput {
+  conectado: boolean;
+  navegadorOnline: boolean;
+  erroReconciliacao: boolean;
+  segundosSemSync: number;
+  reconectando?: boolean;
+}
+
+export interface EstadoPulsoCentral {
+  status: "verde" | "vermelho";
+  critico: boolean;
+  rotulo: string;
+  rotuloCompacto: string;
+  tempoFormatado: string;
+}
+
+export function formatarTempoSemSync(segundosSemSync: number): string {
+  const s = Math.max(0, Math.floor(segundosSemSync));
+  if (s < 60) return `${s}s`;
+  const minutos = Math.floor(s / 60);
+  const resto = s % 60;
+  return resto > 0 ? `${minutos}m ${resto}s` : `${minutos}m`;
+}
+
+export function calcularEstadoPulsoCentral(input: EstadoPulsoCentralInput): EstadoPulsoCentral {
+  const tempoFormatado = formatarTempoSemSync(input.segundosSemSync);
+  const critico = !input.conectado || !input.navegadorOnline || input.erroReconciliacao;
+
+  if (!critico) {
+    return {
+      status: "verde",
+      critico: false,
+      rotulo: `Pulso · há ${tempoFormatado}`,
+      rotuloCompacto: tempoFormatado,
+      tempoFormatado,
+    };
+  }
+
+  let rotulo = "Falha na Sincronização";
+  let rotuloCompacto = "Erro";
+
+  if (!input.navegadorOnline) {
+    rotulo = "Sem Internet";
+    rotuloCompacto = "Offline";
+  } else if (!input.conectado) {
+    rotulo = input.reconectando ? "Reconectando..." : "Sem Conexão";
+    rotuloCompacto = input.reconectando ? "Reconn." : "Off";
+  }
+
+  return {
+    status: "vermelho",
+    critico: true,
+    rotulo,
+    rotuloCompacto,
+    tempoFormatado,
+  };
+}
+
 export function useGpsRealtime() {
   const [veiculos, setVeiculos] = useState<VeiculoGps[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [conectado, setConectado] = useState(true);
+  const [navegadorOnline, setNavegadorOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
+  const [conectado, setConectado] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
+  const [reconectando, setReconectando] = useState(false);
+  const [erroReconciliacao, setErroReconciliacao] = useState(false);
   const [ultimaAtualizacao, setUltimaAtualizacao] = useState<Date>(new Date());
   const [veiculoSelecionado, setVeiculoSelecionado] = useState<VeiculoGps | null>(null);
 
@@ -189,14 +258,36 @@ export function useGpsRealtime() {
   const debounceSyncRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const realtimeConectadoRef = useRef(false);
   const ultimaAtividadeSyncRef = useRef(Date.now());
+  const canalRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const backoffTentativasRef = useRef(0);
+  const desmontadoRef = useRef(false);
 
   const recarregar = useCallback(async () => {
     const seqLocal = ++seqRef.current;
     try {
       const lista = await carregarVeiculosGps();
+      const falhou = ultimoCarregamentoVeiculosTeveErro();
       // Descarta resposta HTTP antiga se já houve atualização Realtime ou consulta mais recente
       if (seqLocal !== seqRef.current) {
         return;
+      }
+
+      if (falhou) {
+        setErroReconciliacao(true);
+        return;
+      }
+
+      setErroReconciliacao(false);
+
+      // Evita vazamento de memória no Map global removendo veículos inativos/removidos
+      if (inicioParadaPorVeiculo.size > lista.length + 50) {
+        const idsAtivos = new Set(lista.map((v) => v.id));
+        for (const id of inicioParadaPorVeiculo.keys()) {
+          if (!idsAtivos.has(id)) {
+            inicioParadaPorVeiculo.delete(id);
+          }
+        }
       }
 
       ultimaAtividadeSyncRef.current = Date.now();
@@ -213,6 +304,8 @@ export function useGpsRealtime() {
         const atualizado = lista.find((v) => v.id === veiculoSelecionadoRef.current?.id);
         setVeiculoSelecionado(atualizado || null);
       }
+    } catch {
+      setErroReconciliacao(true);
     } finally {
       setCarregando(false);
     }
@@ -275,8 +368,22 @@ export function useGpsRealtime() {
     [veiculos.length],
   );
 
-  useEffect(() => {
-    recarregar();
+  const iniciarCanalRealtime = useCallback(() => {
+    if (desmontadoRef.current) return;
+
+    if (backoffTimerRef.current) {
+      clearTimeout(backoffTimerRef.current);
+      backoffTimerRef.current = null;
+    }
+
+    if (canalRef.current) {
+      try {
+        supabase.removeChannel(canalRef.current);
+      } catch {
+        /* ignore */
+      }
+      canalRef.current = null;
+    }
 
     // Reatividade 100% via Broadcast Realtime (zero postgres_changes em veiculos ou telemetria)
     // Regra Hunter: 1 pacote GPS = estritamente 1 única mensagem WebSocket broadcast: telemetria_atualizada
@@ -338,40 +445,109 @@ export function useGpsRealtime() {
         }
       })
       .subscribe((status) => {
+        if (desmontadoRef.current) return;
         const sub = status === "SUBSCRIBED";
+        const estavaDesconectado = !realtimeConectadoRef.current;
         realtimeConectadoRef.current = sub;
         setConectado(sub);
+
+        if (sub) {
+          backoffTentativasRef.current = 0;
+          setReconectando(false);
+          // Ao recuperar conexão após queda, reconcilia imediatamente o estado da frota
+          if (estavaDesconectado) {
+            void recarregar();
+          }
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+          setReconectando(true);
+          if (!backoffTimerRef.current && typeof navigator !== "undefined" && navigator.onLine) {
+            const tentativa = backoffTentativasRef.current;
+            backoffTentativasRef.current = Math.min(tentativa + 1, 5);
+            const atrasoMs = Math.min(2000 * Math.pow(2, tentativa), 30000);
+            backoffTimerRef.current = setTimeout(() => {
+              backoffTimerRef.current = null;
+              iniciarCanalRealtime();
+            }, atrasoMs);
+          }
+        }
       });
+
+    canalRef.current = canal;
+  }, [aplicarPatchImediato, agendarSincronizacaoCompleta, recarregar]);
+
+  const forcarReconexao = useCallback(() => {
+    backoffTentativasRef.current = 0;
+    setReconectando(true);
+    iniciarCanalRealtime();
+    void recarregar();
+  }, [iniciarCanalRealtime, recarregar]);
+
+  useEffect(() => {
+    desmontadoRef.current = false;
+    void recarregar();
+    iniciarCanalRealtime();
 
     // Reatividade imediata ao focar na janela ou retornar à aba (essencial no Safari iOS)
     const aoMudarVisibilidade = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        recarregar();
+        void recarregar();
+        if (!realtimeConectadoRef.current) {
+          backoffTentativasRef.current = 0;
+          iniciarCanalRealtime();
+        }
       }
     };
     const aoFocarJanela = () => {
-      recarregar();
+      void recarregar();
+    };
+    const aoVoltarOnline = () => {
+      setNavegadorOnline(true);
+      backoffTentativasRef.current = 0;
+      setReconectando(true);
+      iniciarCanalRealtime();
+      void recarregar();
+    };
+    const aoFicarOffline = () => {
+      setNavegadorOnline(false);
+      realtimeConectadoRef.current = false;
+      setConectado(false);
+      setReconectando(false);
     };
 
     if (typeof window !== "undefined") {
       document.addEventListener("visibilitychange", aoMudarVisibilidade);
       window.addEventListener("focus", aoFocarJanela);
-      window.addEventListener("online", aoFocarJanela);
+      window.addEventListener("online", aoVoltarOnline);
+      window.addEventListener("offline", aoFicarOffline);
     }
 
-    // Contingência reativa suave enquanto a aba estiver ativa:
-    // só consulta via HTTP se o WebSocket cair ou ficar >15s sem entrega recente.
+    // Contingência e reconciliação longa:
+    // - Quando WS está SUBSCRIBED: NÃO dispara polling a cada 15s por ausência de eventos;
+    //   faz apenas reconciliação de segurança a cada 5 minutos (300.000ms).
+    // - Quando WS está desconectado/com erro: consulta a cada 30s até o WS recuperar.
+    const INTERVALO_RECONCILIACAO_SUBSCRIBED_MS = 300000;
+    const INTERVALO_CONTINGENCIA_OFFLINE_MS = 30000;
     const timerContingencia = setInterval(() => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
-        const semPulsoRecente = Date.now() - ultimaAtividadeSyncRef.current >= 15000;
-        if (!realtimeConectadoRef.current || semPulsoRecente) {
-          recarregar();
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (typeof navigator !== "undefined" && !navigator.onLine) return;
+
+      const decorridoDesdeUltimoSync = Date.now() - ultimaAtividadeSyncRef.current;
+      if (!realtimeConectadoRef.current) {
+        if (decorridoDesdeUltimoSync >= INTERVALO_CONTINGENCIA_OFFLINE_MS) {
+          void recarregar();
         }
+      } else if (decorridoDesdeUltimoSync >= INTERVALO_RECONCILIACAO_SUBSCRIBED_MS) {
+        void recarregar();
       }
-    }, 6000);
+    }, 30000);
 
     return () => {
+      desmontadoRef.current = true;
       clearInterval(timerContingencia);
+      if (backoffTimerRef.current) {
+        clearTimeout(backoffTimerRef.current);
+        backoffTimerRef.current = null;
+      }
       if (debounceSyncRef.current) {
         clearTimeout(debounceSyncRef.current);
         debounceSyncRef.current = null;
@@ -379,11 +555,19 @@ export function useGpsRealtime() {
       if (typeof window !== "undefined") {
         document.removeEventListener("visibilitychange", aoMudarVisibilidade);
         window.removeEventListener("focus", aoFocarJanela);
-        window.removeEventListener("online", aoFocarJanela);
+        window.removeEventListener("online", aoVoltarOnline);
+        window.removeEventListener("offline", aoFicarOffline);
       }
-      supabase.removeChannel(canal);
+      if (canalRef.current) {
+        try {
+          supabase.removeChannel(canalRef.current);
+        } catch {
+          /* ignore */
+        }
+        canalRef.current = null;
+      }
     };
-  }, [recarregar, agendarSincronizacaoCompleta, aplicarPatchImediato]);
+  }, [recarregar, iniciarCanalRealtime]);
 
   const executarBloqueio = async (veiculoId: string, bloquear: boolean) => {
     // 1. Atualização otimista imediata na interface do operador (zero delay perceptível)
@@ -407,10 +591,14 @@ export function useGpsRealtime() {
     veiculos,
     carregando,
     conectado,
+    navegadorOnline,
+    reconectando,
+    erroReconciliacao,
     ultimaAtualizacao,
     veiculoSelecionado,
     setVeiculoSelecionado: definirVeiculoSelecionado,
     recarregar,
+    forcarReconexao,
     executarBloqueio,
   };
 }

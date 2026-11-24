@@ -36,9 +36,12 @@ import {
   ShieldCheck,
   EyeOff,
   Building2,
+  WifiOff,
+  RefreshCw,
 } from "lucide-react";
+import { obterComandosEmAguardo } from "@/features/seguranca/services/comandosEmAguardoService";
 import type { VeiculoGps, MapTheme, ModoVisualizacao } from "../types";
-import { useGpsRealtime } from "../hooks/useGpsRealtime";
+import { useGpsRealtime, calcularEstadoPulsoCentral } from "../hooks/useGpsRealtime";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import { useMapTheme } from "../context/MapThemeContext";
 import { obterRecursosPorPlano } from "../utils/planPermissions";
@@ -166,11 +169,68 @@ export function GpsMonitorView({
   const {
     veiculos,
     carregando,
+    conectado,
+    navegadorOnline,
+    reconectando,
+    erroReconciliacao,
+    ultimaAtualizacao,
     veiculoSelecionado,
     setVeiculoSelecionado,
     recarregar,
+    forcarReconexao,
     executarBloqueio,
   } = useGpsRealtime();
+
+  const [segundosSemSync, setSegundosSemSync] = useState(0);
+  const inicioSessaoPainelRef = useRef(Date.now());
+
+  useEffect(() => {
+    const atualizarPulso = () => {
+      const diff = Math.max(0, Math.floor((Date.now() - ultimaAtualizacao.getTime()) / 1000));
+      setSegundosSemSync(diff);
+    };
+    atualizarPulso();
+    const timer = setInterval(atualizarPulso, 1000);
+    return () => clearInterval(timer);
+  }, [ultimaAtualizacao]);
+
+  // Auto-reload preventivo a cada 6 horas para zerar acúmulo de RAM/WebGL em operação 24/7
+  // Só recarrega se não houver modal aberto, formulário em edição ou comando em aguardo na fila
+  useEffect(() => {
+    const INTERVALO_AUTO_RELOAD_MS = 6 * 60 * 60 * 1000;
+    const timer = setInterval(() => {
+      if (typeof window === "undefined" || typeof document === "undefined") return;
+      if (Date.now() - inicioSessaoPainelRef.current < INTERVALO_AUTO_RELOAD_MS) return;
+
+      const modalAberto = Boolean(document.querySelector('[role="dialog"], [aria-modal="true"]'));
+      const elAtivo = document.activeElement as HTMLElement | null;
+      const tagAtiva = elAtivo?.tagName?.toUpperCase();
+      const emEdicao =
+        tagAtiva === "INPUT" ||
+        tagAtiva === "TEXTAREA" ||
+        tagAtiva === "SELECT" ||
+        Boolean(elAtivo?.isContentEditable);
+      const comandosPendentes = obterComandosEmAguardo().some(
+        (c) => c.status !== "concluido" && c.status !== "cancelado",
+      );
+
+      if (!modalAberto && !emEdicao && !comandosPendentes) {
+        window.location.reload();
+      }
+    }, 60000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const estadoPulso = calcularEstadoPulsoCentral({
+    conectado,
+    navegadorOnline,
+    erroReconciliacao,
+    segundosSemSync,
+    reconectando,
+  });
+  const pulsoCritico = estadoPulso.critico;
+  const textoTempoPulso = estadoPulso.tempoFormatado;
 
   const recursosPlano = useMemo(
     () => obterRecursosPorPlano(session, veiculoSelecionado?.cliente_plano),
@@ -1690,8 +1750,34 @@ export function GpsMonitorView({
             )}
           </div>
 
-          {/* Lado Direito: Alternador 2D/3D + Camadas + FitBounds */}
+          {/* Lado Direito: Pulso da Central + Alternador 2D/3D + Camadas + FitBounds */}
           <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => forcarReconexao()}
+              title={
+                pulsoCritico
+                  ? `Alerta de Conexão: ${estadoPulso.rotulo}. Clique para reconectar.`
+                  : `Pulso da Central Online · Última sincronização há ${textoTempoPulso}`
+              }
+              className={`flex items-center gap-1 px-1.5 py-1 rounded-lg border text-[10px] font-mono font-bold transition cursor-pointer ${
+                pulsoCritico
+                  ? "bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 animate-pulse"
+                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400"
+              }`}
+            >
+              {!conectado ? (
+                <WifiOff className="h-3 w-3 shrink-0" />
+              ) : (
+                <span
+                  className={`h-2 w-2 rounded-full shrink-0 ${
+                    pulsoCritico ? "bg-rose-500" : "bg-emerald-500"
+                  }`}
+                />
+              )}
+              <span>{estadoPulso.rotuloCompacto}</span>
+            </button>
+
             <div className="flex items-center rounded-xl bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200 dark:border-slate-700 text-[11px] font-bold">
               <button
                 onClick={() => alternarModoVisualizacao("2D")}
@@ -1930,8 +2016,37 @@ export function GpsMonitorView({
             )}
           </div>
 
-          {/* Lado Direito: Montar Rota, Alternador 2D/3D, Camadas, Trânsito, Fit Bounds e Fullscreen */}
+          {/* Lado Direito: Pulso da Central, Montar Rota, Alternador 2D/3D, Camadas, Trânsito, Fit Bounds e Fullscreen */}
           <div className="flex items-center gap-1.5 text-xs">
+            {/* Indicador Discreto e Sempre Visível: Pulso da Central */}
+            <button
+              type="button"
+              onClick={() => forcarReconexao()}
+              title={
+                pulsoCritico
+                  ? `Alerta de Conexão: ${estadoPulso.rotulo}. Clique para reconectar.`
+                  : `Pulso da Central Online · Última sincronização há ${textoTempoPulso}`
+              }
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-[11px] font-mono font-bold transition cursor-pointer shadow-xs ${
+                pulsoCritico
+                  ? "bg-rose-500/15 border-rose-500/40 text-rose-600 dark:text-rose-400 animate-pulse"
+                  : "bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15"
+              }`}
+            >
+              {!conectado ? (
+                <WifiOff className="h-3.5 w-3.5 shrink-0" />
+              ) : reconectando ? (
+                <RefreshCw className="h-3.5 w-3.5 shrink-0 animate-spin" />
+              ) : (
+                <span
+                  className={`h-2 w-2 rounded-full shrink-0 ${
+                    pulsoCritico ? "bg-rose-500" : "bg-emerald-500"
+                  }`}
+                />
+              )}
+              <span>{estadoPulso.rotulo}</span>
+            </button>
+
             {/* Botão de Montagem de Rota Inteligente */}
             <button
               onClick={() => abrirMontarRota()}

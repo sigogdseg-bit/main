@@ -321,6 +321,7 @@ export function obterComandosEmAguardo(): ComandoEmAguardoItem[] {
 
 export function adicionarComandoEmAguardo(item: NovoComandoEmAguardoParams) {
   const listaAtual = obterComandosEmAguardo();
+  iniciarWatchdogGlobal();
   const novoId = `cmd_${item.imei}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
   // Impede duplicata exata do mesmo comando já pendente na fila
@@ -721,7 +722,16 @@ function iniciarWatchdogGlobal() {
 
   if (!timerInterval) {
     timerInterval = setInterval(() => {
-      if (comandosCache.length === 0) return;
+      const temAtivos = comandosCache.some(
+        (c) => c.status !== "concluido" && c.status !== "cancelado",
+      );
+      if (!temAtivos) {
+        if (timerInterval) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+        }
+        return;
+      }
 
       let mudou = false;
       const imeisProcessados = new Set<string>();
