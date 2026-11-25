@@ -876,15 +876,15 @@ app.get(["/", "/qrcode", "/admin/whatsapp"], async (req: Request, res: Response)
     req.headers["x-hunter-token"] ||
     tokenBearer ||
     req.query.token ||
-    ("sigo2026" in req.query ? "sigo2026" : null) ||
-    ("gd2026" in req.query ? "gd2026" : null);
+    ("jtVL7nA2gR" in req.query ? "jtVL7nA2gR" : null) ||
+    ("7mZtBQ6D5Q" in req.query ? "7mZtBQ6D5Q" : null);
 
   const tokenValido =
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
     token === "gd-whatsapp-secret-key-2026" ||
-    token === "sigo2026" ||
-    token === "gd2026";
+    token === "jtVL7nA2gR" ||
+    token === "7mZtBQ6D5Q";
 
   if (!tokenValido) {
     return res.status(404).send(`<!DOCTYPE html>
@@ -1317,8 +1317,8 @@ app.post("/api/lid/sync", async (req: Request, res: Response): Promise<any> => {
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
     token === "gd-whatsapp-secret-key-2026" ||
-    token === "sigo2026" ||
-    token === "gd2026";
+    token === "jtVL7nA2gR" ||
+    token === "7mZtBQ6D5Q";
 
   if (!tokenValido) {
     return res.status(401).json({ sucesso: false, erro: "Token inválido" });
@@ -1343,8 +1343,8 @@ app.post("/api/disconnect", async (req: Request, res: Response): Promise<any> =>
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
     token === "gd-whatsapp-secret-key-2026" ||
-    token === "sigo2026" ||
-    token === "gd2026";
+    token === "jtVL7nA2gR" ||
+    token === "7mZtBQ6D5Q";
 
   if (!tokenValido) {
     return res.status(401).json({
@@ -1401,8 +1401,8 @@ app.post(
       token === API_TOKEN ||
       token === "hunter-guardiao-whatsapp-secret-key-2026" ||
       token === "gd-whatsapp-secret-key-2026" ||
-      token === "sigo2026" ||
-      token === "gd2026";
+      token === "jtVL7nA2gR" ||
+      token === "7mZtBQ6D5Q";
 
     if (!tokenValido) {
       return res.status(401).json({ sucesso: false, erro: "Acesso negado. Token inválido." });

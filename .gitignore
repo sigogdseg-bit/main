@@ -15,10 +15,14 @@ dist-ssr
 .tanstack/**
 .nitro
 *.local
+.gd-config-local.md
 .env
+.gd-config-local.md
 .env.*
-!.env.example
-!.env.production
+!.gd-config-local.md
+.env.example
+!.gd-config-local.md
+.env.production
 supabase/.temp/
 
 # Wrangler / Cloudflare

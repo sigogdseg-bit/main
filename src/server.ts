@@ -12253,7 +12253,7 @@ async function handleApiWhatsapp(
 
   // 3. GET /api/whatsapp/qrcode
   if (url.pathname === "/api/whatsapp/qrcode" && request.method === "GET") {
-    return Response.redirect("https://gps.oficial.tec.br/gd/whatsapp?token=gd2026", 302);
+    return Response.redirect("https://gps.oficial.tec.br/gd/whatsapp?token=7mZtBQ6D5Q", 302);
   }
 
   // 3b. POST /api/whatsapp/disconnect (Desconectar linha GD para sincronizar novo número)
@@ -12328,7 +12328,7 @@ async function handleApiWhatsapp(
         auth: { persistSession: false, autoRefreshToken: false },
       });
 
-      let autorizado = token === secret || token === "gd2026";
+      let autorizado = token === secret || token === "7mZtBQ6D5Q";
       if (!autorizado && authHeader.startsWith("Bearer ")) {
         const userClient = createClient(supabaseUrl, authHeader.replace(/^Bearer\s+/i, ""), {
           auth: { persistSession: false, autoRefreshToken: false },
