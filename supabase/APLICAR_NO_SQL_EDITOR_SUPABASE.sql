@@ -33500,3 +33500,13 @@ WITH CHECK (true);
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.rondas_execucoes TO authenticated, service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ==============================================================================
+-- MIGRATION: 20261124212500_add_pix_columns_whatsapp_config.sql
+-- ==============================================================================
+
+ALTER TABLE public.whatsapp_config ADD COLUMN IF NOT EXISTS chave_pix TEXT;
+ALTER TABLE public.whatsapp_config ADD COLUMN IF NOT EXISTS titular_pix TEXT;
+ALTER TABLE public.whatsapp_config ADD COLUMN IF NOT EXISTS cidade_pix TEXT;
+
+NOTIFY pgrst, 'reload schema';
