@@ -1232,7 +1232,7 @@ export function RastreadorJ16View() {
       setApnNome("voxter.br");
       setApnUser("algar");
       setApnPass("1212");
-      setTimerMovimento("30");
+      setTimerMovimento("10");
       setTimerParado("3600");
       setHbtLigado("300");
       setHbtDesligado("300");
