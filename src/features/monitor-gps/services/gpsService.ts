@@ -403,11 +403,15 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
         odometro_motor_b_estado: v.odometro_motor_b_estado || null,
         odometro_motor_c_estado: v.odometro_motor_c_estado || null,
         latitude:
-          v.ultima_latitude !== null && v.ultima_latitude !== undefined && !isNaN(Number(v.ultima_latitude))
+          v.ultima_latitude !== null &&
+          v.ultima_latitude !== undefined &&
+          !isNaN(Number(v.ultima_latitude))
             ? Number(v.ultima_latitude)
             : 0,
         longitude:
-          v.ultima_longitude !== null && v.ultima_longitude !== undefined && !isNaN(Number(v.ultima_longitude))
+          v.ultima_longitude !== null &&
+          v.ultima_longitude !== undefined &&
+          !isNaN(Number(v.ultima_longitude))
             ? Number(v.ultima_longitude)
             : 0,
         voltagem: voltagemReal,
@@ -749,7 +753,9 @@ export async function carregarViagensTrajetos(
         const ultimoDiaStr = String(ultimoDia).padStart(2, "0");
         // Fuso horário canônico oficial do Brasil (America/Sao_Paulo: UTC-3)
         const inicioIso = new Date(`${ano}-${mesStr}-01T00:00:00.000-03:00`).toISOString();
-        const fimIso = new Date(`${ano}-${mesStr}-${ultimoDiaStr}T23:59:59.999-03:00`).toISOString();
+        const fimIso = new Date(
+          `${ano}-${mesStr}-${ultimoDiaStr}T23:59:59.999-03:00`,
+        ).toISOString();
 
         if (campo === "fim_at") {
           query = query.or(

@@ -659,6 +659,32 @@ async function despacharNotificacaoWhatsappSuperAdm(
 
     const token = "hunter-guardiao-whatsapp-secret-key-2026";
 
+    // Blindagem anti-self: nunca despacha para os números do próprio robô/gateway
+    setTelefonesWhatsapp.delete("5524992501512");
+    setTelefonesWhatsapp.delete("5524981498266");
+
+    // Checagem de Bloqueio Emergencial via Central
+    try {
+      const { data: cfgBloq } = await adminSupabase
+        .from("relatorio_gerencial_config")
+        .select("secoes_ativas, enviar_whatsapp")
+        .limit(1)
+        .maybeSingle();
+      const sec = (cfgBloq?.secoes_ativas as any) || {};
+      if (
+        sec?.bloqueio_emergencial ||
+        sec?.bloqueio_emergencial_whatsapp ||
+        cfgBloq?.enviar_whatsapp === false
+      ) {
+        console.warn(
+          "🛑 [SERVER WHATSAPP] Notificação suprimida: Bloqueio emergencial ativo na Central.",
+        );
+        setTelefonesWhatsapp.clear();
+      }
+    } catch {
+      /* segue */
+    }
+
     // 2. Canal WHATSAPP conforme preferência por membro
     for (const fone of setTelefonesWhatsapp) {
       let enviadoSucesso = false;
@@ -12128,6 +12154,32 @@ async function handleApiWhatsapp(
   // 2. POST /api/whatsapp/send
   if (url.pathname === "/api/whatsapp/send" && request.method === "POST") {
     try {
+      const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
+      const adminSb = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      // Checagem prévia de Bloqueio Emergencial
+      const { data: cfgBloq } = await adminSb
+        .from("relatorio_gerencial_config")
+        .select("secoes_ativas, enviar_whatsapp")
+        .limit(1)
+        .maybeSingle();
+      const sec = (cfgBloq?.secoes_ativas as any) || {};
+      if (
+        sec?.bloqueio_emergencial ||
+        sec?.bloqueio_emergencial_whatsapp ||
+        cfgBloq?.enviar_whatsapp === false
+      ) {
+        return new Response(
+          JSON.stringify({
+            sucesso: false,
+            erro: "Bloqueio emergencial ativo via Central. Envios externos suspensos.",
+          }),
+          { status: 503, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
       const body = await request.json();
       const token = "hunter-guardiao-whatsapp-secret-key-2026";
       const controller = new AbortController();
@@ -12156,13 +12208,9 @@ async function handleApiWhatsapp(
       }
       if (res.ok && (data as any)?.sucesso !== false) {
         try {
-          const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
-          const supabase = createClient(supabaseUrl, serviceRoleKey, {
-            auth: { persistSession: false, autoRefreshToken: false },
-          });
           const recipientStr = (body as any)?.recipient || (body as any)?.numero || "destinatario";
           const temDocumento = Boolean((body as any)?.documento || (body as any)?.document);
-          await supabase.from("system_activity_logs").insert({
+          await adminSb.from("system_activity_logs").insert({
             acao: "whatsapp_api_envio_sucesso",
             detalhe: `Disparo de WhatsApp via Web API para ${recipientStr}${temDocumento ? " com documento anexo" : ""}`,
           });
@@ -12225,6 +12273,157 @@ async function handleApiWhatsapp(
     }
   }
 
+  // 3c. GET /api/whatsapp/bloqueio-emergencial ou /api/admin/whatsapp/status-bloqueio
+  if (
+    (url.pathname === "/api/whatsapp/bloqueio-emergencial" ||
+      url.pathname === "/api/admin/whatsapp/status-bloqueio") &&
+    request.method === "GET"
+  ) {
+    try {
+      const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
+      const adminSb = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      const { data: cfg } = await adminSb
+        .from("relatorio_gerencial_config")
+        .select("secoes_ativas, enviar_whatsapp, updated_at")
+        .limit(1)
+        .maybeSingle();
+      const sec = (cfg?.secoes_ativas as any) || {};
+      const bloqueado =
+        Boolean(sec?.bloqueio_emergencial) ||
+        Boolean(sec?.bloqueio_emergencial_whatsapp) ||
+        cfg?.enviar_whatsapp === false;
+      return new Response(
+        JSON.stringify({
+          sucesso: true,
+          bloqueado,
+          motivo: sec?.motivo_bloqueio || "",
+          atualizado_em: cfg?.updated_at || new Date().toISOString(),
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ sucesso: false, erro: err?.message || err }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    }
+  }
+
+  // 3d. POST /api/whatsapp/bloqueio-emergencial ou /api/admin/whatsapp/bloqueio-emergencial
+  if (
+    (url.pathname === "/api/whatsapp/bloqueio-emergencial" ||
+      url.pathname === "/api/admin/whatsapp/bloqueio-emergencial") &&
+    request.method === "POST"
+  ) {
+    try {
+      const authHeader = request.headers.get("Authorization") || "";
+      const hunterToken = request.headers.get("X-Hunter-Token") || "";
+      const secret = "hunter-guardiao-whatsapp-secret-key-2026";
+      const token = authHeader.replace(/^Bearer\s+/i, "") || hunterToken;
+
+      const { supabaseUrl, serviceRoleKey } = getSupabaseServerParams(env);
+      const adminSb = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      let autorizado = token === secret || token === "gd2026";
+      if (!autorizado && authHeader.startsWith("Bearer ")) {
+        const userClient = createClient(supabaseUrl, authHeader.replace(/^Bearer\s+/i, ""), {
+          auth: { persistSession: false, autoRefreshToken: false },
+        });
+        const { data: userData } = await userClient.auth.getUser();
+        if (userData?.user?.id) {
+          const { data: p } = await adminSb
+            .from("profiles")
+            .select("role")
+            .eq("id", userData.user.id)
+            .maybeSingle();
+          if (p?.role === "superadmin" || p?.role === "admin") {
+            autorizado = true;
+          }
+        }
+      }
+
+      if (!autorizado) {
+        return new Response(
+          JSON.stringify({ sucesso: false, erro: "Acesso restrito ao SuperADM." }),
+          { status: 403, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
+
+      const body = await request.json().catch(() => ({}));
+      const bloqueado = Boolean(body.bloqueado);
+      const motivo = String(
+        body.motivo ||
+          (bloqueado ? "Bloqueio emergencial acionado via Central" : "Comunicação reativada"),
+      );
+
+      const { data: cfgAtual } = await adminSb
+        .from("relatorio_gerencial_config")
+        .select("id, secoes_ativas")
+        .limit(1)
+        .maybeSingle();
+
+      const secoesNovas = {
+        ...((cfgAtual?.secoes_ativas as any) || {}),
+        bloqueio_emergencial: bloqueado,
+        bloqueio_emergencial_whatsapp: bloqueado,
+        motivo_bloqueio: motivo,
+        bloqueado_em: new Date().toISOString(),
+      };
+
+      if (cfgAtual?.id) {
+        await adminSb
+          .from("relatorio_gerencial_config")
+          .update({
+            secoes_ativas: secoesNovas,
+            enviar_whatsapp: !bloqueado,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", cfgAtual.id);
+      }
+
+      // Sincroniza estado com os gateways ativos (Baileys)
+      try {
+        const gwUrls = [
+          gatewayUrl,
+          "https://gps.oficial.tec.br",
+          "https://gps.oficial.tec.br/gd/whatsapp",
+        ];
+        for (const gw of gwUrls) {
+          fetch(`${gw}/api/bloqueio-emergencial`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${secret}`,
+              "X-Hunter-Token": secret,
+            },
+            body: JSON.stringify({ bloqueado, motivo }),
+          }).catch(() => null);
+        }
+      } catch {
+        /* não trava */
+      }
+
+      return new Response(
+        JSON.stringify({
+          sucesso: true,
+          bloqueado,
+          motivo,
+          atualizado_em: new Date().toISOString(),
+        }),
+        { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+      );
+    } catch (err: any) {
+      return new Response(JSON.stringify({ sucesso: false, erro: err?.message || err }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
+      });
+    }
+  }
+
   // 4. POST /api/whatsapp/webhook (Auto-Monitoramento Interativo e Comandos de 1 Toque)
   if (url.pathname === "/api/whatsapp/webhook" && request.method === "POST") {
     try {
@@ -12245,6 +12444,31 @@ async function handleApiWhatsapp(
       const supabase = createClient(supabaseUrl, serviceRoleKey, {
         auth: { persistSession: false, autoRefreshToken: false },
       });
+
+      // Checagem de bloqueio emergencial antes de processar mensagem recebida
+      const { data: cfgBloq } = await supabase
+        .from("relatorio_gerencial_config")
+        .select("secoes_ativas, enviar_whatsapp")
+        .limit(1)
+        .maybeSingle();
+      const sec = (cfgBloq?.secoes_ativas as any) || {};
+      if (
+        sec?.bloqueio_emergencial ||
+        sec?.bloqueio_emergencial_whatsapp ||
+        cfgBloq?.enviar_whatsapp === false
+      ) {
+        console.warn(
+          "🛑 [WEBHOOK WHATSAPP] Mensagem recebida descartada: Bloqueio emergencial ativo na Central.",
+        );
+        return new Response(
+          JSON.stringify({
+            sucesso: true,
+            resposta: null,
+            motivo: "bloqueio_emergencial_ativo",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json", ...SECURITY_HEADERS } },
+        );
+      }
 
       const resultado = await processarMensagemWhatsappRecebida(body, supabase, gatewayUrl, ctx);
 

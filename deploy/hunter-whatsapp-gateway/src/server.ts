@@ -95,6 +95,37 @@ let isConnected = false;
 let connectedNumber: string | null = null;
 let reconnectAttempts = 0;
 
+// Estado e Proteções de Segurança: Bloqueio Emergencial e Circuit Breakers
+let bloqueioEmergencialAtivo = false;
+let bloqueioEmergencialMotivo = "";
+const circuitBreakerEnvios: number[] = [];
+const enviosPorNumero = new Map<string, number[]>();
+const numerosBloqueadosTemporariamente = new Map<string, number>();
+
+function isLinhaDoRobo(numero: string): boolean {
+  if (!numero) return false;
+  const limpo = numero.replace(/\D/g, "");
+  if (!limpo) return false;
+  if (connectedNumber && limpo === connectedNumber) return true;
+  if (sock?.user?.id && limpo === sock.user.id.split("@")[0].split(":")[0]) return true;
+  if (limpo === "5524992501512" || limpo === "5524981498266") return true;
+  const envBots = process.env.WHATSAPP_BOT_NUMBERS || "";
+  if (envBots) {
+    const list = envBots.split(",");
+    for (const b of list) {
+      const bLimpo = b.replace(/\D/g, "");
+      if (
+        bLimpo &&
+        (limpo === bLimpo ||
+          (limpo.length >= 8 && bLimpo.length >= 8 && limpo.endsWith(bLimpo.slice(-8))))
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function resolverMimetype(nome: string, mimeInformado?: string): string {
   if (
     mimeInformado &&
@@ -652,6 +683,33 @@ async function initWhatsApp() {
             msg.message?.extendedTextMessage?.text ||
             msg.message?.imageMessage?.caption ||
             "";
+
+          // Filtro anti-self, anti-eco e bloqueio emergencial
+          const isRemetenteProprio =
+            isLinhaDoRobo(remetente) ||
+            (sock?.user?.id && jidOrigem.includes(sock.user.id.split(":")[0]));
+
+          const isTextoEcoOuAlerta =
+            rawTexto.startsWith("🚨 *GD") ||
+            rawTexto.startsWith("🚨 GD") ||
+            rawTexto.startsWith("🛡️ *GD") ||
+            rawTexto.startsWith("🛡️ GD") ||
+            rawTexto.startsWith("🚚 *GD") ||
+            rawTexto.startsWith("Comando não reconhecido") ||
+            rawTexto.includes("Comandos e parâmetros disponíveis") ||
+            rawTexto.includes("• Interessado(a):") ||
+            rawTexto.includes("• WhatsApp do Visitante:") ||
+            rawTexto.includes("• Região / Localização Informada:") ||
+            rawTexto.includes("Solicitação de Atendimento Humano") ||
+            rawTexto.includes("Solicitação de Indicação de Vendedor");
+
+          if (isRemetenteProprio || isTextoEcoOuAlerta || bloqueioEmergencialAtivo) {
+            console.warn(
+              `🛑 [ANTI-LOOP GATEWAY] Mensagem ignorada de ${remetente} (próprio=${isRemetenteProprio}, eco=${isTextoEcoOuAlerta}, bloqueio=${bloqueioEmergencialAtivo})`,
+            );
+            continue;
+          }
+
           const hasMedia = Boolean(
             msg.message?.imageMessage ||
             msg.message?.documentMessage ||
@@ -1097,6 +1155,70 @@ app.post(
       });
     }
 
+    // ── VALIDAÇÕES DE SEGURANÇA E CIRCUIT BREAKER ─────────────────────────────
+    if (bloqueioEmergencialAtivo) {
+      return res.status(503).json({
+        sucesso: false,
+        erro: "Bloqueio emergencial ativo via Central. Envios suspensos.",
+        motivo: bloqueioEmergencialMotivo || "Pausa imediata acionada pelo administrador",
+      });
+    }
+
+    // Blindagem anti-self: não permite enviar para os números do próprio bot
+    if (isLinhaDoRobo(limpo)) {
+      console.warn(
+        `🛑 [ANTI-LOOP GATEWAY] Tentativa de envio para o próprio robô descartada (${limpo}).`,
+      );
+      return res.status(400).json({
+        sucesso: false,
+        erro: "Envio cancelado: o número de destino é a própria linha do robô.",
+      });
+    }
+
+    // Rate limiter por destinatário (máx 4 mensagens a cada 15 segundos)
+    const agoraEnvio = Date.now();
+    const bloqueadoAte = numerosBloqueadosTemporariamente.get(limpo) || 0;
+    if (agoraEnvio < bloqueadoAte) {
+      const segundosRestantes = Math.ceil((bloqueadoAte - agoraEnvio) / 1000);
+      console.warn(
+        `🛑 [RATE LIMIT GATEWAY] Destinatário ${limpo} temporariamente bloqueado (${segundosRestantes}s restantes).`,
+      );
+      return res.status(429).json({
+        sucesso: false,
+        erro: `Limite de taxa por número atingido. Bloqueado por mais ${segundosRestantes}s.`,
+      });
+    }
+
+    const enviosDest = enviosPorNumero.get(limpo) || [];
+    const enviosRecentesDest = enviosDest.filter((t) => agoraEnvio - t < 15000);
+    if (enviosRecentesDest.length >= 4) {
+      numerosBloqueadosTemporariamente.set(limpo, agoraEnvio + 120000);
+      console.error(
+        `🚨 [ANTI-FLOOD GATEWAY] Destinatário ${limpo} disparou >4 msgs em 15s! Bloqueado por 2 minutos.`,
+      );
+      return res.status(429).json({
+        sucesso: false,
+        erro: "Anti-flood acionado para este número. Envios temporariamente suspensos.",
+      });
+    }
+    enviosRecentesDest.push(agoraEnvio);
+    enviosPorNumero.set(limpo, enviosRecentesDest);
+
+    // Circuit Breaker Global (máximo 12 mensagens a cada 10 segundos globalmente)
+    while (circuitBreakerEnvios.length > 0 && circuitBreakerEnvios[0] < agoraEnvio - 10000) {
+      circuitBreakerEnvios.shift();
+    }
+    if (circuitBreakerEnvios.length >= 12) {
+      console.error(
+        "🚨 [CIRCUIT BREAKER GATEWAY] Disparo anômalo global detectado (>12 msgs em 10s). Bloqueando envio!",
+      );
+      return res.status(429).json({
+        sucesso: false,
+        erro: "Circuit breaker global de segurança do WhatsApp acionado. Tráfego anômalo detectado.",
+      });
+    }
+    circuitBreakerEnvios.push(agoraEnvio);
+
     try {
       try {
         await sock.presenceSubscribe(jid);
@@ -1254,6 +1376,54 @@ app.post("/api/disconnect", async (req: Request, res: Response): Promise<any> =>
 
   return res.redirect(`${APP_BASE_PATH}/?token=${encodeURIComponent(String(token))}`);
 });
+
+// 5c. Bloqueio Emergencial via Central (Pausa Instantânea de Toda Comunicação)
+app.get(
+  ["/api/bloqueio-emergencial", "/api/whatsapp/bloqueio-emergencial"],
+  (_req: Request, res: Response): any => {
+    return res.json({
+      sucesso: true,
+      bloqueado: bloqueioEmergencialAtivo,
+      motivo: bloqueioEmergencialMotivo,
+    });
+  },
+);
+
+app.post(
+  ["/api/bloqueio-emergencial", "/api/whatsapp/bloqueio-emergencial"],
+  (req: Request, res: Response): any => {
+    const authHeader = req.headers["authorization"] || "";
+    const tokenBearer = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
+    const token =
+      req.headers["x-hunter-token"] || tokenBearer || req.body?.token || req.query.token;
+
+    const tokenValido =
+      token === API_TOKEN ||
+      token === "hunter-guardiao-whatsapp-secret-key-2026" ||
+      token === "gd-whatsapp-secret-key-2026" ||
+      token === "sigo2026" ||
+      token === "gd2026";
+
+    if (!tokenValido) {
+      return res.status(401).json({ sucesso: false, erro: "Acesso negado. Token inválido." });
+    }
+
+    const { bloqueado, motivo } = req.body || {};
+    bloqueioEmergencialAtivo = Boolean(bloqueado);
+    bloqueioEmergencialMotivo = motivo ? String(motivo) : "";
+
+    console.log(
+      `🔒 [BLOQUEIO EMERGENCIAL] Estado alterado para ${bloqueioEmergencialAtivo ? "BLOQUEADO" : "DESBLOQUEADO"}. Motivo: "${bloqueioEmergencialMotivo}"`,
+    );
+
+    return res.json({
+      sucesso: true,
+      bloqueado: bloqueioEmergencialAtivo,
+      motivo: bloqueioEmergencialMotivo,
+      timestamp: new Date().toISOString(),
+    });
+  },
+);
 
 if (!IS_TEST_ENV) {
   app.listen(PORT, "0.0.0.0", () => {

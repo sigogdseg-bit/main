@@ -15,7 +15,24 @@ function criarMockSupabaseParaDegustacao(dadosIniciais?: {
   authUsers?: any[];
 }) {
   let sessoes: any[] = [...(dadosIniciais?.sessoes || [])];
-  const profiles: any[] = [...(dadosIniciais?.profiles || [])];
+  const profiles: any[] = [
+    ...(dadosIniciais?.profiles ?? [
+      {
+        id: "adm-001",
+        nome: "Super Administrador",
+        telefone: "5524992494030",
+        role: "superadmin",
+        ativo: true,
+      },
+      {
+        id: "adm-002",
+        nome: "Administrador Teste",
+        telefone: "5524992501512",
+        role: "superadmin",
+        ativo: true,
+      },
+    ]),
+  ];
   const userRoles: any[] = [];
   const userModuleAccess: any[] = [];
   const activityLogs: any[] = [...(dadosIniciais?.activityLogs || [])];

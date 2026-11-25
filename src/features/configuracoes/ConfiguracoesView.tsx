@@ -22,6 +22,7 @@ import {
   Sliders,
   Building2,
   MapPin,
+  ShieldAlert,
 } from "lucide-react";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import type { ModoPerfilEmulado } from "@/features/auth/types";
@@ -111,6 +112,67 @@ export function ConfiguracoesView() {
       toast.error(`Erro inesperado: ${err?.message || "Serviço indisponível"}`, { id: toastId });
     } finally {
       setDisparandoRelatorio(false);
+    }
+  };
+
+  // Bloqueio Emergencial do WhatsApp (Pausa Imediata na Central e Gateways)
+  const [bloqueioEmergencialWhatsapp, setBloqueioEmergencialWhatsapp] = useState(false);
+  const [alternandoBloqueioWhats, setAlternandoBloqueioWhats] = useState(false);
+
+  useEffect(() => {
+    if (!session.isSuperAdmin) return;
+    fetch("/api/admin/whatsapp/status-bloqueio")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d?.sucesso && typeof d.bloqueado === "boolean") {
+          setBloqueioEmergencialWhatsapp(d.bloqueado);
+        }
+      })
+      .catch(() => {});
+  }, [session.isSuperAdmin]);
+
+  const handleAlternarBloqueioEmergencial = async (novoBloqueio: boolean) => {
+    if (
+      novoBloqueio &&
+      !window.confirm(
+        "ATENÇÃO: Deseja realmente pausar instantaneamente TODA a comunicação externa pelo WhatsApp (alertas, bot e respostas)?",
+      )
+    ) {
+      return;
+    }
+    setAlternandoBloqueioWhats(true);
+    const toastId = toast.loading(
+      novoBloqueio
+        ? "Acionando Bloqueio Emergencial do WhatsApp..."
+        : "Reativando comunicação do WhatsApp...",
+    );
+    try {
+      const res = await fetch("/api/admin/whatsapp/bloqueio-emergencial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bloqueado: novoBloqueio,
+          motivo: novoBloqueio
+            ? "Pausa imediata via Painel Central"
+            : "Reativação pelo administrador",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.sucesso) {
+        setBloqueioEmergencialWhatsapp(novoBloqueio);
+        toast.success(
+          novoBloqueio
+            ? "🔒 Comunicação WhatsApp PAUSADA com sucesso em toda a rede!"
+            : "✅ Comunicação WhatsApp REATIVADA com sucesso!",
+          { id: toastId },
+        );
+      } else {
+        toast.error(`Falha ao alterar estado: ${data?.erro || "Erro de rede"}`, { id: toastId });
+      }
+    } catch (err: any) {
+      toast.error(`Erro: ${err?.message || "Serviço indisponível"}`, { id: toastId });
+    } finally {
+      setAlternandoBloqueioWhats(false);
     }
   };
 
@@ -1357,10 +1419,38 @@ export function ConfiguracoesView() {
         {/* --- SEÇÃO DE GOVERNANÇA: RELATÓRIO GERENCIAL DIÁRIO (Exclusivo SuperADM) --- */}
         {session.isSuperAdmin && (
           <section className="space-y-4">
+            {/* Banner de Bloqueio Emergencial Ativo */}
+            {bloqueioEmergencialWhatsapp && (
+              <div className="bg-red-500/15 border-2 border-red-500/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-red-500/20 text-red-600 dark:text-red-400">
+                    <ShieldAlert className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-red-700 dark:text-red-300">
+                      COMUNICAÇÃO WHATSAPP PAUSADA EMERGENCIALMENTE
+                    </h3>
+                    <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">
+                      Todos os envios e respostas automáticas pelo WhatsApp foram pausados com
+                      sucesso na Central e Gateways.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleAlternarBloqueioEmergencial(false)}
+                  disabled={alternandoBloqueioWhats}
+                  className="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-lg transition cursor-pointer shrink-0"
+                >
+                  {alternandoBloqueioWhats ? "Reativando..." : "Reativar Comunicação WhatsApp"}
+                </button>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
               <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider opacity-90">
-                Relatório Gerencial
+                Relatório Gerencial e Comunicação
               </h2>
             </div>
 
@@ -1380,6 +1470,29 @@ export function ConfiguracoesView() {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleAlternarBloqueioEmergencial(!bloqueioEmergencialWhatsapp)}
+                    disabled={alternandoBloqueioWhats}
+                    className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-2xl text-xs font-bold transition cursor-pointer justify-center flex-1 sm:flex-initial ${
+                      bloqueioEmergencialWhatsapp
+                        ? "bg-red-600 hover:bg-red-700 text-white shadow-lg animate-pulse"
+                        : isNeumorph
+                          ? "bg-[#eaf0f8] dark:bg-slate-800 text-red-700 dark:text-red-400 shadow-[2px_2px_5px_#c3cfe2] dark:shadow-none border border-red-300/50 dark:border-red-700 hover:text-red-950 dark:hover:text-white"
+                          : "text-red-700 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20"
+                    }`}
+                    title="Pausa ou reativa imediatamente todo o tráfego de WhatsApp da Central"
+                  >
+                    <ShieldAlert className="h-4 w-4 text-red-500" />
+                    <span>
+                      {alternandoBloqueioWhats
+                        ? "Processando..."
+                        : bloqueioEmergencialWhatsapp
+                          ? "Reativar WhatsApp"
+                          : "Pausar WhatsApp (Emergência)"}
+                    </span>
+                  </button>
+
                   <button
                     type="button"
                     onClick={handleDispararRelatorioImediato}

@@ -120,9 +120,7 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
     veiculo.bateria_rastreador_pct !== null &&
     !isNaN(Number(veiculo.bateria_rastreador_pct));
 
-  const bateriaPct = temBateriaReal
-    ? `${veiculo.bateria_rastreador_pct}%`
-    : "Sem leitura";
+  const bateriaPct = temBateriaReal ? `${veiculo.bateria_rastreador_pct}%` : "Sem leitura";
 
   // Status de Ignição / Atividade
   const temTransmissao = Boolean(veiculo.ultima_atualizacao);

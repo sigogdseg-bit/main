@@ -53,9 +53,9 @@ function criarMockSupabaseFluxoInstalacao() {
     },
     {
       id: "adm-user-001",
-      nome: "Administrador Central",
-      telefone: "5524992501512",
-      role: "adm",
+      nome: "Super Administrador",
+      telefone: "5524992494030",
+      role: "superadmin",
       ativo: true,
     },
   ];
@@ -416,7 +416,7 @@ describe("Fluxo de Cadastro Simplificado de Veículo, Preenchimento pelo Instala
       const ultimaMsgInstalador = msgsParaInstalador[msgsParaInstalador.length - 1];
       assert.ok(ultimaMsgInstalador.mensagem.includes("Agendamento Confirmado pelo Cliente"));
 
-      const msgsParaAdm = mensagensEnviadas.filter((m) => m.telefone === "5524992501512");
+      const msgsParaAdm = mensagensEnviadas.filter((m) => m.telefone === "5524992494030");
       assert.ok(msgsParaAdm.length >= 1, "ADM deve receber a mensagem de agendamento realizado");
       assert.ok(msgsParaAdm[0].mensagem.includes("Agendamento Realizado"));
       assert.ok(msgsParaAdm[0].mensagem.includes("20/11/2026 às 16:30"));

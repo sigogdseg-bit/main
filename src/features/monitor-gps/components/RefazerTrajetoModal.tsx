@@ -659,14 +659,22 @@ export function RefazerTrajetoModal({
         }).addTo(map);
       } else {
         const latEfetiva =
-          typeof veiculo.latitude === "number" && !isNaN(veiculo.latitude)
+          typeof veiculo.latitude === "number" && !isNaN(veiculo.latitude) && veiculo.latitude !== 0
             ? veiculo.latitude
-            : -22.5235;
+            : pontos.length > 0
+              ? pontos[0].latitude
+              : 0;
         const lngEfetiva =
-          typeof veiculo.longitude === "number" && !isNaN(veiculo.longitude)
+          typeof veiculo.longitude === "number" &&
+          !isNaN(veiculo.longitude) &&
+          veiculo.longitude !== 0
             ? veiculo.longitude
-            : -44.1042;
-        map.setView([latEfetiva, lngEfetiva], 15);
+            : pontos.length > 0
+              ? pontos[0].longitude
+              : 0;
+        if (latEfetiva !== 0 && lngEfetiva !== 0) {
+          map.setView([latEfetiva, lngEfetiva], 15);
+        }
 
         if (
           typeof veiculo.latitude === "number" &&
@@ -901,6 +909,7 @@ export function RefazerTrajetoModal({
           ? "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
           : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
         {
+          crossOrigin: true,
           subdomains: ["a", "b", "c"],
           maxZoom: 21,
           maxNativeZoom: theme === "satellite" ? 18 : 19,
@@ -912,14 +921,22 @@ export function RefazerTrajetoModal({
 
       // Define a visualização inicial com disparo forçado de load e renderização de tiles
       const latInicial =
-        typeof veiculo.latitude === "number" && !isNaN(veiculo.latitude)
+        typeof veiculo.latitude === "number" && !isNaN(veiculo.latitude) && veiculo.latitude !== 0
           ? veiculo.latitude
-          : -22.5235;
+          : pontos.length > 0
+            ? pontos[0].latitude
+            : 0;
       const lngInicial =
-        typeof veiculo.longitude === "number" && !isNaN(veiculo.longitude)
+        typeof veiculo.longitude === "number" &&
+        !isNaN(veiculo.longitude) &&
+        veiculo.longitude !== 0
           ? veiculo.longitude
-          : -44.1042;
-      map.setView([latInicial, lngInicial], 15, { reset: true });
+          : pontos.length > 0
+            ? pontos[0].longitude
+            : 0;
+      if (latInicial !== 0 && lngInicial !== 0) {
+        map.setView([latInicial, lngInicial], 15, { reset: true });
+      }
       map2DInstanceRef.current = map;
 
       map.invalidateSize({ pan: false });
@@ -955,6 +972,7 @@ export function RefazerTrajetoModal({
       novaCamada = L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
         {
+          crossOrigin: true,
           maxZoom: 21,
           maxNativeZoom: 18,
           attribution: "&copy; Esri",
@@ -962,6 +980,7 @@ export function RefazerTrajetoModal({
       );
     } else {
       novaCamada = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        crossOrigin: true,
         subdomains: ["a", "b", "c"],
         maxZoom: 21,
         maxNativeZoom: 19,
@@ -1033,6 +1052,7 @@ export function RefazerTrajetoModal({
         pitch: 60,
         bearing: -15,
         attributionControl: false,
+        preserveDrawingBuffer: true,
       });
 
       map3DInstanceRef.current = map;
@@ -1576,6 +1596,121 @@ export function RefazerTrajetoModal({
     focarEabrirBalaoParada(listaParadas[novoIndice]);
   };
 
+  // Captura Fotográfica Real do Mapa com Trajeto e Paradas Georreferenciadas
+  const capturarSnapshotMapa = async (): Promise<string | null> => {
+    try {
+      if (modo === "3D" && map3DInstanceRef.current) {
+        const canvas = map3DInstanceRef.current.getCanvas();
+        if (canvas) {
+          return canvas.toDataURL("image/jpeg", 0.88);
+        }
+      }
+
+      const map = map2DInstanceRef.current;
+      const container = map2DContainerRef.current;
+      if (!map || !container) return null;
+
+      const width = container.clientWidth || 800;
+      const height = container.clientHeight || 500;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return null;
+
+      ctx.fillStyle = theme === "dark" ? "#0f172a" : "#f8fafc";
+      ctx.fillRect(0, 0, width, height);
+
+      const tileImgs = Array.from(
+        container.querySelectorAll<HTMLImageElement>(".leaflet-tile-pane img"),
+      );
+      const containerRect = container.getBoundingClientRect();
+      for (const img of tileImgs) {
+        if (!img.complete || img.naturalWidth === 0) continue;
+        const rect = img.getBoundingClientRect();
+        const x = rect.left - containerRect.left;
+        const y = rect.top - containerRect.top;
+        try {
+          ctx.drawImage(img, x, y, rect.width, rect.height);
+        } catch {
+          // Fallback silencioso para isolamento de erro de tile
+        }
+      }
+
+      // Linha do Percurso
+      if (pontos.length > 1) {
+        ctx.beginPath();
+        ctx.strokeStyle = "#10b981"; // Verde esmeralda tático
+        ctx.lineWidth = 4;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        let first = true;
+        for (const p of pontos) {
+          const pt = map.latLngToContainerPoint([p.latitude, p.longitude]);
+          if (first) {
+            ctx.moveTo(pt.x, pt.y);
+            first = false;
+          } else {
+            ctx.lineTo(pt.x, pt.y);
+          }
+        }
+        ctx.stroke();
+      }
+
+      // Marcadores de Paradas Georreferenciadas
+      const paradasParaDesenhar = jornadaConsolidada
+        ? jornadaConsolidada.paradas
+        : extrairParadasDePontos(pontos);
+
+      for (const parada of paradasParaDesenhar) {
+        const pt = map.latLngToContainerPoint([parada.latitude, parada.longitude]);
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, 11, 0, 2 * Math.PI);
+        ctx.fillStyle = "#f59e0b"; // âmbar
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+
+        ctx.fillStyle = "#0f172a";
+        ctx.font = "bold 9px monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(`P${parada.ordem}`, pt.x, pt.y);
+      }
+
+      // Marcador de Saída e Chegada
+      if (pontos.length > 0) {
+        const p0 = pontos[0];
+        const pt0 = map.latLngToContainerPoint([p0.latitude, p0.longitude]);
+        ctx.beginPath();
+        ctx.arc(pt0.x, pt0.y, 7, 0, 2 * Math.PI);
+        ctx.fillStyle = "#22c55e";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+
+        const pFim = pontos[pontos.length - 1];
+        const ptFim = map.latLngToContainerPoint([pFim.latitude, pFim.longitude]);
+        ctx.beginPath();
+        ctx.arc(ptFim.x, ptFim.y, 7, 0, 2 * Math.PI);
+        ctx.fillStyle = "#ef4444";
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+      }
+
+      return canvas.toDataURL("image/jpeg", 0.88);
+    } catch (err) {
+      console.warn("Falha ao capturar mapa:", err);
+      return null;
+    }
+  };
+
   // 7. Geração de Laudo Oficial em PDF
   const baixarLaudoPdf = async () => {
     if (tipoVisao === "ciclo_unico" && !viagemSelecionada) {
@@ -1639,6 +1774,26 @@ export function RefazerTrajetoModal({
       doc.setFont("helvetica", "normal");
       doc.text(`Placa: ${veiculo.placa} | Modelo: ${veiculo.marca_modelo}`, 14, 40);
 
+      // Captura da Imagem Real do Mapa com Trajeto Refeito
+      const imgMapa = await capturarSnapshotMapa();
+      let tabelaStartY = 54;
+
+      if (imgMapa) {
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text("REGISTRO FOTOGRÁFICO DO TRAJETO GEORREFERENCIADO", 14, 54);
+
+        const larguraMapa = 182;
+        const alturaMapa = 68;
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(13.5, 56.5, larguraMapa + 1, alturaMapa + 1, 1.5, 1.5, "S");
+        doc.addImage(imgMapa, "JPEG", 14, 57, larguraMapa, alturaMapa, undefined, "FAST");
+
+        tabelaStartY = 57 + alturaMapa + 8;
+      }
+
       if (tipoVisao === "jornada_completa" && jornadaConsolidada) {
         doc.text(
           `Cliente: ${veiculo.cliente_nome || "Não informado"} | Período da Jornada: ${new Date(jornadaConsolidada.inicio_at).toLocaleString("pt-BR")} até ${new Date(jornadaConsolidada.fim_at).toLocaleString("pt-BR")}`,
@@ -1669,7 +1824,7 @@ export function RefazerTrajetoModal({
         ]);
 
         autoTable(doc, {
-          startY: 56,
+          startY: tabelaStartY,
           head: [
             ["Saída (Ignição ON)", "Chegada (Ignição OFF)", "Distância", "Vel. Média", "Vel. Máx"],
           ],
@@ -1739,7 +1894,12 @@ export function RefazerTrajetoModal({
         doc.text(
           `Cliente: ${veiculo.cliente_nome || "Não informado"} | Período: ${new Date(viagemSelecionada.inicio_at).toLocaleString("pt-BR")} até ${viagemSelecionada.fim_at ? new Date(viagemSelecionada.fim_at).toLocaleString("pt-BR") : "Em rota"}`,
           14,
-          42,
+          45,
+        );
+        doc.text(
+          `Distância Percorrida: ${formatarDistanciaViagem(viagemSelecionada.km_percorrido)} | Velocidade Média: ${viagemSelecionada.velocidade_media} km/h | Velocidade Máxima: ${viagemSelecionada.velocidade_maxima} km/h`,
+          14,
+          50,
         );
 
         // Tabela de Pontos / Resumo de Viagens
@@ -1753,7 +1913,7 @@ export function RefazerTrajetoModal({
         ]);
 
         autoTable(doc, {
-          startY: 48,
+          startY: tabelaStartY,
           head: [
             [
               "Início (Ignição ON)",
@@ -2596,121 +2756,116 @@ export function RefazerTrajetoModal({
 
             {/* Área Central: Visualizador de Mapa + HUD de Telemetria */}
             <div className="flex-1 relative flex flex-col min-h-0 h-full bg-slate-100 dark:bg-slate-950 overflow-hidden">
-              {/* HUD Flutuante com Métricas ao Vivo do Ponto Atual */}
-              {pontoAtual && (
-                <div className="absolute top-3 left-3 right-3 sm:right-auto z-20 flex flex-wrap items-center gap-2 p-2 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs shadow-xl font-mono">
-                  {/* Velocidade */}
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-emerald-200 dark:border-emerald-800/60">
-                    <Gauge className="h-3.5 w-3.5 text-orange-500 dark:text-orange-400" />
-                    <span className="font-black text-orange-600 dark:text-orange-400">
-                      {telemetriaPontoAtual?.velocidade ?? pontoAtual.velocidade} km/h
-                    </span>
-                  </div>
+              {/* Barra Superior Unificada Flutuante: Telemetria ao Vivo e Legenda Tática */}
+              <div className="absolute top-3 inset-x-3 z-20 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2 pointer-events-none">
+                {/* HUD Flutuante com Métricas ao Vivo do Ponto Atual */}
+                {pontoAtual ? (
+                  <div className="pointer-events-auto flex flex-wrap items-center gap-1.5 p-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs shadow-xl font-mono">
+                    {/* Velocidade */}
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-emerald-200 dark:border-emerald-800/60">
+                      <Gauge className="h-3.5 w-3.5 text-orange-500 dark:text-orange-400" />
+                      <span className="font-black text-orange-600 dark:text-orange-400">
+                        {telemetriaPontoAtual?.velocidade ?? pontoAtual.velocidade} km/h
+                      </span>
+                    </div>
 
-                  {/* Rumo / Bússola Cardeal */}
+                    {/* Rumo / Bússola Cardeal */}
+                    <div
+                      className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700"
+                      title={`Rumo: ${rumoMomentoAtual}° (${calcularCardeal(rumoMomentoAtual)}) · Sentido da ponta de seta`}
+                    >
+                      <Compass
+                        className="h-3.5 w-3.5 text-orange-500 transition-transform duration-300"
+                        style={{ transform: `rotate(${rumoMomentoAtual}deg)` }}
+                      />
+                      <span className="font-bold text-slate-700 dark:text-slate-200">
+                        {rumoMomentoAtual}° {calcularCardeal(rumoMomentoAtual)}
+                      </span>
+                    </div>
+
+                    {/* Hodômetro (KM) */}
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60">
+                      <Navigation className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
+                      <span className="font-bold text-blue-600 dark:text-blue-400">
+                        {(telemetriaPontoAtual?.odometroKm ?? 0).toLocaleString("pt-BR", {
+                          minimumFractionDigits: 1,
+                          maximumFractionDigits: 1,
+                        })}{" "}
+                        km
+                      </span>
+                    </div>
+
+                    {/* Horário daquele Momento */}
+                    <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <Clock className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        {new Date(pontoAtual.data_hora_gps).toLocaleTimeString("pt-BR")}
+                      </span>
+                    </div>
+
+                    {/* Inclinação: exibe apenas quando houver registro físico factual */}
+                    {telemetriaPontoAtual?.inclinacaoGraus !== null &&
+                      telemetriaPontoAtual?.inclinacaoGraus !== undefined && (
+                        <div
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60"
+                          title={`Inclinação: ${telemetriaPontoAtual.inclinacaoGraus}° (Sensor Físico)`}
+                        >
+                          <Activity className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+                          <span className="font-bold text-amber-700 dark:text-amber-400 text-xs">
+                            {telemetriaPontoAtual.inclinacaoGraus}°
+                          </span>
+                        </div>
+                      )}
+
+                    {/* Força G: exibe apenas quando houver registro físico factual */}
+                    {telemetriaPontoAtual?.forcaG !== null &&
+                      telemetriaPontoAtual?.forcaG !== undefined && (
+                        <div
+                          className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60"
+                          title={`Força G: ${telemetriaPontoAtual.forcaG.toFixed(2)} G (Alerta de Impacto)`}
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
+                          <span className="font-bold text-rose-700 dark:text-rose-400 text-xs">
+                            {telemetriaPontoAtual.forcaG.toFixed(2)} G
+                          </span>
+                        </div>
+                      )}
+                  </div>
+                ) : (
+                  <div />
+                )}
+
+                {/* Legenda Tática Flutuante no Topo do Mapa */}
+                <div className="pointer-events-auto shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-lg text-[11px] font-mono text-slate-700 dark:text-slate-300">
                   <div
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700"
-                    title={`Rumo: ${rumoMomentoAtual}° (${calcularCardeal(rumoMomentoAtual)}) · Sentido da ponta de seta`}
+                    className="flex items-center gap-1.5 cursor-help"
+                    title="Ponta de seta verde piscante indica o ping de GPS e o sentido exato do deslocamento (mão ou contramão)"
                   >
-                    <Compass
-                      className="h-3.5 w-3.5 text-orange-500 transition-transform duration-300"
-                      style={{ transform: `rotate(${rumoMomentoAtual}deg)` }}
-                    />
-                    <span className="font-bold text-slate-700 dark:text-slate-200">
-                      {rumoMomentoAtual}° {calcularCardeal(rumoMomentoAtual)}
+                    <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
+                    <span className="font-bold text-orange-600 dark:text-orange-400">
+                      Seta: Sentido / Ping
                     </span>
                   </div>
-
-                  {/* Hodômetro (KM) */}
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60">
-                    <Navigation className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
-                    <span className="font-bold text-blue-600 dark:text-blue-400">
-                      {(telemetriaPontoAtual?.odometroKm ?? 0).toLocaleString("pt-BR", {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      })}{" "}
-                      km
-                    </span>
-                  </div>
-
-                  {/* Horário daquele Momento */}
-                  <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                    <Clock className="h-3.5 w-3.5 text-sky-500 dark:text-sky-400" />
-                    <span className="font-bold text-slate-800 dark:text-slate-200">
-                      {new Date(pontoAtual.data_hora_gps).toLocaleTimeString("pt-BR")}
-                    </span>
-                  </div>
-
-                  {/* Inclinação */}
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
                   <div
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60"
-                    title={
-                      telemetriaPontoAtual?.inclinacaoGraus !== null &&
-                      telemetriaPontoAtual?.inclinacaoGraus !== undefined
-                        ? `Inclinação: ${telemetriaPontoAtual.inclinacaoGraus}° (Sensor Físico)`
-                        : "Inclinação: Sem registro · Registrada apenas sob rampa crítica ou capotamento"
-                    }
+                    className="flex items-center gap-1.5 cursor-help"
+                    title="Bolinha laranja indica parada registrada com início, retomada e endereço"
                   >
-                    <Activity className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-                    <span className="font-bold text-amber-700 dark:text-amber-400 text-xs">
-                      {telemetriaPontoAtual?.inclinacaoGraus !== null &&
-                      telemetriaPontoAtual?.inclinacaoGraus !== undefined
-                        ? `${telemetriaPontoAtual.inclinacaoGraus}°`
-                        : "Sem registro"}
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                    <span className="font-bold text-amber-600 dark:text-amber-400">
+                      Bolinha: Parada
                     </span>
                   </div>
-
-                  {/* Força G */}
-                  <div
-                    className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60"
-                    title={
-                      telemetriaPontoAtual?.forcaG !== null &&
-                      telemetriaPontoAtual?.forcaG !== undefined
-                        ? `Força G: ${telemetriaPontoAtual.forcaG.toFixed(2)} G (Alerta de Impacto)`
-                        : "Força G: Sem registro · Registrada apenas sob colisão, impacto ou desaceleração severa"
-                    }
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
+                  <button
+                    type="button"
+                    onClick={ajustarEnquadramentoTrajeto}
+                    className="text-[10px] text-slate-500 hover:text-orange-600 dark:hover:text-orange-400 font-bold underline transition cursor-pointer"
+                    title="Reenquadrar percurso completo"
                   >
-                    <AlertTriangle className="h-3.5 w-3.5 text-rose-500 dark:text-rose-400" />
-                    <span className="font-bold text-rose-700 dark:text-rose-400 text-xs">
-                      {telemetriaPontoAtual?.forcaG !== null &&
-                      telemetriaPontoAtual?.forcaG !== undefined
-                        ? `${telemetriaPontoAtual.forcaG.toFixed(2)} G`
-                        : "Sem registro"}
-                    </span>
-                  </div>
+                    Enquadrar
+                  </button>
                 </div>
-              )}
-
-              {/* Legenda Tática Flutuante no Topo do Mapa */}
-              <div className="absolute top-3 right-3 z-20 hidden md:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 shadow-lg text-[11px] font-mono text-slate-700 dark:text-slate-300">
-                <div
-                  className="flex items-center gap-1.5 cursor-help"
-                  title="Ponta de seta verde piscante indica o ping de GPS e o sentido exato do deslocamento (mão ou contramão)"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse"></span>
-                  <span className="font-bold text-orange-600 dark:text-orange-400">
-                    Seta: Sentido / Ping
-                  </span>
-                </div>
-                <span className="text-slate-300 dark:text-slate-700">|</span>
-                <div
-                  className="flex items-center gap-1.5 cursor-help"
-                  title="Bolinha laranja indica parada registrada com início, retomada e endereço"
-                >
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-                  <span className="font-bold text-amber-600 dark:text-amber-400">
-                    Bolinha: Parada
-                  </span>
-                </div>
-                <span className="text-slate-300 dark:text-slate-700">|</span>
-                <button
-                  type="button"
-                  onClick={ajustarEnquadramentoTrajeto}
-                  className="text-[10px] text-slate-500 hover:text-orange-600 dark:hover:text-orange-400 font-bold underline transition cursor-pointer"
-                  title="Reenquadrar percurso completo"
-                >
-                  Enquadrar
-                </button>
               </div>
 
               {/* Balão Informativo de Parada Flutuante no Mapa (sem travar o playback) */}

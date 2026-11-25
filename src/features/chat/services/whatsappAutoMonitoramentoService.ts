@@ -48,6 +48,143 @@ export function normalizarTelefoneParaBusca(telefone: string): {
   return { digitos, ultimos8, ultimos9 };
 }
 
+// ── CONTROLE GLOBAL DE BLOQUEIO EMERGENCIAL E DEDUPLICAÇÃO ANTI-LOOP ────────
+let cacheBloqueioEmergencial: { bloqueado: boolean; expiraEm: number } = {
+  bloqueado: false,
+  expiraEm: 0,
+};
+
+export async function verificarBloqueioEmergencialWhatsapp(
+  supabase: SupabaseClient,
+  forcarAtualizacao = false,
+): Promise<boolean> {
+  const agora = Date.now();
+  if (!forcarAtualizacao && agora < cacheBloqueioEmergencial.expiraEm) {
+    return cacheBloqueioEmergencial.bloqueado;
+  }
+  try {
+    const { data } = await supabase
+      .from("relatorio_gerencial_config")
+      .select("secoes_ativas, enviar_whatsapp")
+      .limit(1)
+      .maybeSingle();
+
+    const secoes = (data?.secoes_ativas as any) || {};
+    const bloqueado =
+      Boolean(secoes?.bloqueio_emergencial) ||
+      Boolean(secoes?.bloqueio_emergencial_whatsapp) ||
+      data?.enviar_whatsapp === false;
+
+    cacheBloqueioEmergencial = {
+      bloqueado,
+      expiraEm: agora + 4000,
+    };
+    return bloqueado;
+  } catch {
+    return cacheBloqueioEmergencial.bloqueado;
+  }
+}
+
+export function definirBloqueioEmergencialWhatsappCache(bloqueado: boolean): void {
+  cacheBloqueioEmergencial = {
+    bloqueado,
+    expiraEm: Date.now() + 60000,
+  };
+}
+
+const cacheDeduplicacaoAlertas = new Map<string, number>();
+
+export function verificarDeduplicacaoAlerta(chave: string, janelaMs = 120000): boolean {
+  const agora = Date.now();
+  const ultimo = cacheDeduplicacaoAlertas.get(chave) || 0;
+  if (agora - ultimo < janelaMs) {
+    return true;
+  }
+  cacheDeduplicacaoAlertas.set(chave, agora);
+  return false;
+}
+
+const NUMEROS_ROBO_CONHECIDOS_PADRAO = ["5524992501512", "5524981498266"];
+
+let cacheNumerosRobo: {
+  numeros: Set<string>;
+  expiraEm: number;
+} = {
+  numeros: new Set(NUMEROS_ROBO_CONHECIDOS_PADRAO),
+  expiraEm: 0,
+};
+
+export function registrarNumeroRoboDinamico(numero: string): void {
+  const norm = normalizarTelefoneDigitosBR(numero);
+  if (norm && norm.length >= 8) {
+    cacheNumerosRobo.numeros.add(norm);
+  }
+}
+
+export function obterNumerosRoboAtivos(): string[] {
+  return Array.from(cacheNumerosRobo.numeros);
+}
+
+export function isNumeroRoboOuGateway(numero: string): boolean {
+  if (!numero) return false;
+  const limpo = normalizarTelefoneDigitosBR(numero);
+  if (!limpo) return false;
+  for (const botNum of cacheNumerosRobo.numeros) {
+    if (
+      limpo === botNum ||
+      (limpo.length >= 8 &&
+        botNum.length >= 8 &&
+        (limpo.endsWith(botNum.slice(-8)) || botNum.endsWith(limpo.slice(-8))))
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export async function sincronizarNumeroGatewayAtivo(
+  gatewayUrl = "https://gps.oficial.tec.br",
+): Promise<Set<string>> {
+  const agora = Date.now();
+  if (agora < cacheNumerosRobo.expiraEm) {
+    return cacheNumerosRobo.numeros;
+  }
+
+  if (typeof process !== "undefined" && process.env?.WHATSAPP_BOT_NUMBERS) {
+    const extras = process.env.WHATSAPP_BOT_NUMBERS.split(",");
+    for (const extra of extras) {
+      registrarNumeroRoboDinamico(extra.trim());
+    }
+  }
+
+  const isAmbienteTeste =
+    typeof process !== "undefined" &&
+    (process.env.NODE_ENV === "test" ||
+      process.env.VITEST === "true" ||
+      Boolean((globalThis as any).__TEST__) ||
+      Boolean(process.env.NODE_TEST_CONTEXT));
+
+  if (!isAmbienteTeste && typeof fetch === "function") {
+    try {
+      const gwBase = (gatewayUrl || "https://gps.oficial.tec.br").replace(/\/+$/, "");
+      const res = await fetch(`${gwBase}/status`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) {
+        const dados = (await res.json()) as any;
+        if (dados && dados.numero && typeof dados.numero === "string") {
+          registrarNumeroRoboDinamico(dados.numero);
+        }
+      }
+    } catch {
+      // Falha silenciosa de rede mantem os numeros conhecidos
+    }
+  }
+
+  cacheNumerosRobo.expiraEm = agora + 60000;
+  return cacheNumerosRobo.numeros;
+}
+
 /**
  * Despacha mensagem ativa via micro-gateway Baileys no Oracle Cloud
  */
@@ -58,25 +195,40 @@ export async function despacharMensagemWhatsappBaileys(
   documento?: { nome: string; base64?: string; url?: string; mimetype?: string },
   remoteJid?: string,
 ): Promise<boolean> {
+  const isAmbienteTeste =
+    typeof process !== "undefined" &&
+    (process.env.NODE_ENV === "test" ||
+      process.env.VITEST === "true" ||
+      Boolean((globalThis as any).__TEST__) ||
+      Boolean(process.env.NODE_TEST_CONTEXT));
+
+  const simularRoboEmTeste = Boolean((globalThis as any).__TEST_SIMULAR_REMETENTE_ROBO_PROPRIO__);
+
+  if (cacheBloqueioEmergencial.bloqueado) {
+    console.warn("🛑 [WHATSAPP BLOQUEIO] Envio cancelado: Bloqueio emergencial ativo via Central.");
+    return false;
+  }
+
+  const telFinal = normalizarTelefoneDigitosBR(telefoneDestino);
+  if (!telFinal && !remoteJid) return false;
+
+  // Blindagem anti-self: em produção (ou teste de anti-self), nunca despacha para as linhas ativas do próprio bot/gateway
+  if ((!isAmbienteTeste || simularRoboEmTeste) && isNumeroRoboOuGateway(telFinal)) {
+    console.warn(
+      `🛑 [WHATSAPP ANTI-LOOP] Envio abortado: Destinatário ${telFinal} é o próprio robô/gateway.`,
+    );
+    return false;
+  }
+
   const testSender = (globalThis as any).__HUNTER_WHATSAPP_TEST_SENDER__;
   if (typeof testSender === "function") {
     return Boolean(await testSender(telefoneDestino, mensagem, gatewayUrl, documento, remoteJid));
   }
 
   const usarFetchEmTeste = Boolean((globalThis as any).__HUNTER_TEST_USE_GLOBAL_FETCH__);
-  if (
-    !usarFetchEmTeste &&
-    typeof process !== "undefined" &&
-    (process.env.NODE_ENV === "test" ||
-      process.env.VITEST === "true" ||
-      Boolean((globalThis as any).__TEST__) ||
-      Boolean(process.env.NODE_TEST_CONTEXT))
-  ) {
+  if (!usarFetchEmTeste && isAmbienteTeste) {
     return true;
   }
-
-  const telFinal = normalizarTelefoneDigitosBR(telefoneDestino);
-  if (!telFinal && !remoteJid) return false;
 
   const gwBase = (gatewayUrl || "https://gps.oficial.tec.br").replace(/\/+$/, "");
   const endpoints = Array.from(
@@ -170,7 +322,15 @@ async function despacharAlertaEquipeBot(
       Boolean((globalThis as any).__TEST__) ||
       Boolean(process.env.NODE_TEST_CONTEXT));
 
-  const telefonesFallback: string[] = ["5524992501512", "5524992494030"];
+  const bloqueioAtivo = await verificarBloqueioEmergencialWhatsapp(supabase);
+  if (bloqueioAtivo) {
+    console.warn("🛑 [ALERTA BOT] Despacho suprimido: Bloqueio emergencial do WhatsApp ativo.");
+    return;
+  }
+
+  // Fallback ESTRITO: Apenas o número oficial do SuperADM humano.
+  // Proibição absoluta de incluir o número do próprio robô (5524992501512) ou de terceiros.
+  const telefonesFallback: string[] = ["5524992494030"];
   try {
     const { data: cfg } = await supabase
       .from("relatorio_gerencial_config")
@@ -181,7 +341,7 @@ async function despacharAlertaEquipeBot(
     if (cfg?.telefones && Array.isArray(cfg.telefones)) {
       for (const t of cfg.telefones) {
         const n = normalizarTelefoneDigitosBR(typeof t === "string" ? t : t?.telefone);
-        if (n.length >= 10 && !telefonesFallback.includes(n)) {
+        if (n.length >= 10 && !isNumeroRoboOuGateway(n) && !telefonesFallback.includes(n)) {
           telefonesFallback.push(n);
         }
       }
@@ -223,6 +383,7 @@ async function despacharAlertaEquipeBot(
       } catch (_) {}
 
       for (const p of profsEquipe) {
+        const ehSuperAdm = p.role === "superadmin" || p.role === "admin";
         const ativos = cfgPorUser.get(p.id) || {};
         const ops = ativos.alertas_operacionais || null;
         if (ops?.[chaveAlerta]) {
@@ -234,9 +395,13 @@ async function despacharAlertaEquipeBot(
             telefoneFallbackTitular: p.telefone || null,
           });
           if (regra.ativo && regra.app) usersApp.push(p.id);
-          if (regra.ativo && regra.whatsapp) {
+          // CÓPIA WHATSAPP DE SOLICITAÇÕES/LEADS/TRANSBORDO: ESTRITAMENTE PARA SUPERADM!
+          // Operadores e ADMs gerais NUNCA recebem cópias no WhatsApp.
+          if (regra.ativo && regra.whatsapp && ehSuperAdm) {
             for (const f of regra.telefonesWhatsapp) {
-              if (f.length >= 10) setWhatsapp.add(f);
+              if (f.length >= 10 && !isNumeroRoboOuGateway(f)) {
+                setWhatsapp.add(f);
+              }
             }
           } else {
             const fp = normalizarTelefoneDigitosBR(p.telefone);
@@ -250,8 +415,13 @@ async function despacharAlertaEquipeBot(
         } else {
           totalSemRegraExplicit++;
           usersApp.push(p.id);
-          const fp = normalizarTelefoneDigitosBR(p.telefone);
-          if (fp.length >= 10) setWhatsapp.add(fp);
+          // Quando não há regra explícita, cópia no WhatsApp é restrita EXCLUSIVAMENTE ao SuperADM
+          if (ehSuperAdm) {
+            const fp = normalizarTelefoneDigitosBR(p.telefone);
+            if (fp.length >= 10 && !isNumeroRoboOuGateway(fp)) {
+              setWhatsapp.add(fp);
+            }
+          }
         }
       }
     }
@@ -1123,6 +1293,14 @@ export async function notificarSuperAdmTransbordoHumano(
   },
   gatewayUrl = "https://gps.oficial.tec.br",
 ): Promise<void> {
+  const chaveDedup = `transbordo_${dados.telefone}`;
+  if (verificarDeduplicacaoAlerta(chaveDedup, 120000)) {
+    console.warn(
+      `🛑 [TRANSBORDO DEDUP] Notificação suprimida para ${dados.telefone} (janela de 120s ativa).`,
+    );
+    return;
+  }
+
   const msgSuperAdm =
     "🚨 *GD Rastreamento — Solicitação de Atendimento Humano (WhatsApp)*\n\n" +
     `• Nome / Contato: *${dados.nome}*\n` +
@@ -1295,6 +1473,17 @@ export async function encaminharLeadParaVendedorOuSuperAdm(
   }
 
   // 4. Caso não haja vendedor específico daquela cidade: notifica o SuperADM solicitando a indicação
+  const chaveDedup = `indicacao_${dados.telefone}_${localizacaoLimpa.toLowerCase()}`;
+  if (verificarDeduplicacaoAlerta(chaveDedup, 120000)) {
+    console.warn(
+      `🛑 [INDICAÇÃO DEDUP] Notificação suprimida para ${dados.telefone} (${localizacaoLimpa}).`,
+    );
+    return (
+      "📍 *Localização já anotada!*\n\n" +
+      "Já recebemos sua solicitação de atendimento para esta região. Nosso consultor entrará em contato em instantes por este número. Obrigado! 🛡️"
+    );
+  }
+
   const dataHoraAtual = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
   const msgSuperAdmIndicacao =
     "🚨 *GD Segurança Privada — Solicitação de Indicação de Vendedor (WhatsApp)*\n\n" +
@@ -2835,6 +3024,63 @@ export async function processarMensagemWhatsappRecebida(
   }
   const textoLimpo = (params.texto || "").trim();
   const textoUpper = textoLimpo.toUpperCase();
+
+  const isAmbienteTeste =
+    typeof process !== "undefined" &&
+    (process.env.NODE_ENV === "test" ||
+      process.env.VITEST === "true" ||
+      Boolean((globalThis as any).__TEST__) ||
+      Boolean(process.env.NODE_TEST_CONTEXT));
+
+  const simularRoboEmTeste = Boolean((globalThis as any).__TEST_SIMULAR_REMETENTE_ROBO_PROPRIO__);
+
+  // ── BLINDAGEM ANTI-LOOP, ANTI-ECO E RESPOSTAS AUTOMATIZADAS ─────────────────
+  const isMensagemSistemaOuEco =
+    textoUpper.startsWith("🚨 *GD") ||
+    textoUpper.startsWith("🚨 GD") ||
+    textoUpper.startsWith("🛡️ *GD") ||
+    textoUpper.startsWith("🛡️ GD") ||
+    textoUpper.startsWith("🚚 *GD") ||
+    textoUpper.startsWith("🚚 GD") ||
+    textoUpper.startsWith("COMANDO NÃO RECONHECIDO") ||
+    textoUpper.includes("COMANDOS E PARÂMETROS DISPONÍVEIS") ||
+    textoUpper.includes("SOLICITAÇÃO DE ATENDIMENTO HUMANO") ||
+    textoUpper.includes("SOLICITAÇÃO DE INDICAÇÃO DE VENDEDOR") ||
+    textoUpper.includes("NOVO LEAD DE RASTREAMENTO") ||
+    textoUpper.includes("• INTERESSADO(A):") ||
+    textoUpper.includes("• WHATSAPP DO VISITANTE:") ||
+    textoUpper.includes("• REGIÃO / LOCALIZAÇÃO INFORMADA:") ||
+    textoUpper.includes("• MOTIVO / MENSAGEM:") ||
+    textoUpper.includes("O VISITANTE FOI INFORMADO DA TRANSFERÊNCIA") ||
+    textoUpper.includes("[BOT AUTO-MONITORAMENTO]") ||
+    ((!isAmbienteTeste || simularRoboEmTeste) && isNumeroRoboOuGateway(remetenteLimpo));
+
+  if (isMensagemSistemaOuEco) {
+    console.warn(
+      `🛑 [ANTI-LOOP SERVICE] Mensagem descartada de ${remetenteLimpo} (eco automatizado do sistema detectado).`,
+    );
+    return {
+      sucesso: true,
+      destinatario: remetenteLimpo,
+      acaoExecutada: "anti_loop_eco_descartado",
+      resposta: "",
+    };
+  }
+
+  // ── CHECAGEM DE BLOQUEIO EMERGENCIAL VIA CENTRAL ───────────────────────────
+  const bloqueioAtivo = await verificarBloqueioEmergencialWhatsapp(supabase);
+  if (bloqueioAtivo) {
+    console.warn(
+      `🔒 [BLOQUEIO EMERGENCIAL] WhatsApp pausado via Central. Mensagem de ${remetenteLimpo} ignorada.`,
+    );
+    return {
+      sucesso: true,
+      destinatario: remetenteLimpo,
+      acaoExecutada: "bloqueio_emergencial_ativo",
+      resposta: "",
+    };
+  }
+
   const { digitos, ultimos8, ultimos9 } = normalizarTelefoneParaBusca(telefoneAutenticado);
 
   // 1. Identificação Completa do Remetente e Perfis
@@ -2845,17 +3091,16 @@ export async function processarMensagemWhatsappRecebida(
   let perfilNome = "";
   let perfilRole = "";
 
+  // O SuperADM humano é estritamente o número oficial 5524992494030 ou perfis com role=superadmin.
+  // Proibição absoluta de considerar qualquer linha do próprio gateway/robô como SuperADM.
   const isNumeroSuperAdm =
-    digitos === "5524992501512" ||
-    digitos === "5524992494030" ||
-    remetenteLimpo === "5524992501512" ||
-    remetenteLimpo === "5524992494030" ||
-    remetenteLimpo === "229875273232532" ||
-    remetenteLimpo === "227379914010748" ||
-    telefoneAutenticado === "5524992501512" ||
-    telefoneAutenticado === "5524992494030" ||
-    digitos.endsWith("24992501512") ||
-    digitos.endsWith("24992494030");
+    !isNumeroRoboOuGateway(remetenteLimpo) &&
+    (digitos === "5524992494030" ||
+      remetenteLimpo === "5524992494030" ||
+      remetenteLimpo === "229875273232532" ||
+      remetenteLimpo === "227379914010748" ||
+      telefoneAutenticado === "5524992494030" ||
+      digitos.endsWith("24992494030"));
 
   // Busca em profiles
   const { data: profilesList } = await supabase
@@ -3978,7 +4223,19 @@ export async function processarMensagemWhatsappRecebida(
       // Sub-etapa E: Usuário informando sua Localização / Endereço / Cidade
       if (sessaoAtiva.etapa === "aguardando_localizacao") {
         const localizacaoInformada = textoLimpo.replace(/[<>{}%$]/g, "").trim();
-        if (localizacaoInformada.length >= 2) {
+        const contemQuebraLinha = localizacaoInformada.includes("\n");
+        const contemSimbolosSistema =
+          /[🚨🛡️🚚📋📊📡•*]/.test(localizacaoInformada) ||
+          localizacaoInformada.toUpperCase().includes("COMANDO") ||
+          localizacaoInformada.toUpperCase().includes("GD RASTREAMENTO") ||
+          localizacaoInformada.toUpperCase().includes("SOLICITAÇÃO");
+
+        if (
+          localizacaoInformada.length >= 2 &&
+          localizacaoInformada.length <= 80 &&
+          !contemQuebraLinha &&
+          !contemSimbolosSistema
+        ) {
           await salvarAtualizacaoSessao("menu_principal", {
             ...dadosPublico,
             localizacao: localizacaoInformada,
@@ -3999,6 +4256,14 @@ export async function processarMensagemWhatsappRecebida(
             destinatario: remetenteLimpo,
             acaoExecutada: "atendimento_publico_localizacao_encaminhada",
             resposta: respostaEncaminhamento,
+          };
+        } else {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "aguardando_localizacao_invalida",
+            resposta:
+              "Por favor, informe apenas o nome da sua *Cidade* ou *Bairro* (ex: Volta Redonda, Barra Mansa, Resende) para localizarmos o consultor credenciado mais próximo. 📍",
           };
         }
       }

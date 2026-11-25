@@ -544,7 +544,8 @@ export function TrajetoInteligenteModal({
   // Atualização do Marcador do Veículo no Mapa Leaflet durante navegação
   useEffect(() => {
     const map = leafletMapRef.current;
-    if (!map || !posicaoVeiculo || !coordenadaValidaMapa(posicaoVeiculo.lat, posicaoVeiculo.lng)) return;
+    if (!map || !posicaoVeiculo || !coordenadaValidaMapa(posicaoVeiculo.lat, posicaoVeiculo.lng))
+      return;
 
     if (!veiculoNavMarkerRef.current) {
       const icon = L.divIcon({

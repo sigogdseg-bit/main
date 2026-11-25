@@ -129,7 +129,9 @@ describe("Hunter — Filtro Temporal de Trajetos, Pré-preenchimento do Instalad
   it("7. Filtro civil de datas no fuso horário do Brasil (UTC-3) não pode vazar viagens noturnas de ontem para hoje", () => {
     // Caso real relatado: No dia 25/11/2026 às 10:18 da manhã, apareciam chegadas às 21:58, 22:32, 23:02, 23:09 e 23:52
     // porque o filtro anterior usava T00:00:00.000Z em vez do fuso -03:00 de Brasília.
-    const ano = 2026, mes = 11, dia = 25;
+    const ano = 2026,
+      mes = 11,
+      dia = 25;
     const diaStr = String(dia).padStart(2, "0");
     const mesStr = String(mes).padStart(2, "0");
 
@@ -143,7 +145,11 @@ describe("Hunter — Filtro Temporal de Trajetos, Pré-preenchimento do Instalad
     // Viagem de ontem à noite (24/11/2026 às 23:52 BRT) em UTC é 2026-11-25T02:52:00.000Z
     const viagemOntemNoiteUtc = "2026-11-25T02:52:00.000Z";
     const pertenceAoDia25 = viagemOntemNoiteUtc >= inicioIso && viagemOntemNoiteUtc <= fimIso;
-    assert.strictEqual(pertenceAoDia25, false, "Viagem de ontem às 23:52 NÃO pode pertencer ao dia de hoje");
+    assert.strictEqual(
+      pertenceAoDia25,
+      false,
+      "Viagem de ontem às 23:52 NÃO pode pertencer ao dia de hoje",
+    );
 
     // Para o dia 24/11/2026
     const inicioOntemIso = new Date("2026-11-24T00:00:00.000-03:00").toISOString();
@@ -151,7 +157,50 @@ describe("Hunter — Filtro Temporal de Trajetos, Pré-preenchimento do Instalad
     assert.strictEqual(inicioOntemIso, "2026-11-24T03:00:00.000Z");
     assert.strictEqual(fimOntemIso, "2026-11-25T02:59:59.999Z");
 
-    const pertenceAoDia24 = viagemOntemNoiteUtc >= inicioOntemIso && viagemOntemNoiteUtc <= fimOntemIso;
-    assert.strictEqual(pertenceAoDia24, true, "Viagem de 24/11 às 23:52 pertence estritamente ao dia 24/11");
+    const pertenceAoDia24 =
+      viagemOntemNoiteUtc >= inicioOntemIso && viagemOntemNoiteUtc <= fimOntemIso;
+    assert.strictEqual(
+      pertenceAoDia24,
+      true,
+      "Viagem de 24/11 às 23:52 pertence estritamente ao dia 24/11",
+    );
+  });
+
+  it("9. RefazerTrajetoModal deve conter barra superior unificada sem sobreposição e captura de foto do mapa no laudo", () => {
+    const modalPath = path.resolve(
+      process.cwd(),
+      "src/features/monitor-gps/components/RefazerTrajetoModal.tsx",
+    );
+    const content = fs.readFileSync(modalPath, "utf-8");
+
+    // Validação da Barra Superior Unificada sem sobreposição
+    assert.ok(
+      content.includes("Barra Superior Unificada Flutuante: Telemetria ao Vivo e Legenda Tática"),
+      "Deve possuir barra superior unificada flutuante",
+    );
+    assert.ok(
+      content.includes("justify-between gap-2 pointer-events-none"),
+      "Deve usar layout flex com justify-between para impedir qualquer colisão ou sobreposição",
+    );
+
+    // Validação da Captura Fotográfica Real do Mapa
+    assert.ok(
+      content.includes("capturarSnapshotMapa"),
+      "Deve implementar a função capturarSnapshotMapa",
+    );
+    assert.ok(
+      content.includes("REGISTRO FOTOGRÁFICO DO TRAJETO GEORREFERENCIADO"),
+      "Laudo PDF deve incluir título do registro fotográfico georreferenciado",
+    );
+    assert.ok(
+      content.includes("doc.addImage(imgMapa"),
+      "Laudo PDF deve embutir a imagem real do trajeto via doc.addImage",
+    );
+
+    // Erradicação de coordenadas fixas de Volta Redonda
+    assert.ok(
+      !content.includes("-22.5235"),
+      "Não deve conter coordenadas fixas hardcoded de Volta Redonda (-22.5235)",
+    );
   });
 });

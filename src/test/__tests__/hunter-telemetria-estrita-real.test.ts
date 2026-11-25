@@ -258,9 +258,7 @@ describe("Hunter — Telemetria Estrita e Erradicação de Dados Fictícios (DJR
       veiculoReal.bateria_rastreador_pct !== null &&
       !isNaN(Number(veiculoReal.bateria_rastreador_pct));
 
-    const bateriaPct = temBateriaReal
-      ? `${veiculoReal.bateria_rastreador_pct}%`
-      : "Sem leitura";
+    const bateriaPct = temBateriaReal ? `${veiculoReal.bateria_rastreador_pct}%` : "Sem leitura";
 
     assert.equal(bateriaPct, "Sem leitura", "Veículo sem leitura não pode exibir 100%");
     assert.notEqual(bateriaPct, "100%", "Proibido categoricamente maquiar para 100%");
@@ -273,7 +271,11 @@ describe("Hunter — Telemetria Estrita e Erradicação de Dados Fictícios (DJR
         ? "Ligada"
         : "Desligada";
 
-    assert.equal(ignicaoTexto, "Sem sinal", "Sem transmissão deve reportar 'Sem sinal', não 'Desligada'");
+    assert.equal(
+      ignicaoTexto,
+      "Sem sinal",
+      "Sem transmissão deve reportar 'Sem sinal', não 'Desligada'",
+    );
 
     // 3. Validação de coordenadas
     const temCoordenadas =
