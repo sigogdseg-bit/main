@@ -188,7 +188,7 @@ describe("Hunter / GD Rastreamento — Anti-Loop, Isolamento SuperADM e Bloqueio
     assert.equal(res.acaoExecutada, "anti_loop_eco_descartado");
   });
 
-  it("4. Cópias de solicitações de atendimento e indicação vão ESTRITAMENTE para SuperADM, NUNCA para operadores", async () => {
+  it("4. Cópias de solicitações de atendimento e indicação vão ESTRITAMENTE para SuperADM, NUNCA para operadores e NEM para outros ADMs", async () => {
     await notificarSuperAdmTransbordoHumano(mockSupabase, {
       nome: "Cliente Teste",
       telefone: "5524999998888",

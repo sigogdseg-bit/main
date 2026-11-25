@@ -1096,11 +1096,11 @@ export const PARAMETROS_CANONICOS_SISTEMA_GD = {
   timerParado: "3600",
   heartbeat: "300",
   fusoGmt: "0",
-  // Padrão G900L / Cantrack / Coban (Padrão para hardware G900L)
+  // Padrão G900L / Cantrack / Coban (Padrão canônico L200: ITV:10,3600, TZ:0,0, WM:1)
   g900l: {
     servidor: "adminip123456 167.234.233.82 7003",
     apn: "apn123456 voxter.br algar 1212",
-    timerMovimento: "fix030s***n123456",
+    timerMovimento: "fix010s060m***n123456",
     heartbeat: "hbt123456 300",
     fuso: "time zone123456 0",
     check: "check123456",

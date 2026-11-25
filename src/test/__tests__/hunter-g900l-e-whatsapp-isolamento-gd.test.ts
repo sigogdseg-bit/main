@@ -113,7 +113,7 @@ describe("HUNTER-GUARDIAN — Homologação do Rastreador G900L 4G e Isolamento 
     // Sintaxe G900L (Coban / Cantrack com senha 123456)
     assert.equal(params.g900l.servidor, "adminip123456 167.234.233.82 7003");
     assert.equal(params.g900l.apn, "apn123456 voxter.br algar 1212");
-    assert.equal(params.g900l.timerMovimento, "fix030s***n123456");
+    assert.equal(params.g900l.timerMovimento, "fix010s060m***n123456");
     assert.equal(params.g900l.heartbeat, "hbt123456 300");
     assert.equal(params.g900l.fuso, "time zone123456 0");
     assert.equal(params.g900l.check, "check123456");

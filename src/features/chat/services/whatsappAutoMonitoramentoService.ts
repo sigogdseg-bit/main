@@ -329,24 +329,8 @@ async function despacharAlertaEquipeBot(
   }
 
   // Fallback ESTRITO: Apenas o número oficial do SuperADM humano.
-  // Proibição absoluta de incluir o número do próprio robô (5524992501512) ou de terceiros.
+  // Proibição absoluta de incluir o número do próprio robô ou de outros operadores e administradores.
   const telefonesFallback: string[] = ["5524992494030"];
-  try {
-    const { data: cfg } = await supabase
-      .from("relatorio_gerencial_config")
-      .select("telefones")
-      .limit(1)
-      .maybeSingle();
-
-    if (cfg?.telefones && Array.isArray(cfg.telefones)) {
-      for (const t of cfg.telefones) {
-        const n = normalizarTelefoneDigitosBR(typeof t === "string" ? t : t?.telefone);
-        if (n.length >= 10 && !isNumeroRoboOuGateway(n) && !telefonesFallback.includes(n)) {
-          telefonesFallback.push(n);
-        }
-      }
-    }
-  } catch (_) {}
 
   const setWhatsapp = new Set<string>();
   const setLigacao = new Set<string>();
@@ -355,6 +339,7 @@ async function despacharAlertaEquipeBot(
   let totalComRegraExplicit = 0;
   let totalSemRegraExplicit = 0;
   let encontrouMembrosEquipe = false;
+  let listaProfsEquipe: any[] = [];
 
   try {
     const { data: profsEquipe } = await supabase
@@ -364,6 +349,7 @@ async function despacharAlertaEquipeBot(
       .eq("ativo", true);
 
     if (Array.isArray(profsEquipe) && profsEquipe.length > 0) {
+      listaProfsEquipe = profsEquipe;
       encontrouMembrosEquipe = true;
       const ids = profsEquipe.map((p: any) => p.id).filter(Boolean);
       const cfgPorUser = new Map<string, any>();
@@ -383,7 +369,8 @@ async function despacharAlertaEquipeBot(
       } catch (_) {}
 
       for (const p of profsEquipe) {
-        const ehSuperAdm = p.role === "superadmin" || p.role === "admin";
+        const ehSuperAdm =
+          p.role === "superadmin" || normalizarTelefoneDigitosBR(p.telefone) === "5524992494030";
         const ativos = cfgPorUser.get(p.id) || {};
         const ops = ativos.alertas_operacionais || null;
         if (ops?.[chaveAlerta]) {
@@ -441,7 +428,29 @@ async function despacharAlertaEquipeBot(
     }
   }
 
+  // Isolamento estrito: Somente o SuperADM (5524992494030 ou role: 'superadmin') pode receber cópia no WhatsApp.
+  // Nenhum operador e nenhum outro administrador geral (adm) recebe mensagens no WhatsApp.
+  const destinatariosFinais = new Set<string>();
   for (const tel of setWhatsapp) {
+    const limpo = normalizarTelefoneDigitosBR(tel);
+    if (!limpo || isNumeroRoboOuGateway(limpo)) continue;
+    if (limpo === "5524992494030") {
+      destinatariosFinais.add(limpo);
+      continue;
+    }
+    const prof = listaProfsEquipe.find(
+      (p: any) => p.role === "superadmin" && normalizarTelefoneDigitosBR(p.telefone) === limpo,
+    );
+    if (prof) {
+      destinatariosFinais.add(limpo);
+    }
+  }
+
+  if (destinatariosFinais.size === 0) {
+    destinatariosFinais.add("5524992494030");
+  }
+
+  for (const tel of destinatariosFinais) {
     await despacharMensagemWhatsappBaileys(tel, opts.mensagemWhats, opts.gatewayUrl);
   }
 

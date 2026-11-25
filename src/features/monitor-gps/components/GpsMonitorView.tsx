@@ -589,6 +589,7 @@ export function GpsMonitorView({
   // Estado: preferências de notificação carregadas do banco (cacheadas por veículo e sincronizadas em tempo real)
   const prefsNotificacaoRef = useRef<PreferenciasNotificacao>(PREFERENCIAS_PADRAO);
   const prefsPorVeiculoRef = useRef<Map<string, PreferenciasNotificacao>>(new Map());
+  const guinchoConfirmacaoRef = useRef<Map<string, number>>(new Map());
   const veiculosCacheIniciadoRef = useRef<Set<string>>(new Set());
 
   // Pré-carrega preferências de cada veículo da lista para evitar vazar regras entre veículos distintos
@@ -1044,23 +1045,27 @@ export function GpsMonitorView({
         }
 
         // ── ALERTA 4: Guincho (Movimento com Ignição Desligada) ─────────
-        // Anti-Jitter: descarta oscilação de antena de satélite (0 a 14 km/h parado)
-        if (
-          permiteAlertaTel("guincho") &&
-          v.ignicao === false &&
-          typeof v.velocidade === "number" &&
-          v.velocidade >= 15
-        ) {
-          dispararAlerta(
-            {
-              chaveDeduplicacao: `guincho_${v.id}`,
-              tipo: "guincho",
-              gravidade: "critica",
-              titulo: `🚨 Veículo em Movimento com Motor Desligado — ${v.placa}`,
-              mensagem: `Veículo ${v.placa} detectado em ${v.velocidade} km/h com ignição desligada. Possível reboque ou furto em andamento.`,
-            },
-            prefs,
-          );
+        // Anti-Jitter: descarta oscilação de antena (0 a 14 km/h) e exige 2 leituras
+        // consecutivas >= 15 km/h com ignição desligada para evitar falso positivo por GPS Drift.
+        const emMovimentoSemIgnicao =
+          v.ignicao === false && typeof v.velocidade === "number" && v.velocidade >= 15;
+        if (!emMovimentoSemIgnicao) {
+          guinchoConfirmacaoRef.current.set(v.id, 0);
+        } else {
+          const contagemGuincho = (guinchoConfirmacaoRef.current.get(v.id) ?? 0) + 1;
+          guinchoConfirmacaoRef.current.set(v.id, contagemGuincho);
+          if (permiteAlertaTel("guincho") && contagemGuincho >= 2) {
+            dispararAlerta(
+              {
+                chaveDeduplicacao: `guincho_${v.id}`,
+                tipo: "guincho",
+                gravidade: "critica",
+                titulo: `🚨 Veículo em Movimento com Motor Desligado — ${v.placa}`,
+                mensagem: `Veículo ${v.placa} detectado em ${v.velocidade} km/h com ignição desligada. Possível reboque ou furto em andamento.`,
+              },
+              prefs,
+            );
+          }
         }
 
         // ── ALERTA 5: Baixa Tensão da Bateria ───────────────────────
