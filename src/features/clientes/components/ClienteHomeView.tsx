@@ -190,8 +190,13 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     recarregarLocatarios();
   }, [session?.clienteId, isLocatario]);
 
-  // Carrega postos fixos vinculados ao cliente
+  // Carrega postos fixos vinculados ao cliente (bloqueado estritamente para perfil Degustação)
   useEffect(() => {
+    if (session?.isDegustacao) {
+      setPostosFixos([]);
+      setCarregandoPostos(false);
+      return;
+    }
     let ativo = true;
     async function carregarPostos() {
       setCarregandoPostos(true);
@@ -199,7 +204,7 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
         const lista = await carregarPostosVigilancia(session?.clienteId || undefined);
         if (ativo) {
           const filtrados = session?.clienteId
-            ? lista.filter((p) => !p.cliente_id || p.cliente_id === session.clienteId)
+            ? lista.filter((p) => p.cliente_id === session.clienteId)
             : lista;
           setPostosFixos(filtrados);
         }
