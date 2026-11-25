@@ -12422,9 +12422,10 @@ async function handleApiWhatsapp(
       const authHeader = request.headers.get("Authorization") || "";
       const hunterToken = request.headers.get("X-Hunter-Token") || "";
       const secret = "hunter-guardiao-whatsapp-secret-key-2026";
+      const gdToken = (env as any)?.GD_WHATSAPP_TOKEN || process.env?.GD_WHATSAPP_TOKEN || "";
       const token = authHeader.replace(/^Bearer\s+/i, "") || hunterToken;
 
-      if (token !== secret) {
+      if (token !== secret && (!gdToken || token !== gdToken)) {
         return new Response(JSON.stringify({ sucesso: false, erro: "Não autorizado" }), {
           status: 401,
           headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
@@ -12485,9 +12486,10 @@ async function handleApiWhatsapp(
       const authHeader = request.headers.get("Authorization") || "";
       const hunterToken = request.headers.get("X-Hunter-Token") || "";
       const secret = "hunter-guardiao-whatsapp-secret-key-2026";
+      const gdToken = (env as any)?.GD_WHATSAPP_TOKEN || process.env?.GD_WHATSAPP_TOKEN || "";
       const token = authHeader.replace(/^Bearer\s+/i, "") || hunterToken;
 
-      if (token !== secret) {
+      if (token !== secret && (!gdToken || token !== gdToken)) {
         return new Response(JSON.stringify({ sucesso: false, erro: "Não autorizado" }), {
           status: 401,
           headers: { "Content-Type": "application/json", ...SECURITY_HEADERS },
