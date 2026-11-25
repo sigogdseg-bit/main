@@ -19,7 +19,7 @@ describe("GD Segurança — Domínio Oficial e Compartilhamento Seguro", () => {
     assert.equal(APP_PUBLIC_URL, "https://gd.oficial.tec.br");
     assert.equal(APP_DOMINIO, "gd.oficial.tec.br");
     assert.equal(APP_CHAVE_PIX_PADRAO, "pix@oficial.tec.br");
-    assert.equal(APP_VERSION_NUMERO, "1.0.1.58");
+    assert.equal(APP_VERSION_NUMERO, "1.0.1.59");
   });
 
   test("Compartilhamento Sem Tempo Estipulado (Encerramento Manual)", () => {

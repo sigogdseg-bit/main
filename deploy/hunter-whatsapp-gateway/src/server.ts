@@ -965,7 +965,7 @@ app.get(["/", "/qrcode", "/admin/whatsapp"], async (req: Request, res: Response)
           <h1>${APP_SYSTEM_NAME} — WhatsApp Gateway</h1>
           <p>O gateway exclusivo do ${APP_SYSTEM_NAME} está online e pronto para despachar alertas de segurança e mensagens.</p>
           <div class="info">Linha Ativa: +${connectedNumber}</div>
-          <form method="POST" action="${APP_BASE_PATH}/api/disconnect?token=${tokenQuery}" onsubmit="return confirm('Deseja realmente desconectar a linha de WhatsApp do ${APP_SYSTEM_NAME}?')" style="margin-top: 24px;">
+          <form method="POST" action="${APP_BASE_PATH}/api/disconnect?token=${tokenQuery}" onsubmit="this.action = window.location.pathname.replace(/\/+$/, '') + '/api/disconnect?token=${tokenQuery}'; return confirm('Deseja realmente desconectar a linha de WhatsApp do ${APP_SYSTEM_NAME}?')" style="margin-top: 24px;">
             <input type="hidden" name="token" value="${tokenQuery}">
             <button type="submit" class="btn-danger">Desconectar Aparelho para Trocar Linha</button>
           </form>
