@@ -69,7 +69,7 @@ describe("HUNTER-GUARDIAN — Sequência Automática e Catálogo de Comandos G90
       "Catálogo deve incluir adminip",
     );
     assert.ok(
-      content.includes("11. Fuso Horário Brasília (time zone)"),
+      content.includes("11. Fuso Horário UTC 0 (time zone)"),
       "Catálogo deve incluir time zone",
     );
 

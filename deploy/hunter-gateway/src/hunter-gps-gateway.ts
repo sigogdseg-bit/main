@@ -2104,9 +2104,16 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
           gravidadeAlerta = "alta";
           break;
         case 0x09: // Moving Alarm
-          // Blindagem anti-falso-positivo: se a ignição estiver desligada e a velocidade for 0 ou < 5 km/h,
-          // trata-se de oscilação térmica/deriva de antena GNSS com veículo parado, e NÃO de reboque real.
-          if (!ignicao && velocidade < 5) {
+          // Blindagem anti-falso-positivo na raiz:
+          // - Se ignição está ligada, NÃO é guincho/reboque com motor desligado.
+          // - Se ignição está desligada e velocidade < 15 km/h, trata-se de deriva GNSS estacionado.
+          if (ignicao) {
+            tipoAlerta = "movimento";
+            tituloEvento = "Movimento com Ignição Ligada";
+            descEvento = "Alarme de movimento recebido com ignição ligada.";
+            severidade = "info";
+            gravidadeAlerta = "media";
+          } else if (velocidade < 15) {
             tipoAlerta = "deriva_gps_estacionado";
             tituloEvento = "Oscilação GNSS Estacionado";
             descEvento =

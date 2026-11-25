@@ -2716,7 +2716,7 @@ export function RastreadorJ16View() {
     }
 
     if (upper.startsWith("GMT,") || upper.startsWith("GMT#") || upper === "GMT") {
-      return `time zone${senha} -3`;
+      return `time zone${senha} 0`;
     }
 
     if (upper.startsWith("ANGLE") || upper.includes("ANGLEVALUE")) {
@@ -3217,14 +3217,14 @@ export function RastreadorJ16View() {
         {
           num: 3,
           titulo: "3. Timer Movimento e Parado (fix)",
-          exemplo: `fix020s060m***n${senhaAtiva}`,
+          exemplo: `fix010s060m***n${senhaAtiva}`,
           desc: "Configura a periodicidade de transmissão em movimento (segundos) e parado (minutos).",
           prioridade: "Obrigatório",
           categoria: "Telemetria",
           presets: [
             {
-              label: `fix020s060m***n${senhaAtiva} (20s mov / 60m parado - Padrão)`,
-              valor: `fix020s060m***n${senhaAtiva}`,
+              label: `fix010s060m***n${senhaAtiva} (10s mov / 60m parado - Padrão L200)`,
+              valor: `fix010s060m***n${senhaAtiva}`,
             },
             {
               label: `fix015s010m***n${senhaAtiva} (15s mov / 10m parado - Alta Precisão)`,
@@ -3337,17 +3337,20 @@ export function RastreadorJ16View() {
         },
         {
           num: 11,
-          titulo: "11. Fuso Horário Brasília (time zone)",
-          exemplo: `time zone${senhaAtiva} -3`,
-          desc: "Ajusta o relógio interno do dispositivo para o fuso oficial de Brasília (UTC -3).",
+          titulo: "11. Fuso Horário UTC 0 (time zone)",
+          exemplo: `time zone${senhaAtiva} 0`,
+          desc: "Ajusta o relógio interno do dispositivo para o fuso UTC 0 (padrão canônico L200/G900L).",
           prioridade: "Recomendado",
           categoria: "Hardware",
           presets: [
             {
+              label: `time zone${senhaAtiva} 0 (UTC 0 - Padrão L200)`,
+              valor: `time zone${senhaAtiva} 0`,
+            },
+            {
               label: `time zone${senhaAtiva} -3 (Brasília UTC-3)`,
               valor: `time zone${senhaAtiva} -3`,
             },
-            { label: `time zone${senhaAtiva} 0 (UTC 0)`, valor: `time zone${senhaAtiva} 0` },
           ],
         },
         {
@@ -4943,8 +4946,8 @@ export function RastreadorJ16View() {
                   presets: [
                     { label: "J16 (30s)", valor: "30" },
                     {
-                      label: "G900L (fix030s***n)",
-                      valor: `fix030s***n${(senhaDispositivoPadrao || "123456").trim()}`,
+                      label: "G900L (fix010s060m***n)",
+                      valor: `fix010s060m***n${(senhaDispositivoPadrao || "123456").trim()}`,
                     },
                     { label: "Padrão Ouro (15s)", valor: "15" },
                     { label: "12s (Alta)", valor: "12" },
