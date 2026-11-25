@@ -33510,3 +33510,15 @@ ALTER TABLE public.whatsapp_config ADD COLUMN IF NOT EXISTS titular_pix TEXT;
 ALTER TABLE public.whatsapp_config ADD COLUMN IF NOT EXISTS cidade_pix TEXT;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ==============================================================================
+-- MIGRATION: 20261124213500_add_missing_columns_vigilantes_e_checkpoints.sql
+-- ==============================================================================
+
+ALTER TABLE public.rondas_checkpoints ADD COLUMN IF NOT EXISTS tempo_deslocamento_minutos INTEGER;
+ALTER TABLE public.rondas_checkpoints ADD COLUMN IF NOT EXISTS distancia_metros DOUBLE PRECISION;
+
+ALTER TABLE public.vigilantes ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.vigilantes ADD COLUMN IF NOT EXISTS usuario_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
+NOTIFY pgrst, 'reload schema';
