@@ -12101,9 +12101,8 @@ async function handleApiWhatsapp(
   }
 
   const gatewayUrl = (
-    (typeof process !== "undefined" &&
-      (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
-    (env && ((env as any).GD_WHATSAPP_GATEWAY_URL || (env as any).WHATSAPP_GATEWAY_URL)) ||
+    (typeof process !== "undefined" && process.env?.GD_WHATSAPP_GATEWAY_URL) ||
+    (env && (env as any).GD_WHATSAPP_GATEWAY_URL) ||
     "https://gps.oficial.tec.br/gd/whatsapp"
   ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Oracle Cloud gps.oficial.tec.br/gd/whatsapp, 100% isolado do SIGO Guardião)
     .replace(/\/$/, "");
