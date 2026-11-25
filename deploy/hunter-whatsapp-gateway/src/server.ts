@@ -876,14 +876,12 @@ app.get(["/", "/qrcode", "/admin/whatsapp"], async (req: Request, res: Response)
     req.headers["x-hunter-token"] ||
     tokenBearer ||
     req.query.token ||
-    ("jtVL7nA2gR" in req.query ? "jtVL7nA2gR" : null) ||
     ("7mZtBQ6D5Q" in req.query ? "7mZtBQ6D5Q" : null);
 
   const tokenValido =
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
     token === "gd-whatsapp-secret-key-2026" ||
-    token === "jtVL7nA2gR" ||
     token === "7mZtBQ6D5Q";
 
   if (!tokenValido) {
@@ -1317,7 +1315,6 @@ app.post("/api/lid/sync", async (req: Request, res: Response): Promise<any> => {
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
     token === "gd-whatsapp-secret-key-2026" ||
-    token === "jtVL7nA2gR" ||
     token === "7mZtBQ6D5Q";
 
   if (!tokenValido) {
@@ -1343,7 +1340,6 @@ app.post("/api/disconnect", async (req: Request, res: Response): Promise<any> =>
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
     token === "gd-whatsapp-secret-key-2026" ||
-    token === "jtVL7nA2gR" ||
     token === "7mZtBQ6D5Q";
 
   if (!tokenValido) {
@@ -1401,7 +1397,6 @@ app.post(
       token === API_TOKEN ||
       token === "hunter-guardiao-whatsapp-secret-key-2026" ||
       token === "gd-whatsapp-secret-key-2026" ||
-      token === "jtVL7nA2gR" ||
       token === "7mZtBQ6D5Q";
 
     if (!tokenValido) {
