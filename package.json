@@ -1,6 +1,6 @@
 {
   "name": "gd-seguranca",
-  "version": "1.0.1.60",
+  "version": "1.0.1.62",
   "private": true,
   "sideEffects": false,
   "type": "module",

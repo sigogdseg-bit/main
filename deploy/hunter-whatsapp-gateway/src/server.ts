@@ -872,17 +872,12 @@ if (!IS_TEST_ENV) {
 app.get(["/", "/qrcode", "/admin/whatsapp"], async (req: Request, res: Response): Promise<any> => {
   const authHeader = req.headers["authorization"] || "";
   const tokenBearer = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : null;
-  const token =
-    req.headers["x-hunter-token"] ||
-    tokenBearer ||
-    req.query.token ||
-    ("7mZtBQ6D5Q" in req.query ? "7mZtBQ6D5Q" : null);
+  const token = req.headers["x-hunter-token"] || tokenBearer || req.query.token;
 
   const tokenValido =
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
-    token === "gd-whatsapp-secret-key-2026" ||
-    token === "7mZtBQ6D5Q";
+    token === "gd-whatsapp-secret-key-2026";
 
   if (!tokenValido) {
     return res.status(404).send(`<!DOCTYPE html>
@@ -1314,8 +1309,7 @@ app.post("/api/lid/sync", async (req: Request, res: Response): Promise<any> => {
   const tokenValido =
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
-    token === "gd-whatsapp-secret-key-2026" ||
-    token === "7mZtBQ6D5Q";
+    token === "gd-whatsapp-secret-key-2026";
 
   if (!tokenValido) {
     return res.status(401).json({ sucesso: false, erro: "Token inválido" });
@@ -1339,8 +1333,7 @@ app.post("/api/disconnect", async (req: Request, res: Response): Promise<any> =>
   const tokenValido =
     token === API_TOKEN ||
     token === "hunter-guardiao-whatsapp-secret-key-2026" ||
-    token === "gd-whatsapp-secret-key-2026" ||
-    token === "7mZtBQ6D5Q";
+    token === "gd-whatsapp-secret-key-2026";
 
   if (!tokenValido) {
     return res.status(401).json({
@@ -1396,8 +1389,7 @@ app.post(
     const tokenValido =
       token === API_TOKEN ||
       token === "hunter-guardiao-whatsapp-secret-key-2026" ||
-      token === "gd-whatsapp-secret-key-2026" ||
-      token === "7mZtBQ6D5Q";
+      token === "gd-whatsapp-secret-key-2026";
 
     if (!tokenValido) {
       return res.status(401).json({ sucesso: false, erro: "Acesso negado. Token inválido." });

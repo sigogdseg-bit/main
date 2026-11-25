@@ -12247,7 +12247,11 @@ async function handleApiWhatsapp(
 
   // 3. GET /api/whatsapp/qrcode
   if (url.pathname === "/api/whatsapp/qrcode" && request.method === "GET") {
-    return Response.redirect("https://gps.oficial.tec.br/gd/whatsapp?token=7mZtBQ6D5Q", 302);
+    const gdToken = (env as any)?.GD_WHATSAPP_TOKEN || process.env?.GD_WHATSAPP_TOKEN || "";
+    return Response.redirect(
+      `https://gps.oficial.tec.br/gd/whatsapp${gdToken ? `?token=${encodeURIComponent(gdToken)}` : ""}`,
+      302,
+    );
   }
 
   // 3b. POST /api/whatsapp/disconnect (Desconectar linha GD para sincronizar novo número)
@@ -12322,7 +12326,8 @@ async function handleApiWhatsapp(
         auth: { persistSession: false, autoRefreshToken: false },
       });
 
-      let autorizado = token === secret || token === "7mZtBQ6D5Q";
+      const gdToken = (env as any)?.GD_WHATSAPP_TOKEN || process.env?.GD_WHATSAPP_TOKEN || "";
+      let autorizado = token === secret || (Boolean(gdToken) && token === gdToken);
       if (!autorizado && authHeader.startsWith("Bearer ")) {
         const userClient = createClient(supabaseUrl, authHeader.replace(/^Bearer\s+/i, ""), {
           auth: { persistSession: false, autoRefreshToken: false },
