@@ -1562,136 +1562,190 @@ export function RastreadorJ16View() {
     const servidorAlvo = usarIpDireto ? ipDedicado : servidorDns;
     const modoServidor = usarIpDireto ? "0" : "1";
     const senhaAtiva = (senhaDispositivoPadrao || "123456").trim() || "123456";
+    const ehG900L = filtroModelo === "g900l";
 
-    // ─────────────────────────────────────────────────────────────
-    // Se o filtro selecionado for G900L (Coban / Cantrack 4G)
-    // Dispara a Sequência Automática Canônica Coban
-    // ─────────────────────────────────────────────────────────────
-    if (filtroModelo === "g900l") {
-      // No G900L, a plataforma opera exclusivamente via socket TCP na porta 7003.
-      // Comandos de configuração inicial (adminip, apn, etc.) são feitos fora da plataforma via SMS.
-      // O lote TCP dispara apenas os comandos reais suportados pelo socket Coban em tempo real:
-
-      // 1. Frequência de transmissão: C,<segundos>s (respeitando timerMovimento, padrão C,30s)
-      const valTimer = (timerMovimento || "30").trim();
-      let segMov = "30s";
-      if (valTimer.toLowerCase().startsWith("c,")) {
-        segMov = valTimer.slice(2).trim();
-      } else if (valTimer.toLowerCase().startsWith("fix")) {
-        const extraido = valTimer.match(/\d+/)?.[0];
-        segMov = `${parseInt(extraido || "30", 10)}s`;
-      } else {
-        const n = parseInt(valTimer, 10);
-        segMov = isNaN(n) || n <= 0 ? "30s" : `${n}s`;
+    // Helper determinístico para montar comando de Timers no G900L (padrão L200: fix010s060m***n<senha>)
+    const montarTimerG900L = () => {
+      const valMov = (timerMovimento || "10").trim();
+      if (valMov.toLowerCase().startsWith("fix")) {
+        return atualizarSenhaEmComandoCoban(valMov, senhaAtiva);
       }
-      const cmdFrequencia = `C,${segMov}`;
-
-      comandos.push({
-        cmd: cmdFrequencia,
-        nome: `1. Frequência de Transmissão Coban TCP (${cmdFrequencia})`,
-      });
-
-      // 2. Validação imediata de posição/diagnóstico: B
-      comandos.push({
-        cmd: "B",
-        nome: "2. Validação Imediata de Posição Coban TCP (B)",
-      });
-
-      return comandos.map((c) => ({
-        ...c,
-        cmd: c.cmd.trim(),
-      }));
-    }
+      const movNum = Math.max(
+        5,
+        Math.min(999, parseInt(valMov.match(/\d+/)?.[0] || "10", 10) || 10),
+      );
+      const parSeg = Math.max(
+        60,
+        parseInt((timerParado || "3600").match(/\d+/)?.[0] || "3600", 10) || 3600,
+      );
+      const parMin = Math.max(1, Math.min(999, Math.round(parSeg / 60)));
+      return `fix${String(movNum).padStart(3, "0")}s${String(parMin).padStart(3, "0")}m***n${senhaAtiva}`;
+    };
 
     // ─────────────────────────────────────────────────────────────
     // BLOCO 1: Conectividade Básica e Nuvem (GPRS / APN / Servidor / Relógio)
+    // Respeita estritamente APENAS os checkboxes marcados e adapta a sintaxe ao modelo (G900L vs J16)
     // ─────────────────────────────────────────────────────────────
-    // 1. Apontar Servidor e Porta TCP (Manual Voxter Itens 1 e 2)
+    // 1. Apontar Servidor e Porta TCP
     if (
       parametrosHabilitadosBatch.servidorDns ||
       parametrosHabilitadosBatch.portaTcp ||
       parametrosHabilitadosBatch.ipDedicado
     ) {
-      comandos.push({
-        cmd: `SERVER,${modoServidor},${servidorAlvo},${portaTcp},0#`,
-        nome: "1. Apontar Servidor e Porta TCP (SERVER)",
-      });
+      if (ehG900L) {
+        const dnsTrim = servidorDns.trim();
+        const cmdSrv =
+          parametrosHabilitadosBatch.servidorDns && dnsTrim.toLowerCase().startsWith("adminip")
+            ? atualizarSenhaEmComandoCoban(dnsTrim, senhaAtiva)
+            : `adminip${senhaAtiva} ${servidorAlvo} ${portaTcp}`;
+        comandos.push({
+          cmd: cmdSrv,
+          nome: `1. Servidor IP e Porta G900L (${cmdSrv})`,
+        });
+      } else {
+        comandos.push({
+          cmd: `SERVER,${modoServidor},${servidorAlvo},${portaTcp},0#`,
+          nome: "1. Apontar Servidor e Porta TCP (SERVER)",
+        });
+      }
     }
 
-    // 2. Configurar APN M2M (Manual Voxter Item 3)
+    // 2. Configurar APN M2M
     if (
       parametrosHabilitadosBatch.apnNome ||
       parametrosHabilitadosBatch.apnUser ||
       parametrosHabilitadosBatch.apnPass
     ) {
-      comandos.push({
-        cmd: `APN,${apnNome},${apnUser},${apnPass}#`,
-        nome: "2. Configurar APN M2M (APN)",
-      });
+      if (ehG900L) {
+        const apnTrim = apnNome.trim();
+        const cmdApn =
+          apnTrim.toLowerCase().startsWith("apn") && apnTrim.includes(" ")
+            ? atualizarSenhaEmComandoCoban(apnTrim, senhaAtiva)
+            : `apn${senhaAtiva} ${apnTrim.replace(/^APN,/i, "").replace(/#$/, "")} ${apnUser} ${apnPass}`;
+        comandos.push({
+          cmd: cmdApn,
+          nome: `2. Configurar APN G900L (${cmdApn})`,
+        });
+      } else {
+        const apnLimpa = apnNome.trim().toUpperCase().startsWith("APN,")
+          ? apnNome.trim()
+          : `APN,${apnNome.trim()},${apnUser.trim()},${apnPass.trim()}#`;
+        comandos.push({
+          cmd: apnLimpa,
+          nome: `2. Configurar APN M2M (${apnLimpa})`,
+        });
+      }
     }
 
-    // 3. Ajustar Frequência de Transmissão (Timers) (Manual Voxter Item 4)
+    // 3. Ajustar Frequência de Transmissão (Timers)
     if (parametrosHabilitadosBatch.timerMovimento || parametrosHabilitadosBatch.timerParado) {
-      comandos.push({
-        cmd: `TIMER,${timerMovimento},${timerParado}#`,
-        nome: `3. Frequência de Transmissão (TIMER,${timerMovimento},${timerParado}#)`,
-      });
+      if (ehG900L) {
+        const cmdFix = montarTimerG900L();
+        comandos.push({
+          cmd: cmdFix,
+          nome: `3. Timer Movimento/Parado G900L (${cmdFix})`,
+        });
+      } else {
+        comandos.push({
+          cmd: `TIMER,${timerMovimento},${timerParado}#`,
+          nome: `3. Frequência de Transmissão (TIMER,${timerMovimento},${timerParado}#)`,
+        });
+      }
     }
 
-    // 4. Configurar Heartbeat Liveness (Ping Plataforma) (Manual Voxter Item 14)
+    // 4. Configurar Heartbeat Liveness (Ping Plataforma)
     if (parametrosHabilitadosBatch.hbtLigado || parametrosHabilitadosBatch.hbtDesligado) {
-      comandos.push({
-        cmd: `HBT,${hbtLigado},${hbtDesligado}#`,
-        nome: `4. Heartbeat / Ping Plataforma (HBT,${hbtLigado},${hbtDesligado}#)`,
-      });
+      if (ehG900L) {
+        const hbtTrim = hbtLigado.trim();
+        const cmdHbt = hbtTrim.toLowerCase().startsWith("hbt")
+          ? atualizarSenhaEmComandoCoban(hbtTrim, senhaAtiva)
+          : `hbt${senhaAtiva} ${hbtTrim.match(/\d+/)?.[0] || "300"}`;
+        comandos.push({
+          cmd: cmdHbt,
+          nome: `4. Heartbeat G900L (${cmdHbt})`,
+        });
+      } else {
+        const cmdHbt = hbtLigado.trim().toUpperCase().startsWith("HBT,")
+          ? hbtLigado.trim()
+          : `HBT,${hbtLigado},${hbtDesligado}#`;
+        comandos.push({
+          cmd: cmdHbt,
+          nome: `4. Heartbeat / Ping Plataforma (${cmdHbt})`,
+        });
+      }
     }
 
-    // 5. Configurar Timezone Universal UTC 0 (Manual Voxter Item 5)
+    // 5. Configurar Timezone Universal UTC 0
     if (parametrosHabilitadosBatch.gmtUniversal && gmtComando.trim()) {
+      const cmdGmt = ehG900L
+        ? gmtComando.trim().toLowerCase().startsWith("time zone")
+          ? atualizarSenhaEmComandoCoban(gmtComando.trim(), senhaAtiva)
+          : `time zone${senhaAtiva} 0`
+        : gmtComando.trim();
       comandos.push({
-        cmd: gmtComando.trim(),
-        nome: `5. Configurar Timezone (${gmtComando.trim()})`,
+        cmd: cmdGmt,
+        nome: `5. Configurar Timezone (${cmdGmt})`,
       });
     }
 
     // ─────────────────────────────────────────────────────────────
     // BLOCO 2: Ignição Física e Calibração de Hardware (Base para Sensores)
     // ─────────────────────────────────────────────────────────────
-    // 6. Ignição Pós-Chave ACCLINE (Fio Laranja físico - PRÉ-REQUISITO para Sleep e Alarmes)
-    if (parametrosHabilitadosBatch.ignicaoFisica && ignicaoFisicaCmd.trim()) {
+    // 6. Ignição Pós-Chave ACCLINE (exclusivo J16/GT06 MCU)
+    if (!ehG900L && parametrosHabilitadosBatch.ignicaoFisica && ignicaoFisicaCmd.trim()) {
       comandos.push({
         cmd: ignicaoFisicaCmd.trim(),
         nome: `6. Ignição Pós-Chave Física (${ignicaoFisicaCmd.trim()})`,
       });
     }
 
-    // 7. Habilitação de Detecção de Curva (PRÉ-REQUISITO para ANGLEVALUE funcionar)
-    if (parametrosHabilitadosBatch.anguloHabilitar && anguloHabilitarCmd.trim()) {
+    // 7. Habilitação de Detecção de Curva (exclusivo J16/GT06 MCU)
+    if (!ehG900L && parametrosHabilitadosBatch.anguloHabilitar && anguloHabilitarCmd.trim()) {
       comandos.push({
         cmd: anguloHabilitarCmd.trim(),
         nome: `7. Habilitar Detecção de Curva (${anguloHabilitarCmd.trim()})`,
       });
     }
 
-    // 8. Calibração do Limiar de Curva Otimizada (Manual Voxter Item 8 - intervalo >= 10s)
-    if (parametrosHabilitadosBatch.anguloIntervalo || parametrosHabilitadosBatch.anguloGrau) {
-      const segInt = Math.max(10, parseInt(anguloIntervalo, 10) || 10);
-      comandos.push({
-        cmd: `SZCS#ANGLEVALUE=${segInt}-${String(anguloGrau).padStart(3, "0")}`,
-        nome: `8. Calibração de Curva (${segInt}s/${anguloGrau}°)`,
-      });
+    // 8. Calibração do Limiar de Curva Otimizada
+    if (
+      (ehG900L && parametrosHabilitadosBatch.anguloGrau) ||
+      (!ehG900L &&
+        (parametrosHabilitadosBatch.anguloIntervalo || parametrosHabilitadosBatch.anguloGrau))
+    ) {
+      if (ehG900L) {
+        const grauG900 = Math.max(15, parseInt(anguloGrau, 10) || 25);
+        comandos.push({
+          cmd: `ANGLE${senhaAtiva} ${grauG900}`,
+          nome: `8. Inflexão de Curva G900L (${grauG900}°)`,
+        });
+      } else {
+        const segInt = Math.max(10, parseInt(anguloIntervalo, 10) || 10);
+        comandos.push({
+          cmd: `SZCS#ANGLEVALUE=${segInt}-${String(anguloGrau).padStart(3, "0")}`,
+          nome: `8. Calibração de Curva (${segInt}s/${anguloGrau}°)`,
+        });
+      }
     }
 
-    // 9. Medição Interna de Distância / Odômetro MCU (Homologado na MCU J16)
-    if (parametrosHabilitadosBatch.medicaoInternaMeter && medicaoInternaMeterCmd.trim()) {
+    // 9. Medição Interna de Distância / Odômetro MCU (exclusivo J16/GT06)
+    if (
+      !ehG900L &&
+      parametrosHabilitadosBatch.medicaoInternaMeter &&
+      medicaoInternaMeterCmd.trim()
+    ) {
       comandos.push({
         cmd: medicaoInternaMeterCmd.trim(),
         nome: `9. Ativar Odômetro MCU (${medicaoInternaMeterCmd.trim()})`,
       });
     }
 
-    // 10. Pacote Estendido GT06: Voltagem Externa 12V e Odômetro Estendido
-    if (parametrosHabilitadosBatch.voltagemOdometroIexvol && voltagemOdometroIexvolCmd.trim()) {
+    // 10. Pacote Estendido GT06 (exclusivo J16/GT06)
+    if (
+      !ehG900L &&
+      parametrosHabilitadosBatch.voltagemOdometroIexvol &&
+      voltagemOdometroIexvolCmd.trim()
+    ) {
       comandos.push({
         cmd: voltagemOdometroIexvolCmd.trim(),
         nome: `10. Voltagem 12V e Odômetro GT06 (${voltagemOdometroIexvolCmd.trim()})`,
@@ -1701,32 +1755,37 @@ export function RastreadorJ16View() {
     // ─────────────────────────────────────────────────────────────
     // BLOCO 3: Gerenciamento Inteligente de Energia e Economia ao Parar
     // ─────────────────────────────────────────────────────────────
-    // 11. Sono da CPU MTK ao Parar (Poupar bateria do veículo)
+    // 11. Sono da CPU ao Parar
     if (parametrosHabilitadosBatch.sleepMtk && sleepMtkCmd.trim()) {
+      const cmdSleep = ehG900L
+        ? sleepMtkCmd.trim().toLowerCase().startsWith("sleep")
+          ? atualizarSenhaEmComandoCoban(sleepMtkCmd.trim(), senhaAtiva)
+          : `sleep${senhaAtiva} shock`
+        : sleepMtkCmd.trim();
       comandos.push({
-        cmd: sleepMtkCmd.trim(),
-        nome: `11. Sono CPU MTK ao Parar (${sleepMtkCmd.trim()})`,
+        cmd: cmdSleep,
+        nome: `11. Sono ao Parar (${cmdSleep})`,
       });
     }
 
-    // 12. Repouso do GPS ao Parar (Desativa recepção de satélite no repouso)
-    if (parametrosHabilitadosBatch.sleepGps && sleepGpsCmd.trim()) {
+    // 12. Repouso do GPS ao Parar (exclusivo J16/GT06 MCU)
+    if (!ehG900L && parametrosHabilitadosBatch.sleepGps && sleepGpsCmd.trim()) {
       comandos.push({
         cmd: sleepGpsCmd.trim(),
         nome: `12. Repouso GPS ao Parar (${sleepGpsCmd.trim()})`,
       });
     }
 
-    // 13. Modo do Veículo no Sleep (Modo Carro 4G Online vs Modo Moto 4G Offline)
-    if (parametrosHabilitadosBatch.modoVeiculoSleep && modoVeiculoSleepCmd.trim()) {
+    // 13. Modo do Veículo no Sleep (exclusivo J16/GT06 MCU)
+    if (!ehG900L && parametrosHabilitadosBatch.modoVeiculoSleep && modoVeiculoSleepCmd.trim()) {
       comandos.push({
         cmd: modoVeiculoSleepCmd.trim(),
         nome: `13. Modo Sleep Carro/Moto (${modoVeiculoSleepCmd.trim()})`,
       });
     }
 
-    // 14. Economia ao Parar (SENDS,1# - aguarda 1 min de vigília antes do repouso)
-    if (parametrosHabilitadosBatch.economiaParada && economiaParadaCmd.trim()) {
+    // 14. Economia ao Parar (exclusivo J16/GT06)
+    if (!ehG900L && parametrosHabilitadosBatch.economiaParada && economiaParadaCmd.trim()) {
       comandos.push({
         cmd: economiaParadaCmd.trim(),
         nome: `14. Economia ao Parar (${economiaParadaCmd.trim()})`,
@@ -1736,75 +1795,111 @@ export function RastreadorJ16View() {
     // ─────────────────────────────────────────────────────────────
     // BLOCO 4: Alarmes, Acelerômetro e Segurança Ativa
     // ─────────────────────────────────────────────────────────────
-    // 15. Sensibilidade do Sensor G Triaxial (LEVEL)
-    if (parametrosHabilitadosBatch.sensorGSensibilidade && sensorGSensibilidadeCmd.trim()) {
+    // 15. Sensibilidade do Sensor G Triaxial (exclusivo J16/GT06)
+    if (
+      !ehG900L &&
+      parametrosHabilitadosBatch.sensorGSensibilidade &&
+      sensorGSensibilidadeCmd.trim()
+    ) {
       comandos.push({
         cmd: sensorGSensibilidadeCmd.trim(),
         nome: `15. Sensibilidade Sensor G (${sensorGSensibilidadeCmd.trim()})`,
       });
     }
 
-    // 16. Alarme de Vibração / Choque (SENALM)
+    // 16. Alarme de Vibração / Choque
     if (parametrosHabilitadosBatch.senalmVibracao && senalmCmd.trim()) {
+      const cmdVib = ehG900L
+        ? senalmCmd.trim().toLowerCase().startsWith("shock") ||
+          senalmCmd.trim().toLowerCase().startsWith("vibrate")
+          ? atualizarSenhaEmComandoCoban(senalmCmd.trim(), senhaAtiva)
+          : `shock${senhaAtiva} on`
+        : senalmCmd.trim();
       comandos.push({
-        cmd: senalmCmd.trim(),
-        nome: `16. Alarme de Choque/Vibração (${senalmCmd.trim()})`,
+        cmd: cmdVib,
+        nome: `16. Alarme de Choque/Vibração (${cmdVib})`,
       });
     }
 
-    // 17. Alarme de Defesa / Vigília Ativa (DEFENSE)
+    // 17. Alarme de Defesa / Vigília Ativa
     if (parametrosHabilitadosBatch.defenseAlarme && defenseCmd.trim()) {
+      const cmdDef = ehG900L
+        ? defenseCmd.trim().toLowerCase().startsWith("arm") ||
+          defenseCmd.trim().toLowerCase().startsWith("disarm")
+          ? atualizarSenhaEmComandoCoban(defenseCmd.trim(), senhaAtiva)
+          : `arm${senhaAtiva}`
+        : defenseCmd.trim();
       comandos.push({
-        cmd: defenseCmd.trim(),
-        nome: `17. Modo Defesa/Vigília (${defenseCmd.trim()})`,
+        cmd: cmdDef,
+        nome: `17. Modo Defesa/Vigília (${cmdDef})`,
       });
     }
 
-    // 18. Alerta de Guincho / Deslocamento (Universal Concox / Manual Voxter Item 18)
+    // 18. Alerta de Guincho / Deslocamento
     if (parametrosHabilitadosBatch.alertaGuincho && alertaGuinchoCmd.trim()) {
+      const cmdMove = ehG900L
+        ? alertaGuinchoCmd.trim().toLowerCase().startsWith("move")
+          ? atualizarSenhaEmComandoCoban(alertaGuinchoCmd.trim(), senhaAtiva)
+          : `move${senhaAtiva} 0200`
+        : alertaGuinchoCmd.trim();
       comandos.push({
-        cmd: alertaGuinchoCmd.trim(),
-        nome: `18. Alerta de Guincho (${alertaGuinchoCmd.trim()})`,
+        cmd: cmdMove,
+        nome: `18. Alerta de Guincho (${cmdMove})`,
       });
     }
 
-    // 19. Alarme de Bateria Cortada / Linha 12V (POWERALM)
+    // 19. Alarme de Bateria Cortada / Linha 12V
     if (parametrosHabilitadosBatch.bateriaCortada && bateriaCortadaCmd.trim()) {
+      const cmdExt = ehG900L
+        ? bateriaCortadaCmd.trim().toLowerCase().startsWith("extpower")
+          ? atualizarSenhaEmComandoCoban(bateriaCortadaCmd.trim(), senhaAtiva)
+          : `extpower${senhaAtiva} on`
+        : bateriaCortadaCmd.trim();
       comandos.push({
-        cmd: bateriaCortadaCmd.trim(),
-        nome: `19. Alerta Corte Linha 12V (${bateriaCortadaCmd.trim()})`,
+        cmd: cmdExt,
+        nome: `19. Alerta Corte Linha 12V (${cmdExt})`,
       });
     }
 
-    // 20. Alarme Instantâneo de Ignição / ACC (ACCALM) - Zera o lag de identificação de desligado
+    // 20. Alarme Instantâneo de Ignição / ACC
     if (parametrosHabilitadosBatch.alertaIgnicaoImediata && alertaIgnicaoImediataCmd.trim()) {
+      const cmdAcc = ehG900L
+        ? alertaIgnicaoImediataCmd.trim().toLowerCase().startsWith("acc")
+          ? atualizarSenhaEmComandoCoban(alertaIgnicaoImediataCmd.trim(), senhaAtiva)
+          : `acc${senhaAtiva} on`
+        : alertaIgnicaoImediataCmd.trim();
       comandos.push({
-        cmd: alertaIgnicaoImediataCmd.trim(),
-        nome: `20. Alerta Instantâneo ACC (${alertaIgnicaoImediataCmd.trim()})`,
+        cmd: cmdAcc,
+        nome: `20. Alerta Instantâneo ACC (${cmdAcc})`,
       });
     }
 
-    // 21. Alarme de Bateria Interna Fraca (BATALM)
+    // 21. Alarme de Bateria Interna Fraca
     if (parametrosHabilitadosBatch.bateriaFraca && bateriaFracaCmd.trim()) {
+      const cmdLow = ehG900L
+        ? bateriaFracaCmd.trim().toLowerCase().startsWith("lowbattery")
+          ? atualizarSenhaEmComandoCoban(bateriaFracaCmd.trim(), senhaAtiva)
+          : `lowbattery${senhaAtiva} on`
+        : bateriaFracaCmd.trim();
       comandos.push({
-        cmd: bateriaFracaCmd.trim(),
-        nome: `21. Alerta Bateria Fraca (${bateriaFracaCmd.trim()})`,
+        cmd: cmdLow,
+        nome: `21. Alerta Bateria Fraca (${cmdLow})`,
       });
     }
 
     // ─────────────────────────────────────────────────────────────
     // BLOCO 5: Discrição e Opcionais
     // ─────────────────────────────────────────────────────────────
-    // 21. LEDs de Status Operacionais (Apaga LEDs para instalação oculta / antifurto)
-    if (parametrosHabilitadosBatch.ledsDiagnostico && ledsComando.trim()) {
+    // 21. LEDs de Status Operacionais (exclusivo J16/GT06 MCU)
+    if (!ehG900L && parametrosHabilitadosBatch.ledsDiagnostico && ledsComando.trim()) {
       comandos.push({
         cmd: ledsComando.trim(),
         nome: `21. LEDs Modo Discreto (${ledsComando.trim()})`,
       });
     }
 
-    // 22. Número SOS de Emergência (Manual Voxter Item 15 - opcional)
-    if (parametrosHabilitadosBatch.numeroSos) {
+    // 22. Número SOS de Emergência (exclusivo J16/GT06)
+    if (!ehG900L && parametrosHabilitadosBatch.numeroSos) {
       const valSos = numeroSos.trim();
       if (valSos.startsWith("SOS#") || valSos.startsWith("SOS,D")) {
         comandos.push({
@@ -1820,7 +1915,6 @@ export function RastreadorJ16View() {
           });
         }
       } else {
-        // Se habilitado sem número manual estático, injeta dinamicamente o WhatsApp do cliente
         comandos.push({
           cmd: "SOS,A,{CLIENTE_TELEFONE}#",
           nome: "22. Número SOS Emergência (WhatsApp do Cliente)",
@@ -1828,10 +1922,24 @@ export function RastreadorJ16View() {
       }
     }
 
-    // 23. Número Master / Central / Admin (Formato Canônico Homologado: admin#<senha>#<numero>#)
+    // 23. Número Master / Central / Admin
     if (parametrosHabilitadosBatch.numeroCenter) {
       const valCenter = numeroCenter.trim();
-      if (valCenter === "CENTER#" || valCenter.startsWith("CENTER,D") || valCenter === "PARAM#") {
+      if (ehG900L) {
+        const numParte = extrairTelefoneNumeroCenter(valCenter);
+        const cmdAdm =
+          numParte && numParte.length >= 10
+            ? `admin${senhaAtiva} ${numParte}`
+            : `admin${senhaAtiva} {CLIENTE_TELEFONE}`;
+        comandos.push({
+          cmd: cmdAdm,
+          nome: `23. Administrador G900L (${cmdAdm})`,
+        });
+      } else if (
+        valCenter === "CENTER#" ||
+        valCenter.startsWith("CENTER,D") ||
+        valCenter === "PARAM#"
+      ) {
         comandos.push({
           cmd: valCenter.endsWith("#") ? valCenter : `${valCenter}#`,
           nome: `23. Comando Administrador (${valCenter})`,
@@ -1844,7 +1952,6 @@ export function RastreadorJ16View() {
             nome: `23. Administrador do Dispositivo (admin#${senhaAtiva}#${numParte}#)`,
           });
         } else {
-          // Se o comando admin# não possui telefone válido, injeta o WhatsApp do cliente
           comandos.push({
             cmd: `admin#${senhaAtiva}#{CLIENTE_TELEFONE}#`,
             nome: "23. Administrador do Dispositivo (WhatsApp do Cliente)",
@@ -1853,10 +1960,16 @@ export function RastreadorJ16View() {
       }
     }
 
-    // 24. Senha de Proteção / Mestre do Rastreador (PASSWORD - opcional)
+    // 24. Senha de Proteção / Mestre do Rastreador
     if (parametrosHabilitadosBatch.senhaDispositivo) {
       let cmdSenha = senhaDispositivoCmd.trim();
-      if (!cmdSenha || cmdSenha.includes("<nova senha>") || cmdSenha.startsWith("PASSWORD,")) {
+      if (ehG900L) {
+        cmdSenha = `password123456 ${senhaAtiva}`;
+      } else if (
+        !cmdSenha ||
+        cmdSenha.includes("<nova senha>") ||
+        cmdSenha.startsWith("PASSWORD,")
+      ) {
         cmdSenha = `PASSWORD,123456,${senhaAtiva}#`;
       } else if (cmdSenha.startsWith("zhencbpwd,")) {
         cmdSenha = `zhencbpwd,123456,${senhaAtiva}#`;
@@ -1867,15 +1980,16 @@ export function RastreadorJ16View() {
       });
     }
 
-    // Consultas de Diagnóstico (Desmarcadas no lote inicial padrão por rodarem antes do RESET)
+    // Consultas de Diagnóstico
     if (parametrosHabilitadosBatch.statusDiagnostico && statusComando.trim()) {
+      const cmdSt = ehG900L ? `status${senhaAtiva}` : statusComando.trim();
       comandos.push({
-        cmd: statusComando.trim(),
-        nome: `Consulta de Status Operacional (${statusComando.trim()})`,
+        cmd: cmdSt,
+        nome: `Consulta de Status Operacional (${cmdSt})`,
       });
     }
 
-    if (parametrosHabilitadosBatch.relayDiagnostico && relayConsultaComando.trim()) {
+    if (!ehG900L && parametrosHabilitadosBatch.relayDiagnostico && relayConsultaComando.trim()) {
       comandos.push({
         cmd: relayConsultaComando.trim(),
         nome: `Auditoria do Relé (${relayConsultaComando.trim()})`,
@@ -1883,20 +1997,21 @@ export function RastreadorJ16View() {
     }
 
     if (parametrosHabilitadosBatch.paramDiagnostico && paramComando.trim()) {
+      const cmdPrm = ehG900L ? `check${senhaAtiva}` : paramComando.trim();
       comandos.push({
-        cmd: paramComando.trim(),
-        nome: `Leitura de Parâmetros EEPROM (${paramComando.trim()})`,
+        cmd: cmdPrm,
+        nome: `Leitura de Parâmetros EEPROM (${cmdPrm})`,
       });
     }
 
     // ─────────────────────────────────────────────────────────────
-    // BLOCO 6: Finalização e Aplicação Limpa (O ÚLTIMO COMANDO OBRIGATÓRIO)
+    // BLOCO 6: Finalização e Aplicação Limpa (O ÚLTIMO COMANDO)
     // ─────────────────────────────────────────────────────────────
-    // 24. Reinicialização Limpa da MCU (RESET# - Salva NVRAM, reinicia modem e conecta limpo na Lara)
     if (parametrosHabilitadosBatch.resetFinal && resetFinalCmd.trim()) {
+      const cmdRst = ehG900L ? `reset${senhaAtiva}` : resetFinalCmd.trim();
       comandos.push({
-        cmd: resetFinalCmd.trim(),
-        nome: `Final. Reinicialização Limpa da MCU [Último] (${resetFinalCmd.trim()})`,
+        cmd: cmdRst,
+        nome: `Final. Reinicialização Limpa (${cmdRst})`,
       });
     }
 
@@ -4902,39 +5017,72 @@ export function RastreadorJ16View() {
                   label: "Servidor DNS / Coban",
                   valor: servidorDns,
                   setValor: setServidorDns,
-                  presets: [
-                    {
-                      label: "IP Direto (SERVER)",
-                      valor: `SERVER,${modoServidor},${ipDedicado},${portaTcp},0#`,
-                    },
-                    {
-                      label: "Coban (adminip)",
-                      valor: `adminip${(senhaDispositivoPadrao || "123456").trim()} ${ipDedicado} ${portaTcp}`,
-                    },
-                  ],
+                  comandoPreview:
+                    filtroModelo === "g900l"
+                      ? `adminip${(senhaDispositivoPadrao || "123456").trim()} ${ipDedicado} ${portaTcp}`
+                      : `SERVER,${modoServidor},${usarIpDireto ? ipDedicado : servidorDns},${portaTcp},0#`,
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "G900L (adminip)",
+                            valor: "167.234.233.82",
+                          },
+                        ]
+                      : [
+                          {
+                            label: "IP Direto (SERVER,0,...)",
+                            valor: "167.234.233.82",
+                          },
+                          {
+                            label: "DNS (gps.oficial.tec.br)",
+                            valor: "gps.oficial.tec.br",
+                          },
+                        ],
                 },
-                { id: "portaTcp", label: "Porta TCP", valor: portaTcp, setValor: setPortaTcp },
+                {
+                  id: "portaTcp",
+                  label: "Porta TCP",
+                  valor: portaTcp,
+                  setValor: setPortaTcp,
+                  comandoPreview:
+                    filtroModelo === "g900l"
+                      ? `adminip${(senhaDispositivoPadrao || "123456").trim()} ${ipDedicado} ${portaTcp}`
+                      : `SERVER,${modoServidor},${usarIpDireto ? ipDedicado : servidorDns},${portaTcp},0#`,
+                },
                 {
                   id: "ipDedicado",
                   label: "IP Dedicado (Alternativo)",
                   valor: ipDedicado,
                   setValor: setIpDedicado,
+                  comandoPreview:
+                    filtroModelo === "g900l"
+                      ? `adminip${(senhaDispositivoPadrao || "123456").trim()} ${ipDedicado} ${portaTcp}`
+                      : `SERVER,0,${ipDedicado},${portaTcp},0#`,
                 },
                 {
                   id: "apnNome",
                   label: "APN do Chip M2M",
                   valor: apnNome,
                   setValor: setApnNome,
-                  presets: [
-                    {
-                      label: "J16 (APN,voxter.br...)",
-                      valor: `APN,${apnNome},${apnUser},${apnPass}#`,
-                    },
-                    {
-                      label: "G900L (apn123456...)",
-                      valor: `apn${(senhaDispositivoPadrao || "123456").trim()} ${apnNome} ${apnUser} ${apnPass}`,
-                    },
-                  ],
+                  comandoPreview:
+                    filtroModelo === "g900l"
+                      ? `apn${(senhaDispositivoPadrao || "123456").trim()} ${apnNome.replace(/^APN,/i, "").replace(/#$/, "").split(",")[0]} ${apnUser} ${apnPass}`
+                      : `APN,${apnNome.replace(/^APN,/i, "").replace(/#$/, "").split(",")[0]},${apnUser},${apnPass}#`,
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "Voxter G900L (apn... voxter.br)",
+                            valor: "voxter.br",
+                          },
+                        ]
+                      : [
+                          {
+                            label: "Voxter J16 (APN,voxter.br...)",
+                            valor: "voxter.br",
+                          },
+                        ],
                 },
                 { id: "apnUser", label: "Usuário APN", valor: apnUser, setValor: setApnUser },
                 { id: "apnPass", label: "Senha APN", valor: apnPass, setValor: setApnPass },
@@ -4943,21 +5091,32 @@ export function RastreadorJ16View() {
                   label: "Timer Movimento (s)",
                   valor: timerMovimento,
                   setValor: setTimerMovimento,
-                  presets: [
-                    { label: "J16 (30s)", valor: "30" },
-                    {
-                      label: "G900L (fix010s060m***n)",
-                      valor: `fix010s060m***n${(senhaDispositivoPadrao || "123456").trim()}`,
-                    },
-                    { label: "Padrão Ouro (15s)", valor: "15" },
-                    { label: "12s (Alta)", valor: "12" },
-                  ],
+                  comandoPreview:
+                    filtroModelo === "g900l"
+                      ? `fix${String(Math.max(5, parseInt(timerMovimento.match(/\d+/)?.[0] || "10", 10) || 10)).padStart(3, "0")}s${String(Math.max(1, Math.round((parseInt(timerParado.match(/\d+/)?.[0] || "3600", 10) || 3600) / 60))).padStart(3, "0")}m***n${(senhaDispositivoPadrao || "123456").trim()}`
+                      : `TIMER,${timerMovimento},${timerParado}#`,
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          { label: "L200 / G900L (10s)", valor: "10" },
+                          { label: "Padrão 15s", valor: "15" },
+                          { label: "Econômico 30s", valor: "30" },
+                        ]
+                      : [
+                          { label: "J16 Padrão (30s)", valor: "30" },
+                          { label: "Padrão Ouro (15s)", valor: "15" },
+                          { label: "12s (Alta)", valor: "12" },
+                        ],
                 },
                 {
                   id: "timerParado",
                   label: "Timer Parado (s)",
                   valor: timerParado,
                   setValor: setTimerParado,
+                  comandoPreview:
+                    filtroModelo === "g900l"
+                      ? `fix${String(Math.max(5, parseInt(timerMovimento.match(/\d+/)?.[0] || "10", 10) || 10)).padStart(3, "0")}s${String(Math.max(1, Math.round((parseInt(timerParado.match(/\d+/)?.[0] || "3600", 10) || 3600) / 60))).padStart(3, "0")}m***n${(senhaDispositivoPadrao || "123456").trim()}`
+                      : `TIMER,${timerMovimento},${timerParado}#`,
                   presets: [
                     { label: "Padrão Voxter (3600s / 1h)", valor: "3600" },
                     { label: "1800s (30m)", valor: "1800" },
@@ -4969,12 +5128,11 @@ export function RastreadorJ16View() {
                   label: "HBT Ligado / Move (s)",
                   valor: hbtLigado,
                   setValor: setHbtLigado,
+                  comandoPreview:
+                    filtroModelo === "g900l"
+                      ? `hbt${(senhaDispositivoPadrao || "123456").trim()} ${hbtLigado.match(/\d+/)?.[0] || "300"}`
+                      : `HBT,${hbtLigado.match(/\d+/)?.[0] || "300"},${hbtDesligado}#`,
                   presets: [
-                    { label: "J16 (HBT,300,300#)", valor: "HBT,300,300#" },
-                    {
-                      label: "G900L (hbt123456 300)",
-                      valor: `hbt${(senhaDispositivoPadrao || "123456").trim()} 300`,
-                    },
                     { label: "300s (5m)", valor: "300" },
                     { label: "120s (2m)", valor: "120" },
                   ],
@@ -5183,14 +5341,23 @@ export function RastreadorJ16View() {
                   label: "Timezone GMT (Fuso Horário)",
                   valor: gmtComando,
                   setValor: setGmtComando,
-                  presets: [
-                    { label: "J16 (GMT,W,0,0#)", valor: "GMT,W,0,0#" },
-                    {
-                      label: "G900L (time zone123456 0)",
-                      valor: `time zone${(senhaDispositivoPadrao || "123456").trim()} 0`,
-                    },
-                    { label: "Brasília (-3h)", valor: "GMT,W,3,0#" },
-                  ],
+                  comandoPreview: gmtComando,
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "G900L (UTC 0 - L200)",
+                            valor: `time zone${(senhaDispositivoPadrao || "123456").trim()} 0`,
+                          },
+                          {
+                            label: "G900L (-3h)",
+                            valor: `time zone${(senhaDispositivoPadrao || "123456").trim()} -3`,
+                          },
+                        ]
+                      : [
+                          { label: "J16 (GMT,W,0,0#)", valor: "GMT,W,0,0#" },
+                          { label: "Brasília (-3h)", valor: "GMT,W,3,0#" },
+                        ],
                 },
                 {
                   id: "ledsDiagnostico",
@@ -5205,62 +5372,137 @@ export function RastreadorJ16View() {
                 },
                 {
                   id: "defenseAlarme",
-                  label: "Alarme de Defesa / Vigília (DEFENSE)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Alarme de Defesa / Arm (arm)"
+                      : "Alarme de Defesa / Vigília (DEFENSE)",
                   valor: defenseCmd,
                   setValor: setDefenseCmd,
-                  presets: [
-                    { label: "Modo Vigília (1)", valor: "DEFENSE,1#" },
-                    { label: "Cerca Ativa (2)", valor: "DEFENSE,2#" },
-                    { label: "Defesa Máxima (3)", valor: "DEFENSE,3#" },
-                    { label: "Desligar (0)", valor: "DEFENSE,0#" },
-                    { label: "Consultar Nível", valor: "DEFENSE#" },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "Armar (arm)",
+                            valor: `arm${(senhaDispositivoPadrao || "123456").trim()}`,
+                          },
+                          {
+                            label: "Desarmar (disarm)",
+                            valor: `disarm${(senhaDispositivoPadrao || "123456").trim()}`,
+                          },
+                        ]
+                      : [
+                          { label: "Modo Vigília (1)", valor: "DEFENSE,1#" },
+                          { label: "Cerca Ativa (2)", valor: "DEFENSE,2#" },
+                          { label: "Defesa Máxima (3)", valor: "DEFENSE,3#" },
+                          { label: "Desligar (0)", valor: "DEFENSE,0#" },
+                          { label: "Consultar Nível", valor: "DEFENSE#" },
+                        ],
                 },
                 {
                   id: "senalmVibracao",
-                  label: "Alarme de Vibração / Choque (SENALM)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Alarme de Choque (shock)"
+                      : "Alarme de Vibração / Choque (SENALM)",
                   valor: senalmCmd,
                   setValor: setSenalmCmd,
-                  presets: [
-                    { label: "GPRS Ativo (0)", valor: "SENALM,ON,0#" },
-                    { label: "Desligar", valor: "SENALM,OFF#" },
-                    { label: "Consultar Alarme", valor: "SENALM#" },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "Ativar (shock on)",
+                            valor: `shock${(senhaDispositivoPadrao || "123456").trim()} on`,
+                          },
+                          {
+                            label: "Desligar (shock off)",
+                            valor: `shock${(senhaDispositivoPadrao || "123456").trim()} off`,
+                          },
+                        ]
+                      : [
+                          { label: "GPRS Ativo (0)", valor: "SENALM,ON,0#" },
+                          { label: "Desligar", valor: "SENALM,OFF#" },
+                          { label: "Consultar Alarme", valor: "SENALM#" },
+                        ],
                 },
                 {
                   id: "bateriaFraca",
-                  label: "Alarme de Bateria Fraca (BATALM)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Alarme Bateria Fraca (lowbattery)"
+                      : "Alarme de Bateria Fraca (BATALM)",
                   valor: bateriaFracaCmd,
                   setValor: setBateriaFracaCmd,
-                  presets: [
-                    { label: "GPRS Ativo (0)", valor: "BATALM,ON,0#" },
-                    { label: "Desligar Alarme", valor: "BATALM,OFF#" },
-                    { label: "Consultar", valor: "BATALM#" },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "Ativar (lowbattery on)",
+                            valor: `lowbattery${(senhaDispositivoPadrao || "123456").trim()} on`,
+                          },
+                          {
+                            label: "Desligar (lowbattery off)",
+                            valor: `lowbattery${(senhaDispositivoPadrao || "123456").trim()} off`,
+                          },
+                        ]
+                      : [
+                          { label: "GPRS Ativo (0)", valor: "BATALM,ON,0#" },
+                          { label: "Desligar Alarme", valor: "BATALM,OFF#" },
+                          { label: "Consultar", valor: "BATALM#" },
+                        ],
                 },
                 {
                   id: "bateriaCortada",
-                  label: "Corte de Energia Externa / 12V (POWERALM)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Corte Energia 12V (extpower)"
+                      : "Corte de Energia Externa / 12V (POWERALM)",
                   valor: bateriaCortadaCmd,
                   setValor: setBateriaCortadaCmd,
-                  presets: [
-                    { label: "GPRS Ativo (5s)", valor: "POWERALM,ON,0,5,10#" },
-                    { label: "GPRS Direto", valor: "POWERALM,ON,0#" },
-                    { label: "Desligar Alarme", valor: "POWERALM,OFF#" },
-                    { label: "Consultar", valor: "POWERALM#" },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "Ativar (extpower on)",
+                            valor: `extpower${(senhaDispositivoPadrao || "123456").trim()} on`,
+                          },
+                          {
+                            label: "Desligar (extpower off)",
+                            valor: `extpower${(senhaDispositivoPadrao || "123456").trim()} off`,
+                          },
+                        ]
+                      : [
+                          { label: "GPRS Ativo (5s)", valor: "POWERALM,ON,0,5,10#" },
+                          { label: "GPRS Direto", valor: "POWERALM,ON,0#" },
+                          { label: "Desligar Alarme", valor: "POWERALM,OFF#" },
+                          { label: "Consultar", valor: "POWERALM#" },
+                        ],
                 },
                 {
                   id: "alertaIgnicaoImediata",
-                  label: "Alarme Instantâneo Ignição / ACC (ACCALM)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Alarme Ignição ACC (acc)"
+                      : "Alarme Instantâneo Ignição / ACC (ACCALM)",
                   valor: alertaIgnicaoImediataCmd,
                   setValor: setAlertaIgnicaoImediataCmd,
-                  presets: [
-                    { label: "GPRS Ativo (Modo 2)", valor: "ACCALM,ON,2#" },
-                    { label: "SMS + GPRS (Modo 1)", valor: "ACCALM,ON,1#" },
-                    { label: "Desligar Alarme", valor: "ACCALM,OFF#" },
-                    { label: "Consultar", valor: "ACCALM#" },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "Ativar (acc on)",
+                            valor: `acc${(senhaDispositivoPadrao || "123456").trim()} on`,
+                          },
+                          {
+                            label: "Desligar (acc off)",
+                            valor: `acc${(senhaDispositivoPadrao || "123456").trim()} off`,
+                          },
+                        ]
+                      : [
+                          { label: "GPRS Ativo (Modo 2)", valor: "ACCALM,ON,2#" },
+                          { label: "SMS + GPRS (Modo 1)", valor: "ACCALM,ON,1#" },
+                          { label: "Desligar Alarme", valor: "ACCALM,OFF#" },
+                          { label: "Consultar", valor: "ACCALM#" },
+                        ],
                 },
                 {
                   id: "modoVeiculoSleep",
@@ -5300,42 +5542,67 @@ export function RastreadorJ16View() {
                 },
                 {
                   id: "alertaGuincho",
-                  label: "Alerta de Guincho (MOVING)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Alerta de Guincho / Deslocamento (move)"
+                      : "Alerta de Guincho (MOVING)",
                   valor: alertaGuinchoCmd,
                   setValor: setAlertaGuinchoCmd,
-                  presets: [
-                    { label: "Padrão (200m GPRS)", valor: "MOVING,ON,200,0#" },
-                    { label: "Sensível (100m GPRS)", valor: "MOVING,ON,100,0#" },
-                    { label: "Amplo (300m GPRS)", valor: "MOVING,ON,300,0#" },
-                    { label: "Desligar Alerta", valor: "MOVING,OFF#" },
-                    { label: "Consultar Estado", valor: "MOVING#" },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "Ativar 200m (move 0200)",
+                            valor: `move${(senhaDispositivoPadrao || "123456").trim()} 0200`,
+                          },
+                          {
+                            label: "Desligar (nomove)",
+                            valor: `nomove${(senhaDispositivoPadrao || "123456").trim()}`,
+                          },
+                        ]
+                      : [
+                          { label: "Padrão (200m GPRS)", valor: "MOVING,ON,200,0#" },
+                          { label: "Sensível (100m GPRS)", valor: "MOVING,ON,100,0#" },
+                          { label: "Amplo (300m GPRS)", valor: "MOVING,ON,300,0#" },
+                          { label: "Desligar Alerta", valor: "MOVING,OFF#" },
+                          { label: "Consultar Estado", valor: "MOVING#" },
+                        ],
                 },
                 {
                   id: "statusDiagnostico",
-                  label: "Status e Bateria (STATUS# / status123456)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Status G900L (status)"
+                      : "Status e Bateria (STATUS#)",
                   valor: statusComando,
                   setValor: setStatusComando,
-                  presets: [
-                    { label: "J16 (STATUS#)", valor: "STATUS#" },
-                    {
-                      label: "G900L (status123456)",
-                      valor: `status${(senhaDispositivoPadrao || "123456").trim()}`,
-                    },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "G900L (status)",
+                            valor: `status${(senhaDispositivoPadrao || "123456").trim()}`,
+                          },
+                        ]
+                      : [{ label: "J16 (STATUS#)", valor: "STATUS#" }],
                 },
                 {
                   id: "paramDiagnostico",
-                  label: "Leitura EEPROM (PARAM# / check123456)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Leitura Parâmetros G900L (check)"
+                      : "Leitura EEPROM (PARAM#)",
                   valor: paramComando,
                   setValor: setParamComando,
-                  presets: [
-                    { label: "J16 (PARAM#)", valor: "PARAM#" },
-                    {
-                      label: "G900L (check123456)",
-                      valor: `check${(senhaDispositivoPadrao || "123456").trim()}`,
-                    },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "G900L (check)",
+                            valor: `check${(senhaDispositivoPadrao || "123456").trim()}`,
+                          },
+                        ]
+                      : [{ label: "J16 (PARAM#)", valor: "PARAM#" }],
                 },
                 {
                   id: "relayDiagnostico",
@@ -5346,16 +5613,21 @@ export function RastreadorJ16View() {
                 },
                 {
                   id: "resetFinal",
-                  label: "Reinicialização Limpa (RESET# / reset123456)",
+                  label:
+                    filtroModelo === "g900l"
+                      ? "Reinicialização G900L (reset)"
+                      : "Reinicialização Limpa (RESET#)",
                   valor: resetFinalCmd,
                   setValor: setResetFinalCmd,
-                  presets: [
-                    { label: "J16 (RESET#)", valor: "RESET#" },
-                    {
-                      label: "G900L (reset123456)",
-                      valor: `reset${(senhaDispositivoPadrao || "123456").trim()}`,
-                    },
-                  ],
+                  presets:
+                    filtroModelo === "g900l"
+                      ? [
+                          {
+                            label: "G900L (reset)",
+                            valor: `reset${(senhaDispositivoPadrao || "123456").trim()}`,
+                          },
+                        ]
+                      : [{ label: "J16 (RESET#)", valor: "RESET#" }],
                 },
               ]
                 .filter((campo) => {
@@ -5369,6 +5641,12 @@ export function RastreadorJ16View() {
                       "sleepMtk",
                       "sleepGps",
                       "ledsDiagnostico",
+                      "modoVeiculoSleep",
+                      "economiaParada",
+                      "sensorGSensibilidade",
+                      "relayDiagnostico",
+                      "numeroSos",
+                      "hbtDesligado",
                     ];
                     if (idsIncompativeis.includes(campo.id)) return false;
                   }
@@ -5381,6 +5659,7 @@ export function RastreadorJ16View() {
                     valor: string;
                     setValor: (v: string) => void;
                     placeholder?: string;
+                    comandoPreview?: string;
                     presets?: { label: string; valor: string }[];
                   }) => {
                     const isFieldCopied = copiadoId === campo.id;
@@ -5482,6 +5761,30 @@ export function RastreadorJ16View() {
                             )}
                           </button>
                         </div>
+                        {campo.comandoPreview && (
+                          <div className="mt-1.5 flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg bg-slate-900/5 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800/70">
+                            <span
+                              className="text-[10px] font-mono text-orange-700 dark:text-orange-400 truncate select-all"
+                              title={campo.comandoPreview}
+                            >
+                              {filtroModelo === "g900l" ? "G900L:" : "J16:"} {campo.comandoPreview}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                copiarTexto(
+                                  campo.comandoPreview!,
+                                  `${campo.label} (Comando)`,
+                                  `${campo.id}_cmd`,
+                                )
+                              }
+                              className="text-[9px] font-bold uppercase text-orange-600 dark:text-orange-400 hover:underline shrink-0 cursor-pointer"
+                              title="Copiar comando exato para envio via SMS/TCP"
+                            >
+                              {copiadoId === `${campo.id}_cmd` ? "Copiado!" : "Copiar SMS"}
+                            </button>
+                          </div>
+                        )}
                         {campo.presets && campo.presets.length > 0 && (
                           <div className="flex items-center gap-1 mt-1.5 flex-wrap">
                             {campo.presets.map((preset) => (

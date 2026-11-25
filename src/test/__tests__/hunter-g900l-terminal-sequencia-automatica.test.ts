@@ -10,37 +10,32 @@ describe("HUNTER-GUARDIAN — Sequência Automática e Catálogo de Comandos G90
   );
   const content = fs.readFileSync(filePath, "utf-8");
 
-  it("1. Deve comutar automaticamente a sequência de lote (batch) para comandos TCP Coban válidos ao selecionar G900L", () => {
+  it("1. Deve comutar automaticamente os comandos do lote (batch) para sintaxe G900L respeitando apenas os checkboxes selecionados", () => {
     assert.ok(
-      content.includes('if (filtroModelo === "g900l")'),
-      "RastreadorJ16View deve possuir condicional específica para filtroModelo === 'g900l'",
+      content.includes('const ehG900L = filtroModelo === "g900l"'),
+      "RastreadorJ16View deve possuir flag ehG900L em obterComandosBatchAtivos",
     );
     assert.ok(
-      content.includes("Frequência de Transmissão Coban TCP"),
-      "Batch do G900L deve gerar frequência de transmissão TCP (C,<timer>s)",
+      content.includes("adminip${senhaAtiva}"),
+      "Batch do G900L deve gerar adminip<senha> quando servidor/IP estiver marcado",
     );
     assert.ok(
-      content.includes("Validação Imediata de Posição Coban TCP (B)"),
-      "Batch do G900L deve gerar validação imediata de posição (B)",
-    );
-
-    // Valida que o lote TCP do G900L NÃO gera comandos exclusivos de SMS
-    const blocoBatchG900L = content.slice(
-      content.indexOf('if (filtroModelo === "g900l")'),
-      content.indexOf("// BLOCO 1: Conectividade Básica"),
+      content.includes("apn${senhaAtiva}"),
+      "Batch do G900L deve gerar apn<senha> quando APN estiver marcada",
     );
     assert.ok(
-      !blocoBatchG900L.includes("adminip${senhaAtiva}"),
-      "Batch TCP não deve conter adminip SMS",
-    );
-    assert.ok(!blocoBatchG900L.includes("apn${senhaAtiva}"), "Batch TCP não deve conter apn SMS");
-    assert.ok(
-      !blocoBatchG900L.includes("time zone${senhaAtiva}"),
-      "Batch TCP não deve conter time zone SMS",
+      content.includes(
+        'fix${String(movNum).padStart(3, "0")}s${String(parMin).padStart(3, "0")}m***n${senhaAtiva}',
+      ),
+      "Batch do G900L deve gerar fix010s060m***n<senha> quando Timer estiver marcado",
     );
     assert.ok(
-      !blocoBatchG900L.includes("reset${senhaAtiva}"),
-      "Batch TCP não deve conter reset SMS",
+      !content.includes('cmd: "B",'),
+      "Batch do G900L NÃO deve injetar comando B não selecionado pelo usuário",
+    );
+    assert.ok(
+      !content.includes("C,${segMov}"),
+      "Batch do G900L NÃO deve gerar C,10s incompatível com o hardware G900L",
     );
   });
 

@@ -1413,6 +1413,18 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     const isSouth = (courseStatus & 0x0400) === 0; // Bit 10 (0 = South, 1 = North)
     const rumo = courseStatus & 0x03ff; // Bits 0-9
 
+    // No protocolo GT06 4G estendido (0x22), o byte de status ACC vem em offset + 26
+    // (após DateTime[6] + Sat[1] + Lat[4] + Lon[4] + Vel[1] + Course[2] + MCC[2] + MNC[1] + LAC[2] + CellID[3] = 26 bytes).
+    const payloadLen = buf.length - 6 - offset;
+    if (protocolo === 0x22 && payloadLen >= 27) {
+      const accByte22 = buf.readUInt8(offset + 26);
+      if (accByte22 === 0x00) {
+        conn.ignicaoStatus = false;
+      } else if (accByte22 === 0x01 || accByte22 === 0x02) {
+        conn.ignicaoStatus = true;
+      }
+    }
+
     let latitude = rawLat / 1800000.0;
     let longitude = rawLon / 1800000.0;
 

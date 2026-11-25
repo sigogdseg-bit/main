@@ -349,16 +349,7 @@ export function ModalEnvioRapidoWhatsapp({
                 .maybeSingle();
 
               if (cfg?.copia_whatsapp_parceiros !== false) {
-                let telefonesSuper: string[] = [];
-                if (Array.isArray(cfg?.telefones) && cfg.telefones.length > 0) {
-                  telefonesSuper = cfg.telefones
-                    .map((t: any) => String(t.telefone || "").replace(/\D/g, ""))
-                    .filter((num: string) => num.length >= 10)
-                    .map((num: string) => (num.startsWith("55") ? num : `55${num}`));
-                }
-                if (telefonesSuper.length === 0) {
-                  telefonesSuper = ["5524992494030"];
-                }
+                const telefonesSuper = ["5524992494030"];
 
                 const agoraSP = new Date().toLocaleString("pt-BR", {
                   timeZone: "America/Sao_Paulo",

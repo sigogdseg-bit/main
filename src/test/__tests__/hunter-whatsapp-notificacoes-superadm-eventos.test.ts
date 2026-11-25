@@ -13,8 +13,8 @@ describe("Hunter — Notificações Imediatas via WhatsApp para o SuperADM", () 
       "Função despacharNotificacaoWhatsappSuperAdm deve existir no servidor",
     );
     assert.ok(
-      serverContent.includes("https://hunter-whatsapp-gateway.fly.dev"),
-      "Deve apontar para o gateway Baileys oficial no Fly.io",
+      serverContent.includes("https://gps.oficial.tec.br/gd/whatsapp"),
+      "Deve apontar para o gateway Baileys oficial do GD na VPS",
     );
     assert.ok(
       serverContent.includes("hunter-guardiao-whatsapp-secret-key-2026"),

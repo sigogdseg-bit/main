@@ -39,7 +39,7 @@ describe("Hunter — Alertas Veiculares, Despacho Imediato de WhatsApp e Anti-Re
       "Deve respeitar caso o canal WhatsApp esteja desligado pelo cliente",
     );
     assert.ok(
-      content.includes("hunter-whatsapp-gateway.fly.dev"),
+      content.includes("https://gps.oficial.tec.br/gd/whatsapp"),
       "Deve usar o gateway de WhatsApp oficial do sistema",
     );
     assert.ok(

@@ -329,7 +329,7 @@ export async function enviarMensagemWhatsappOperador(
         .replace(/<[^>]*>/g, " ")
         .replace(/\s+/g, " ")
         .trim() || textoBruto;
-    if (endpointPrincipal === fallbackEndpoint) {
+    if (endpointPrincipal === fallbackEndpoint || endpointPrincipal.startsWith("/api/whatsapp")) {
       return {
         sucesso: false,
         erro: `Falha no envio via Gateway WhatsApp (Status HTTP ${resposta.status}): ${textoErro}`,

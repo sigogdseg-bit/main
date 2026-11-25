@@ -645,19 +645,13 @@ async function despacharNotificacaoWhatsappSuperAdm(
     }
 
     const envObj = (env || {}) as Record<string, string | undefined>;
-    const gatewayUrl = (
-      (typeof process !== "undefined" &&
-        (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
-      envObj.GD_WHATSAPP_GATEWAY_URL ||
-      envObj.WHATSAPP_GATEWAY_URL ||
-      "https://gd-whatsapp-gateway.fly.dev"
-    ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Fly.io gd-whatsapp-gateway.fly.dev / hunter-whatsapp-gateway.fly.dev, 100% isolado do SIGO Guardião)
-      .replace(/\/$/, "");
-    // Isolamento estrito do GD Segurança contra a linha do SIGO Guardião (https://hunter-whatsapp-gateway.fly.dev)
-    // O GD Segurança opera exclusivamente com o gateway dedicado gd-whatsapp-gateway.fly.dev (migrado da porta 167.234.233.82:8082)
+    const gatewayUrl = "https://gps.oficial.tec.br/gd/whatsapp";
     const endpointsGateway = [gatewayUrl];
 
-    const token = "hunter-guardiao-whatsapp-secret-key-2026";
+    const token =
+      envObj.GD_WHATSAPP_TOKEN ||
+      (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
+      "hunter-guardiao-whatsapp-secret-key-2026";
 
     // Blindagem anti-self: nunca despacha para os números do próprio robô/gateway
     setTelefonesWhatsapp.delete("5524992501512");
@@ -6960,14 +6954,12 @@ async function handleApiPropostas(request: Request, env: unknown): Promise<Respo
       const numFinal = telDestino.startsWith("55") ? telDestino : `55${telDestino}`;
       const msgTexto = formatarMensagemWhatsAppProposta(prop);
 
-      const gatewayUrl = (
-        (typeof process !== "undefined" &&
-          (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
-        (env && ((env as any).GD_WHATSAPP_GATEWAY_URL || (env as any).WHATSAPP_GATEWAY_URL)) ||
-        "https://gd-whatsapp-gateway.fly.dev"
-      ).replace(/\/$/, "");
+      const gatewayUrl = "https://gps.oficial.tec.br/gd/whatsapp";
 
-      const tokenGw = "hunter-guardiao-whatsapp-secret-key-2026";
+      const tokenGw =
+        (env as any)?.GD_WHATSAPP_TOKEN ||
+        (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
+        "hunter-guardiao-whatsapp-secret-key-2026";
       let envioOk = false;
 
       const payloadEnvio: any = {
@@ -10020,13 +10012,7 @@ async function despacharWhatsappAlertaServer(
     }
   }
 
-  const gatewayUrl = (
-    (typeof process !== "undefined" &&
-      (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
-    (_env && ((_env as any).GD_WHATSAPP_GATEWAY_URL || (_env as any).WHATSAPP_GATEWAY_URL)) ||
-    "https://gd-whatsapp-gateway.fly.dev"
-  ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Fly.io gd-whatsapp-gateway.fly.dev / hunter-whatsapp-gateway.fly.dev, 100% isolado do SIGO Guardião)
-    .replace(/\/$/, "");
+  const gatewayUrl = "https://gps.oficial.tec.br/gd/whatsapp";
 
   const headersSupabase = {
     apikey: serviceRoleKey,
@@ -10324,7 +10310,10 @@ async function despacharWhatsappAlertaServer(
       return;
     }
 
-    const token = "hunter-guardiao-whatsapp-secret-key-2026";
+    const token =
+      (_env as any)?.GD_WHATSAPP_TOKEN ||
+      (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
+      "hunter-guardiao-whatsapp-secret-key-2026";
     const dataHoraBrasil = new Intl.DateTimeFormat("pt-BR", {
       timeZone: "America/Sao_Paulo",
       day: "2-digit",
@@ -12175,7 +12164,11 @@ async function handleApiWhatsapp(
       }
 
       const body = await request.json();
-      const token = "hunter-guardiao-whatsapp-secret-key-2026";
+      const token =
+        (env as any)?.GD_WHATSAPP_TOKEN ||
+        (env as any)?.WHATSAPP_GATEWAY_TOKEN ||
+        (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
+        "hunter-guardiao-whatsapp-secret-key-2026";
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 12000);
       const res = await fetch(`${gatewayUrl}/api/v1/messages/send`, {
@@ -13282,13 +13275,10 @@ async function despacharWhatsappGatewayServer(fone: string, mensagem: string): P
   }
 
   try {
-    const gatewayUrl = (
-      (typeof process !== "undefined" &&
-        (process.env?.GD_WHATSAPP_GATEWAY_URL || process.env?.WHATSAPP_GATEWAY_URL)) ||
-      "https://gd-whatsapp-gateway.fly.dev"
-    ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Fly.io gd-whatsapp-gateway.fly.dev / hunter-whatsapp-gateway.fly.dev, 100% isolado do SIGO Guardião)
-      .replace(/\/$/, "");
-    const token = "hunter-guardiao-whatsapp-secret-key-2026";
+    const gatewayUrl = "https://gps.oficial.tec.br/gd/whatsapp";
+    const token =
+      (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
+      "hunter-guardiao-whatsapp-secret-key-2026";
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
