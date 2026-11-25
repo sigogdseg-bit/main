@@ -30,6 +30,7 @@ Ao executar qualquer tarefa sob a skill `/hunter`, o assistente deve observar im
 ### 2.1. Autonomia Plena com Execução End-to-End
 
 - Todas as permissões necessárias foram concedidas pelo usuário para criar, alterar, reparar e configurar arquivos de código, servidor backend, migrações SQL, schemas, tabelas, RPCs, RLS, permissões `GRANT`, `NOTIFY pgrst` e o script mestre `APLICAR_NO_SQL_EDITOR_SUPABASE.sql`.
+- **Obrigatório ler, entender e seguir integralmente TODAS as regras presentes em `AGENTS.md`**.
 - Proibição absoluta de preguiça técnica, deixar tarefas incompletas ou terceirizar comandos manuais ao usuário.
 
 ### 2.2. Zero Invenção de Dados e Telemetria Factual (Anti-Mock Absoluto)

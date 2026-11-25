@@ -4,7 +4,7 @@
 >
 > ## PROTOCOLO OBRIGATÓRIO DE TRABALHO E ENCERRAMENTO (GD-SEGURANÇA / DJR-NEW)
 >
-> **STOP & READ:** Antes de invocar qualquer ferramenta de edição ou comando de escrita, o assistente DEVE OBRIGATORIAMENTE certificar-se de que identificou a causa raiz sem mascaramento, que os dados são factuais e auditados (zero mock/zero inventar dados), que as alterações preexistentes estão preservadas e que nenhuma publicação, tag ou push será realizado sem a confirmação e autorização prévia expressa do usuário (Gate 6). Imediatamente após qualquer publicação (Gate 7), é compulsório reler na íntegra as normas deste manual.
+> **STOP & READ:** É obrigatório **ler, entender e seguir integralmente TODAS as regras presentes neste `AGENTS.md`** (incluindo o item 28.1 Anti-Preguiça: proibição de terceirizar comandos manuais ao usuário ou deixar tarefas incompletas). Antes de invocar qualquer ferramenta de edição ou comando de escrita, o assistente DEVE OBRIGATORIAMENTE certificar-se de que identificou a causa raiz sem mascaramento, que os dados são factuais e auditados (zero mock/zero inventar dados), que as alterações preexistentes estão preservadas e que nenhuma publicação, tag ou push será realizado sem a confirmação e autorização prévia expressa do usuário (Gate 6). Imediatamente após qualquer publicação (Gate 7), é compulsório reler na íntegra as normas deste manual.
 
 ---
 
