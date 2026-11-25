@@ -283,16 +283,17 @@ export function RefazerTrajetoModal({
       ano: anoPartida,
       mes: mesPartida,
       dia: diaPartida,
+      campoData: "inicio_at",
     }).then((res) => {
       if (!montado) return;
-      setViagensPartida(res);
+      const ordenadas = [...res].sort(
+        (a, b) => new Date(a.inicio_at).getTime() - new Date(b.inicio_at).getTime(),
+      );
+      setViagensPartida(ordenadas);
       setCarregandoViagensPartida(false);
-      if (res.length > 0) {
-        const ordenadas = [...res].sort(
-          (a, b) => new Date(a.inicio_at).getTime() - new Date(b.inicio_at).getTime(),
-        );
+      if (ordenadas.length > 0) {
         setViagemInicioJornadaId((ant) => {
-          if (ant && res.some((v) => v.id === ant)) return ant;
+          if (ant && ordenadas.some((v) => v.id === ant)) return ant;
           return ordenadas[0].id;
         });
       } else {
@@ -312,16 +313,18 @@ export function RefazerTrajetoModal({
       ano: anoFim,
       mes: mesFim,
       dia: diaFim,
+      campoData: "fim_at",
     }).then((res) => {
       if (!montado) return;
-      setViagensFim(res);
+      const ordenadas = [...res].sort(
+        (a, b) =>
+          new Date(a.fim_at || a.inicio_at).getTime() - new Date(b.fim_at || b.inicio_at).getTime(),
+      );
+      setViagensFim(ordenadas);
       setCarregandoViagensFim(false);
-      if (res.length > 0) {
-        const ordenadas = [...res].sort(
-          (a, b) => new Date(a.inicio_at).getTime() - new Date(b.inicio_at).getTime(),
-        );
+      if (ordenadas.length > 0) {
         setViagemFimJornadaId((ant) => {
-          if (ant && res.some((v) => v.id === ant)) return ant;
+          if (ant && ordenadas.some((v) => v.id === ant)) return ant;
           return ordenadas[ordenadas.length - 1].id;
         });
       } else {
@@ -345,31 +348,31 @@ export function RefazerTrajetoModal({
         dia: diaSelecionado,
       }).then((res) => {
         if (!montado) return;
-        setViagens(res);
+        const viagensCronologicas = [...res].sort(
+          (a, b) => new Date(a.inicio_at).getTime() - new Date(b.inicio_at).getTime(),
+        );
+        setViagens(viagensCronologicas);
         setCarregandoViagens(false);
-        if (res.length > 0) {
-          const viagensCronologicas = [...res].sort(
-            (a, b) => new Date(a.inicio_at).getTime() - new Date(b.inicio_at).getTime(),
-          );
+        if (viagensCronologicas.length > 0) {
           setViagemInicioJornadaId((ant) => {
-            if (ant && res.some((v) => v.id === ant)) return ant;
+            if (ant && viagensCronologicas.some((v) => v.id === ant)) return ant;
             return viagensCronologicas[0].id;
           });
           setViagemFimJornadaId((ant) => {
-            if (ant && res.some((v) => v.id === ant)) return ant;
+            if (ant && viagensCronologicas.some((v) => v.id === ant)) return ant;
             return viagensCronologicas[viagensCronologicas.length - 1].id;
           });
 
           if (viagemInicialId) {
-            const achada = res.find((v) => v.id === viagemInicialId);
+            const achada = viagensCronologicas.find((v) => v.id === viagemInicialId);
             if (achada) {
               setViagemSelecionada(achada);
               return;
             }
           }
           setViagemSelecionada((ant) => {
-            if (ant && res.some((v) => v.id === ant.id)) return ant;
-            return res[0];
+            if (ant && viagensCronologicas.some((v) => v.id === ant.id)) return ant;
+            return viagensCronologicas[0];
           });
         } else {
           setViagemSelecionada(null);

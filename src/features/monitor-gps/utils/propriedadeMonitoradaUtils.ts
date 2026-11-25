@@ -341,7 +341,7 @@ export function converterPostoEmVeiculoGps(
       veiculoRef?.bateria_rastreador_pct !== null
         ? Number(veiculoRef.bateria_rastreador_pct)
         : undefined,
-    bateria_rastreador_status: veiculoRef?.bateria_rastreador_status ?? "bateria_interna",
+    bateria_rastreador_status: veiculoRef?.bateria_rastreador_status ?? undefined,
     alimentacao_externa: false,
     satelites:
       veiculoRef?.satelites !== undefined && veiculoRef?.satelites !== null

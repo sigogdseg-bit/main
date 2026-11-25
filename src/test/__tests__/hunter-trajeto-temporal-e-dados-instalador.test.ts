@@ -125,4 +125,33 @@ describe("Hunter — Filtro Temporal de Trajetos, Pré-preenchimento do Instalad
       "Script mestre SQL deve conter trigger de fechamento automático de viagem ativa anterior",
     );
   });
+
+  it("7. Filtro civil de datas no fuso horário do Brasil (UTC-3) não pode vazar viagens noturnas de ontem para hoje", () => {
+    // Caso real relatado: No dia 25/11/2026 às 10:18 da manhã, apareciam chegadas às 21:58, 22:32, 23:02, 23:09 e 23:52
+    // porque o filtro anterior usava T00:00:00.000Z em vez do fuso -03:00 de Brasília.
+    const ano = 2026, mes = 11, dia = 25;
+    const diaStr = String(dia).padStart(2, "0");
+    const mesStr = String(mes).padStart(2, "0");
+
+    const inicioIso = new Date(`${ano}-${mesStr}-${diaStr}T00:00:00.000-03:00`).toISOString();
+    const fimIso = new Date(`${ano}-${mesStr}-${diaStr}T23:59:59.999-03:00`).toISOString();
+
+    // 25/11/2026 no Brasil deve iniciar estritamente às 03:00:00Z em UTC e findar às 02:59:59.999Z do dia seguinte
+    assert.strictEqual(inicioIso, "2026-11-25T03:00:00.000Z");
+    assert.strictEqual(fimIso, "2026-11-26T02:59:59.999Z");
+
+    // Viagem de ontem à noite (24/11/2026 às 23:52 BRT) em UTC é 2026-11-25T02:52:00.000Z
+    const viagemOntemNoiteUtc = "2026-11-25T02:52:00.000Z";
+    const pertenceAoDia25 = viagemOntemNoiteUtc >= inicioIso && viagemOntemNoiteUtc <= fimIso;
+    assert.strictEqual(pertenceAoDia25, false, "Viagem de ontem às 23:52 NÃO pode pertencer ao dia de hoje");
+
+    // Para o dia 24/11/2026
+    const inicioOntemIso = new Date("2026-11-24T00:00:00.000-03:00").toISOString();
+    const fimOntemIso = new Date("2026-11-24T23:59:59.999-03:00").toISOString();
+    assert.strictEqual(inicioOntemIso, "2026-11-24T03:00:00.000Z");
+    assert.strictEqual(fimOntemIso, "2026-11-25T02:59:59.999Z");
+
+    const pertenceAoDia24 = viagemOntemNoiteUtc >= inicioOntemIso && viagemOntemNoiteUtc <= fimOntemIso;
+    assert.strictEqual(pertenceAoDia24, true, "Viagem de 24/11 às 23:52 pertence estritamente ao dia 24/11");
+  });
 });

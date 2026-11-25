@@ -23,6 +23,7 @@ import {
   converterVelocidadeParaRitmoHumano,
 } from "@/features/monitor-gps/utils/propriedadeMonitoradaUtils";
 import { obterEnderecoPorCoordenadas } from "@/features/monitor-gps/services/compartilhamentoService";
+import { coordenadaValidaMapa } from "@/features/monitor-gps/utils/interpolacaoMapaSuave";
 
 interface HunterVehicleCardProps {
   veiculo: VeiculoGps;
@@ -83,7 +84,7 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
     const lat = veiculo.latitude;
     const lon = veiculo.longitude;
 
-    if (lat && lon && (lat !== 0 || lon !== 0)) {
+    if (coordenadaValidaMapa(lat, lon)) {
       obterEnderecoPorCoordenadas(lat, lon)
         .then((end) => {
           if (ativo && end) {
@@ -92,11 +93,11 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
         })
         .catch(() => {
           if (ativo) {
-            setEnderecoLocal("Localização em monitoramento");
+            setEnderecoLocal("Localização indisponível");
           }
         });
     } else {
-      setEnderecoLocal("Localização em monitoramento");
+      setEnderecoLocal("Aguardando coordenadas GPS");
     }
 
     return () => {
@@ -113,25 +114,32 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
     ? `${telemetriaHumana?.ritmoMMin || 0} m/min`
     : `${veiculo.velocidade || 0} km/h`;
 
-  // Carga da bateria do rastreador (0 a 100%)
-  const bateriaPct =
-    veiculo.bateria_rastreador_pct !== undefined && veiculo.bateria_rastreador_pct !== null
-      ? `${veiculo.bateria_rastreador_pct}%`
-      : "100%";
+  // Carga da bateria do rastreador (0 a 100% ou sem leitura real)
+  const temBateriaReal =
+    veiculo.bateria_rastreador_pct !== undefined &&
+    veiculo.bateria_rastreador_pct !== null &&
+    !isNaN(Number(veiculo.bateria_rastreador_pct));
+
+  const bateriaPct = temBateriaReal
+    ? `${veiculo.bateria_rastreador_pct}%`
+    : "Sem leitura";
 
   // Status de Ignição / Atividade
+  const temTransmissao = Boolean(veiculo.ultima_atualizacao);
   const isIgnicaoLigada = Boolean(veiculo.ignicao);
-  const ignicaoTexto = isPropriedade
-    ? isIgnicaoLigada
-      ? "Em Ronda"
-      : "Parado"
-    : isHorimetro
+  const ignicaoTexto = !temTransmissao
+    ? "Sem sinal"
+    : isPropriedade
       ? isIgnicaoLigada
-        ? "Motor Ligado"
-        : "Motor Desligado"
-      : isIgnicaoLigada
-        ? "Ligada"
-        : "Desligada";
+        ? "Em Ronda"
+        : "Parado"
+      : isHorimetro
+        ? isIgnicaoLigada
+          ? "Motor Ligado"
+          : "Motor Desligado"
+        : isIgnicaoLigada
+          ? "Ligada"
+          : "Desligada";
 
   // Nome do condutor ou titular
   const condutorExibido = nomeCondutor || veiculo.cliente_nome || "Titular da Proteção";
@@ -306,8 +314,14 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
 
           {/* Item 3: Bateria do Rastreador */}
           <div className="flex items-start gap-2">
-            <div className="p-1.5 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5">
-              {veiculo.alimentacao_externa ? (
+            <div
+              className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
+                temBateriaReal
+                  ? "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                  : "bg-slate-200/60 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
+              }`}
+            >
+              {temBateriaReal && veiculo.alimentacao_externa ? (
                 <BatteryCharging className="w-3.5 h-3.5" />
               ) : (
                 <Battery className="w-3.5 h-3.5" />
@@ -317,7 +331,13 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
               <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-medium">
                 Rastreador
               </span>
-              <span className="font-black text-slate-900 dark:text-slate-100 font-mono font-tabular truncate block">
+              <span
+                className={`truncate block ${
+                  temBateriaReal
+                    ? "font-black text-slate-900 dark:text-slate-100 font-mono font-tabular"
+                    : "font-semibold text-slate-500 dark:text-slate-400 text-[11px]"
+                }`}
+              >
                 {bateriaPct}
               </span>
             </div>
@@ -327,9 +347,11 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
           <div className="flex items-start gap-2">
             <div
               className={`p-1.5 rounded-lg shrink-0 mt-0.5 ${
-                isIgnicaoLigada
-                  ? "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                  : "bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                !temTransmissao
+                  ? "bg-slate-200/60 dark:bg-slate-800 text-slate-400 dark:text-slate-500"
+                  : isIgnicaoLigada
+                    ? "bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                    : "bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400"
               }`}
             >
               <KeyRound className="w-3.5 h-3.5" />
@@ -339,10 +361,12 @@ export const HunterVehicleCard: React.FC<HunterVehicleCardProps> = ({
                 {isPropriedade ? "Atividade" : isHorimetro ? "Motor / Horímetro" : "Ignição"}
               </span>
               <span
-                className={`font-black truncate block ${
-                  isIgnicaoLigada
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-rose-600 dark:text-rose-400"
+                className={`truncate block ${
+                  !temTransmissao
+                    ? "font-semibold text-slate-500 dark:text-slate-400 text-[11px]"
+                    : isIgnicaoLigada
+                      ? "font-black text-emerald-600 dark:text-emerald-400"
+                      : "font-black text-rose-600 dark:text-rose-400"
                 }`}
               >
                 {ignicaoTexto}

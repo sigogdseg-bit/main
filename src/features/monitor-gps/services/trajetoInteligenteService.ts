@@ -178,8 +178,8 @@ export async function buscarEnderecosBrasil(termo: string): Promise<EnderecoSuge
         nome: nomeFormatado,
         enderecoCompleto: enderecoFormatado,
         numero: numeroEfetivo || undefined,
-        latitude: item?.lat ? parseFloat(item.lat) : -22.5235,
-        longitude: item?.lon ? parseFloat(item.lon) : -44.1042,
+        latitude: item?.lat ? parseFloat(item.lat) : 0,
+        longitude: item?.lon ? parseFloat(item.lon) : 0,
       };
     });
   } catch (err) {

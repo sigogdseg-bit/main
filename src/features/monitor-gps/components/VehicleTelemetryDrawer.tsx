@@ -63,6 +63,7 @@ import {
 import { obterRumoVeiculo } from "../services/orientacaoRuaService";
 import { detectarSuspeitaJammer } from "../services/anomaliaService";
 import { obterInfoPingReal } from "../utils/telemetriaDinamica";
+import { coordenadaValidaMapa } from "../utils/interpolacaoMapaSuave";
 import { TiltCard } from "@/shared/components/TiltCard";
 import { AreasSegurasModal } from "./AreasSegurasModal";
 import { TimelineVeiculoDrawer } from "./TimelineVeiculoDrawer";
@@ -895,39 +896,47 @@ export function VehicleTelemetryDrawer({
                 {/* Coordenadas e atalhos externos (visíveis a partir de md) */}
                 <div className="hidden md:flex items-center gap-1.5 text-slate-400">
                   <span>·</span>
-                  <button
-                    onClick={() => {
-                      copiarCoordenadas();
-                      if (onCentralizarVeiculo) onCentralizarVeiculo(veiculo);
-                    }}
-                    className="hover:text-orange-500 transition py-0.5 flex items-center gap-1 font-mono text-[11px]"
-                    title="Centralizar no mapa e copiar coordenadas"
-                  >
-                    <LocateFixed className="h-3 w-3 text-orange-500" />
-                    <span>
-                      {copiado
-                        ? "Copiado!"
-                        : `${veiculo.latitude.toFixed(4)}, ${veiculo.longitude.toFixed(4)}`}
+                  {coordenadaValidaMapa(veiculo.latitude, veiculo.longitude) ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          copiarCoordenadas();
+                          if (onCentralizarVeiculo) onCentralizarVeiculo(veiculo);
+                        }}
+                        className="hover:text-orange-500 transition py-0.5 flex items-center gap-1 font-mono text-[11px]"
+                        title="Centralizar no mapa e copiar coordenadas"
+                      >
+                        <LocateFixed className="h-3 w-3 text-orange-500" />
+                        <span>
+                          {copiado
+                            ? "Copiado!"
+                            : `${veiculo.latitude.toFixed(4)}, ${veiculo.longitude.toFixed(4)}`}
+                        </span>
+                      </button>
+                      <span>·</span>
+                      <a
+                        href={`https://www.google.com/maps?q=${veiculo.latitude},${veiculo.longitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sky-500 hover:underline"
+                      >
+                        Maps
+                      </a>
+                      <span>·</span>
+                      <a
+                        href={`https://waze.com/ul?ll=${veiculo.latitude},${veiculo.longitude}&navigate=yes`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-orange-500 hover:underline"
+                      >
+                        Waze
+                      </a>
+                    </>
+                  ) : (
+                    <span className="text-slate-400 font-sans text-[11px]">
+                      Aguardando primeiro sinal GPS
                     </span>
-                  </button>
-                  <span>·</span>
-                  <a
-                    href={`https://www.google.com/maps?q=${veiculo.latitude},${veiculo.longitude}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sky-500 hover:underline"
-                  >
-                    Maps
-                  </a>
-                  <span>·</span>
-                  <a
-                    href={`https://waze.com/ul?ll=${veiculo.latitude},${veiculo.longitude}&navigate=yes`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-orange-500 hover:underline"
-                  >
-                    Waze
-                  </a>
+                  )}
                 </div>
               </div>
             </div>

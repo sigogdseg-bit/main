@@ -36,6 +36,7 @@ import L from "leaflet";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/features/auth/context/AuthContext";
 import type { VeiculoGps } from "../types";
+import { coordenadaValidaMapa } from "../utils/interpolacaoMapaSuave";
 import {
   buscarEnderecosBrasil,
   otimizarOrdemParadasLogisticaAvancada,
@@ -88,8 +89,9 @@ export function TrajetoInteligenteModal({
 
   // 1. Estados dos Pontos da Rota
   const [saida, setSaida] = useState<PontoRota>(() => {
-    const lat = veiculo?.latitude || -22.5235;
-    const lon = veiculo?.longitude || -44.1042;
+    const temCoords = coordenadaValidaMapa(veiculo?.latitude, veiculo?.longitude);
+    const lat = temCoords ? veiculo!.latitude : 0;
+    const lon = temCoords ? veiculo!.longitude : 0;
     return {
       id: "origem-inicial",
       titulo: isPropriedade
@@ -97,11 +99,11 @@ export function TrajetoInteligenteModal({
         : veiculo
           ? `Posição Atual (${veiculo.placa})`
           : "Ponto de Saída",
-      endereco: isPropriedade
-        ? `Ponto Base / Guarita: ${lat.toFixed(5)}, ${lon.toFixed(5)}`
-        : veiculo
-          ? `Coordenadas do veículo: ${lat.toFixed(5)}, ${lon.toFixed(5)}`
-          : "Volta Redonda, RJ",
+      endereco: !temCoords
+        ? "Aguardando coordenadas GPS do veículo"
+        : isPropriedade
+          ? `Ponto Base / Guarita: ${lat.toFixed(5)}, ${lon.toFixed(5)}`
+          : `Coordenadas do veículo: ${lat.toFixed(5)}, ${lon.toFixed(5)}`,
       latitude: lat,
       longitude: lon,
       tipo: "saida",
@@ -189,8 +191,9 @@ export function TrajetoInteligenteModal({
     velocidade?: number;
     rumo?: number;
   }>(() => {
-    const lat = veiculo?.latitude || -22.5235;
-    const lng = veiculo?.longitude || -44.1042;
+    const temCoords = coordenadaValidaMapa(veiculo?.latitude, veiculo?.longitude);
+    const lat = temCoords ? veiculo!.latitude : 0;
+    const lng = temCoords ? veiculo!.longitude : 0;
     return {
       lat,
       lng,
@@ -541,7 +544,7 @@ export function TrajetoInteligenteModal({
   // Atualização do Marcador do Veículo no Mapa Leaflet durante navegação
   useEffect(() => {
     const map = leafletMapRef.current;
-    if (!map || !posicaoVeiculo) return;
+    if (!map || !posicaoVeiculo || !coordenadaValidaMapa(posicaoVeiculo.lat, posicaoVeiculo.lng)) return;
 
     if (!veiculoNavMarkerRef.current) {
       const icon = L.divIcon({

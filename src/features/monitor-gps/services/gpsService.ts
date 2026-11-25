@@ -402,8 +402,14 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
         odometro_motor_a_estado: v.odometro_motor_a_estado || null,
         odometro_motor_b_estado: v.odometro_motor_b_estado || null,
         odometro_motor_c_estado: v.odometro_motor_c_estado || null,
-        latitude: v.ultima_latitude || -22.5235,
-        longitude: v.ultima_longitude || -44.1042,
+        latitude:
+          v.ultima_latitude !== null && v.ultima_latitude !== undefined && !isNaN(Number(v.ultima_latitude))
+            ? Number(v.ultima_latitude)
+            : 0,
+        longitude:
+          v.ultima_longitude !== null && v.ultima_longitude !== undefined && !isNaN(Number(v.ultima_longitude))
+            ? Number(v.ultima_longitude)
+            : 0,
         voltagem: voltagemReal,
         bateria_veiculo_v: voltagemReal,
         bateria_rastreador_pct: bateriaRastreadorReal,
@@ -685,6 +691,7 @@ export interface FiltroViagensTrajetos {
   ano?: number;
   mes?: number; // 1 a 12
   dia?: number | null; // 1 a 31
+  campoData?: "inicio_at" | "fim_at";
 }
 
 /**
@@ -719,24 +726,42 @@ export async function carregarViagensTrajetos(
       .eq("veiculo_id", veiculoId);
 
     if (filtro && filtro.ano && filtro.mes) {
-      const { ano, mes, dia } = filtro;
+      const { ano, mes, dia, campoData } = filtro;
+      const campo = campoData === "fim_at" ? "fim_at" : "inicio_at";
+
       if (dia) {
         const diaStr = String(dia).padStart(2, "0");
         const mesStr = String(mes).padStart(2, "0");
-        const inicioIso = `${ano}-${mesStr}-${diaStr}T00:00:00.000Z`;
-        const fimIso = `${ano}-${mesStr}-${diaStr}T23:59:59.999Z`;
-        query = query.gte("inicio_at", inicioIso).lte("inicio_at", fimIso);
+        // Fuso horário canônico oficial do Brasil (America/Sao_Paulo: UTC-3)
+        const inicioIso = new Date(`${ano}-${mesStr}-${diaStr}T00:00:00.000-03:00`).toISOString();
+        const fimIso = new Date(`${ano}-${mesStr}-${diaStr}T23:59:59.999-03:00`).toISOString();
+
+        if (campo === "fim_at") {
+          query = query.or(
+            `and(fim_at.gte.${inicioIso},fim_at.lte.${fimIso}),and(fim_at.is.null,inicio_at.gte.${inicioIso},inicio_at.lte.${fimIso})`,
+          );
+        } else {
+          query = query.gte("inicio_at", inicioIso).lte("inicio_at", fimIso);
+        }
       } else {
         const mesStr = String(mes).padStart(2, "0");
         const ultimoDia = new Date(ano, mes, 0).getDate();
         const ultimoDiaStr = String(ultimoDia).padStart(2, "0");
-        const inicioIso = `${ano}-${mesStr}-01T00:00:00.000Z`;
-        const fimIso = `${ano}-${mesStr}-${ultimoDiaStr}T23:59:59.999Z`;
-        query = query.gte("inicio_at", inicioIso).lte("inicio_at", fimIso);
+        // Fuso horário canônico oficial do Brasil (America/Sao_Paulo: UTC-3)
+        const inicioIso = new Date(`${ano}-${mesStr}-01T00:00:00.000-03:00`).toISOString();
+        const fimIso = new Date(`${ano}-${mesStr}-${ultimoDiaStr}T23:59:59.999-03:00`).toISOString();
+
+        if (campo === "fim_at") {
+          query = query.or(
+            `and(fim_at.gte.${inicioIso},fim_at.lte.${fimIso}),and(fim_at.is.null,inicio_at.gte.${inicioIso},inicio_at.lte.${fimIso})`,
+          );
+        } else {
+          query = query.gte("inicio_at", inicioIso).lte("inicio_at", fimIso);
+        }
       }
     }
 
-    const { data, error } = await query.order("inicio_at", { ascending: false }).limit(300);
+    const { data, error } = await query.order("inicio_at", { ascending: true }).limit(300);
 
     if (error || !data) return [];
     return (data as TrajetoViagem[]).filter(isCicloViagemReal);
@@ -1376,8 +1401,8 @@ export function extrairParadasJornada(
 
     // Se houve parada >= 1 minuto entre os ciclos
     if (diffMs > 30 * 1000) {
-      let latParada = -22.5235;
-      let lonParada = -44.1042;
+      let latParada = pontos.length > 0 ? pontos[0].latitude : 0;
+      let lonParada = pontos.length > 0 ? pontos[0].longitude : 0;
       let indicePonto = 0;
 
       if (pontos.length > 0) {

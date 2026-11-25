@@ -4285,7 +4285,7 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
           rastreador_modelo: modeloHardware,
           voltagem: v.voltagem ?? v.bateria_veiculo_v ?? null,
           bateria_rastreador_pct: v.bateria_rastreador_pct ?? null,
-          bateria_rastreador_status: v.bateria_rastreador_status ?? "carregando",
+          bateria_rastreador_status: v.bateria_rastreador_status ?? null,
           sinal_gsm: v.sinal_gsm ?? null,
           temLocalizacao: Boolean(v.ultima_latitude && v.ultima_longitude),
           ultimaLatitude: v.ultima_latitude,

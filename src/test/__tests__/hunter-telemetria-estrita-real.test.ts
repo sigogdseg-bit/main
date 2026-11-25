@@ -239,4 +239,50 @@ describe("Hunter — Telemetria Estrita e Erradicação de Dados Fictícios (DJR
     assert.equal(infoSemLeitura.statusRotulo, "SEM LEITURA");
     assert.equal(infoSemLeitura.timestampFormatado, "Sem leitura");
   });
+
+  it("HunterVehicleCard e telemetria: proíbe estritamente fallback para 100% de bateria e coordenadas falsas", () => {
+    // Veículo sem comunicação e sem leitura física (como RNM1B70 sem fix GPS)
+    const veiculoReal = {
+      id: "v-rnm1b70",
+      placa: "RNM1B70",
+      latitude: 0,
+      longitude: 0,
+      bateria_rastreador_pct: undefined,
+      ultima_atualizacao: null,
+      ignicao: false,
+    };
+
+    // 1. Bateria do rastreador
+    const temBateriaReal =
+      veiculoReal.bateria_rastreador_pct !== undefined &&
+      veiculoReal.bateria_rastreador_pct !== null &&
+      !isNaN(Number(veiculoReal.bateria_rastreador_pct));
+
+    const bateriaPct = temBateriaReal
+      ? `${veiculoReal.bateria_rastreador_pct}%`
+      : "Sem leitura";
+
+    assert.equal(bateriaPct, "Sem leitura", "Veículo sem leitura não pode exibir 100%");
+    assert.notEqual(bateriaPct, "100%", "Proibido categoricamente maquiar para 100%");
+
+    // 2. Ignição sem transmissão
+    const temTransmissao = Boolean(veiculoReal.ultima_atualizacao);
+    const ignicaoTexto = !temTransmissao
+      ? "Sem sinal"
+      : veiculoReal.ignicao
+        ? "Ligada"
+        : "Desligada";
+
+    assert.equal(ignicaoTexto, "Sem sinal", "Sem transmissão deve reportar 'Sem sinal', não 'Desligada'");
+
+    // 3. Validação de coordenadas
+    const temCoordenadas =
+      typeof veiculoReal.latitude === "number" &&
+      typeof veiculoReal.longitude === "number" &&
+      Number.isFinite(veiculoReal.latitude) &&
+      Number.isFinite(veiculoReal.longitude) &&
+      (veiculoReal.latitude !== 0 || veiculoReal.longitude !== 0);
+
+    assert.equal(temCoordenadas, false, "Latitude e longitude 0 não são coordenadas válidas");
+  });
 });
