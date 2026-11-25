@@ -721,12 +721,15 @@ export async function iniciarCicloRonda(
     localStorage.setItem(`gd_ciclos_ronda_${postoId}`, JSON.stringify(lista));
   } catch {}
 
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const isUuidValido = (v?: string | null): v is string => Boolean(v && UUID_REGEX.test(v));
+
   try {
     await supabase.from("rondas_execucoes" as any).insert({
       id: novoCiclo.id,
       posto_id: novoCiclo.posto_id,
-      vigilante_id: novoCiclo.vigilante_id,
-      turno_id: novoCiclo.turno_id,
+      vigilante_id: isUuidValido(novoCiclo.vigilante_id) ? novoCiclo.vigilante_id : null,
+      turno_id: isUuidValido(novoCiclo.turno_id) ? novoCiclo.turno_id : null,
       ciclo_numero: novoCiclo.ciclo_numero,
       data_inicio: novoCiclo.data_inicio,
       status: novoCiclo.status,
@@ -941,7 +944,10 @@ export async function carregarCicloAtivo(
       .order("created_at", { ascending: false })
       .limit(1);
 
-    if (vigilanteId) {
+    if (
+      vigilanteId &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(vigilanteId)
+    ) {
       query = query.eq("vigilante_id", vigilanteId);
     }
 
