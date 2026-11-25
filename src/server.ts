@@ -12100,12 +12100,7 @@ async function handleApiWhatsapp(
     return null;
   }
 
-  const gatewayUrl = (
-    (typeof process !== "undefined" && process.env?.GD_WHATSAPP_GATEWAY_URL) ||
-    (env && (env as any).GD_WHATSAPP_GATEWAY_URL) ||
-    "https://gps.oficial.tec.br/gd/whatsapp"
-  ) // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Oracle Cloud gps.oficial.tec.br/gd/whatsapp, 100% isolado do SIGO Guardião)
-    .replace(/\/$/, "");
+  const gatewayUrl = "https://gps.oficial.tec.br/gd/whatsapp"; // Gateway WhatsApp Exclusivo GD Segurança (Hospedado no Oracle Cloud gps.oficial.tec.br/gd/whatsapp, 100% isolado do SIGO Guardião)
 
   // 1. GET / HEAD /api/whatsapp/status
   if (
