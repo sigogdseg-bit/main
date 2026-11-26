@@ -3649,9 +3649,27 @@ export async function processarMensagemWhatsappRecebida(
         }
         const perfilSel = dadosLk.perfilSel;
         const nomeDest = dadosLk.nomeDest;
-        const tokenConvite = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-        const sep = perfilSel.rota.includes("?") ? String.fromCharCode(38) : "?";
-        const linkGerado = `https://gd.oficial.tec.br${perfilSel.rota}${sep}token=${tokenConvite}&nome=${encodeURIComponent(nomeDest)}&tel=${telDigitos}`;
+        const tokenConvite = crypto.randomUUID();
+        const tabelaConvite =
+          perfilSel.chave === "cliente"
+            ? "convites_cliente"
+            : perfilSel.chave === "instalador"
+              ? "convites_instalador"
+              : "convites_parceiro";
+        await supabase
+          .from(tabelaConvite)
+          .insert({
+            token: tokenConvite,
+            nome: nomeDest,
+            telefone: telDigitos,
+            status: "pendente",
+            ...(perfilSel.chave === "vendedor" || perfilSel.chave === "revendedor"
+              ? { role: perfilSel.chave }
+              : {}),
+          })
+          .then(() => {})
+          .catch(() => {});
+        const linkGerado = `https://gd.oficial.tec.br${perfilSel.rota}${perfilSel.rota.includes("?") ? String.fromCharCode(38) : "?"}token=${tokenConvite}`;
 
         await salvarAtualizacaoSessao("aguardando_envio", {
           ...dadosLk,
