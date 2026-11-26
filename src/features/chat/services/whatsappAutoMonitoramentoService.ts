@@ -3912,7 +3912,7 @@ export async function processarMensagemWhatsappRecebida(
           minLng -= padLng;
           maxLng += padLng;
 
-          const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&imageSR=4326&size=910,340&format=jpg&f=image`;
+          const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&imageSR=4326&size=1820,680&dpi=192&format=jpg&f=image`;
           const mapResp = await fetch(mapUrl);
           if (mapResp.ok) {
             const buf = await mapResp.arrayBuffer();
@@ -4148,6 +4148,11 @@ export async function processarMensagemWhatsappRecebida(
       };
 
       const veic = dadosTj.veiculo || {};
+      const proximoDiaBr = (ddmmyyyy: string) => {
+        const [dd, mm, yyyy] = ddmmyyyy.split("/").map(Number);
+        const dt = new Date(Date.UTC(yyyy, mm - 1, dd + 1));
+        return `${String(dt.getUTCDate()).padStart(2, "0")}/${String(dt.getUTCMonth() + 1).padStart(2, "0")}/${dt.getUTCFullYear()}`;
+      };
       const toIsoRangeBr = (ddmmyyyy: string) => {
         const [dd, mm, yyyy] = ddmmyyyy.split("/");
         return {
@@ -4198,7 +4203,8 @@ export async function processarMensagemWhatsappRecebida(
             acaoExecutada: "trajeto_aguardando_dia_fim",
             resposta:
               `📅 *Data Final — ${veic.placa}*\n\n` +
-              `1. Usar a mesma data de início (*${diaInicio}*)\n\n` +
+              `1. Usar a mesma data de início (*${diaInicio}*)\n` +
+              `2. Usar o dia seguinte (*${proximoDiaBr(diaInicio)}*)\n\n` +
               `Ou digite a *data final* no formato *DD/MM/AAAA* (ex: 25/11/2026) ou *0* para cancelar.`,
           };
         }
@@ -4247,13 +4253,19 @@ export async function processarMensagemWhatsappRecebida(
           acaoExecutada: "trajeto_aguardando_dia_fim",
           resposta:
             `📅 *Data Final — ${veic.placa}*\n\n` +
-            `1. Usar a mesma data de início (*${dadosTj.diaInicio}*)\n\n` +
+            `1. Usar a mesma data de início (*${dadosTj.diaInicio}*)\n` +
+            `2. Usar o dia seguinte (*${proximoDiaBr(String(dadosTj.diaInicio))}*)\n\n` +
             `Ou digite a *data final* no formato *DD/MM/AAAA* (ex: 25/11/2026) ou *0* para cancelar.`,
         };
       }
 
       if (etapaTj === "aguardando_dia_fim") {
-        const diaFim = respTrim === "1" && dadosTj.diaInicio ? String(dadosTj.diaInicio) : respTrim;
+        const diaFim =
+          respTrim === "1" && dadosTj.diaInicio
+            ? String(dadosTj.diaInicio)
+            : respTrim === "2" && dadosTj.diaInicio
+              ? proximoDiaBr(String(dadosTj.diaInicio))
+              : respTrim;
         if (!/^(\d{2})\/(\d{2})\/(\d{4})$/.test(diaFim)) {
           return {
             sucesso: true,
