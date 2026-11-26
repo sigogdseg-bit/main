@@ -4119,6 +4119,31 @@ export async function processarMensagemWhatsappRecebida(
         const base64Pdf = dataUri.includes(",") ? dataUri.split(",")[1] : dataUri;
         const nomeArq = `GD_Rastreamento_Laudo_Telemetria_${veic.placa}.pdf`;
 
+        try {
+          const pdfBuf = doc.output("arraybuffer");
+          const pdfHashBuf = await crypto.subtle.digest("SHA-256", pdfBuf);
+          const pdfHashHex = Array.from(new Uint8Array(pdfHashBuf))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+          await supabase.from("documentos_emitidos").insert({
+            nome_arquivo: nomeArq,
+            hash_sha256: pdfHashHex,
+            tipo_documento: "LAUDO_TELEMETRIA",
+            descricao: `Laudo Oficial de Telemetria via WhatsApp - Veículo ${veic.placa} (${veic.marca_modelo || "Veículo"})`,
+            tamanho_bytes: pdfBuf.byteLength,
+            emissor_nome: remetenteLimpo,
+            metadata: {
+              origem: "whatsapp_auto_monitoramento",
+              placa: veic.placa,
+              veiculo_id: veic.id,
+              periodo_inicio: inicioIso,
+              periodo_fim: fimIso,
+              total_ciclos: ciclosSelecionados.length,
+              km_total: Number(totalKm.toFixed(1)),
+            },
+          });
+        } catch {}
+
         const tokenGw =
           (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
           "hunter-guardiao-whatsapp-secret-key-2026";
@@ -7098,6 +7123,20 @@ export async function processarMensagemWhatsappRecebida(
 
       // 5. Despacha o PDF para o emissor no WhatsApp imediatamente
       if (pdfBase64) {
+        try {
+          await supabase.from("documentos_emitidos").insert({
+            nome_arquivo: pdfNome,
+            hash_sha256: hashSha256,
+            tipo_documento: "PROPOSTA_COMERCIAL",
+            descricao: `Proposta Comercial Oficial #${numProposta} via WhatsApp - Cliente ${dados.cliente_nome}`,
+            emissor_nome: remetenteLimpo,
+            metadata: {
+              origem: "whatsapp_proposta",
+              numero_proposta: numProposta,
+              cliente_nome: dados.cliente_nome,
+            },
+          });
+        } catch {}
         await despacharMensagemWhatsappBaileys(
           remetenteLimpo,
           `📄 *Proposta Comercial Oficial #${numProposta}*\nCliente: *${dados.cliente_nome}*`,

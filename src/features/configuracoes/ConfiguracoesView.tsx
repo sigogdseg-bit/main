@@ -1988,6 +1988,53 @@ export function ConfiguracoesView() {
             }}
           />
         )}
+        {/* Conferência de Autenticidade de Documentos (PDF) */}
+        <div className="bg-[#eaf0f8] dark:bg-slate-900/50 border border-slate-300/60 dark:border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                Verificar Autenticidade de Documento (PDF)
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
+                Envie um PDF emitido pelo sistema para conferir o hash SHA-256 oficial na cadeia de
+                custódia.
+              </p>
+            </div>
+            <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors shrink-0">
+              Testar Documento PDF
+              <input
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  try {
+                    const { verificarDocumentoPdf } =
+                      await import("@/features/seguranca/services/documentosService");
+                    const res = await verificarDocumentoPdf(file);
+                    if (res.integro && res.documento) {
+                      const d = res.documento;
+                      const dataFmt = new Date(d.created_at).toLocaleString("pt-BR");
+                      toast.success(
+                        `✅ DOCUMENTO AUTÊNTICO\n• Arquivo: ${d.nome_arquivo}\n• Tipo: ${d.tipo_documento}\n• Gerador: ${d.emissor_nome || "Sistema"}\n• Emissão: ${dataFmt}\n• Descrição: ${d.descricao || "-"}\n• SHA-256: ${d.hash_sha256}`,
+                        { duration: 10000 },
+                      );
+                    } else {
+                      toast.error(
+                        "❌ Documento não autêntico: este documento não foi emitido pelo sistema ou foi alterado.",
+                        { duration: 8000 },
+                      );
+                    }
+                  } catch (err: any) {
+                    toast.error(`Falha ao verificar documento: ${err?.message || String(err)}`);
+                  }
+                }}
+              />
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   );
