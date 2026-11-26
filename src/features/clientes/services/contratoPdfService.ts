@@ -598,11 +598,11 @@ export async function emitirContratoPrestacaoServicosPdf(
   currentY += 6;
 
   const clausulas = [
-    // CLÁUSULA 1 — Natureza da Operação e Serviços de Segurança e Rastreamento
-    `CLÁUSULA PRIMEIRA - DA NATUREZA DA OPERAÇÃO E PRESTAÇÃO DE SERVIÇOS DE SEGURANÇA E RASTREAMENTO: A CONTRATADA presta serviços de segurança privada, rastreamento tático veicular e proteção patrimonial através de hardware homologado pela ANATEL em regime de comodato com conectividade M2M e plataforma digital ${APP_NOME.toUpperCase()}. O CONTRATANTE dispõe de ferramentas de monitoramento em tempo real, telemetria e gestão tática.`,
+    // CLÁUSULA 1 — Natureza da Operação e Serviços de Segurança, Vigilância e Rastreamento
+    `CLÁUSULA PRIMEIRA - DA NATUREZA DA OPERAÇÃO, VIGILÂNCIA E CENTRAL DE MONITORAMENTO 24H: A CONTRATADA presta serviços de vigilância eletrônica, rastreamento tático veicular e proteção patrimonial com Central de Monitoramento 24 (vinte e quatro) horas, através de hardware homologado pela ANATEL em regime de comodato com conectividade M2M e plataforma digital ${APP_NOME.toUpperCase()}. O CONTRATANTE dispõe de ferramentas de monitoramento em tempo real, telemetria, pronto-atendimento remoto e gestão tática.`,
 
-    // CLÁUSULA 2 — Proteção e Gestão Patrimonial
-    `CLÁUSULA SEGUNDA - DA PROTEÇÃO E GESTÃO PATRIMONIAL: O presente contrato tem por escopo o rastreamento tático, a segurança patrimonial e a gestão telemática de frotas e veículos. O CONTRATANTE reconhece que o sistema opera como ferramenta de segurança e gestão preventiva. Havendo sinistro, furto ou roubo, a CONTRATADA prestará apoio técnico por meio de sua telemetria e o CONTRATANTE deverá formalizar imediatamente o acionamento dos órgãos policiais competentes (190).`,
+    // CLÁUSULA 2 — Proteção Patrimonial, Obrigação de Meio e Ausência de Seguro
+    `CLÁUSULA SEGUNDA - DA OBRIGAÇÃO DE MEIO E NÃO CARACTERIZAÇÃO DE SEGURO (ARTS. 393 E 757 CC): O presente contrato constitui obrigação de meio, e não de resultado, não configurando apólice de seguro nem garantia de recuperação integral ou indenização por furto, roubo, apropriação indébita, lucros cessantes ou danos materiais/morais. Havendo sinistro, a Central de Monitoramento 24h prestará apoio técnico por meio de sua telemetria e acionamento de protocolos, devendo o CONTRATANTE formalizar imediatamente o boletim junto aos órgãos policiais competentes (190).`,
 
     // CLÁUSULA 3 — Do Monitoramento, Conectividade e Áreas de Silêncio Eletromagnético
     `CLÁUSULA TERCEIRA - DO MONITORAMENTO, LIMITAÇÕES TÉCNICAS E ZONAS DE SILÊNCIO ELETROMAGNÉTICO: O serviço depende diretamente da integridade dos satélites de posicionamento global (GPS/GNSS) e dos serviços de telecomunicações e dados móveis (GPRS/LTE/4G). A transmissão e precisão dos dados estão sujeitas a interferências técnicas alheias à CONTRATADA, tais como áreas de sombra celular, subsolos, galpões metálicos ou uso ilícito de bloqueadores de sinal (jammers).

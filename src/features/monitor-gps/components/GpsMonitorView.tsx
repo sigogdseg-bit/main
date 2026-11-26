@@ -1045,16 +1045,16 @@ export function GpsMonitorView({
         }
 
         // ── ALERTA 4: Guincho (Movimento com Ignição Desligada) ─────────
-        // Anti-Jitter: descarta oscilação de antena (0 a 14 km/h) e exige 2 leituras
-        // consecutivas >= 15 km/h com ignição desligada para evitar falso positivo por GPS Drift.
+        // Anti-Jitter: descarta oscilação de antena (0 a 19 km/h) e exige 5 leituras
+        // consecutivas >= 20 km/h com ignição desligada para evitar falso positivo por GPS Drift ou queda momentânea de ACC.
         const emMovimentoSemIgnicao =
-          v.ignicao === false && typeof v.velocidade === "number" && v.velocidade >= 15;
+          v.ignicao === false && typeof v.velocidade === "number" && v.velocidade >= 20;
         if (!emMovimentoSemIgnicao) {
           guinchoConfirmacaoRef.current.set(v.id, 0);
         } else {
           const contagemGuincho = (guinchoConfirmacaoRef.current.get(v.id) ?? 0) + 1;
           guinchoConfirmacaoRef.current.set(v.id, contagemGuincho);
-          if (permiteAlertaTel("guincho") && contagemGuincho >= 2) {
+          if (permiteAlertaTel("guincho") && contagemGuincho >= 5) {
             dispararAlerta(
               {
                 chaveDeduplicacao: `guincho_${v.id}`,
