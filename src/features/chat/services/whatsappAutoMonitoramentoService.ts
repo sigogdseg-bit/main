@@ -7127,50 +7127,99 @@ export async function processarMensagemWhatsappRecebida(
       };
     }
 
+    const iniciarSelecaoClienteOuVeiculoAdm = async (
+      comandoAlvo: "PIX" | "COMANDO" | "STATUS" | "LOCALIZACAO" | "BLOQUEIO" | "DESBLOQUEIO",
+      tituloComando: string,
+    ) => {
+      const { data: listaVeic } = await supabase
+        .from("veiculos")
+        .select("cliente_id, clientes(id, nome_razao_social)")
+        .order("placa", { ascending: true });
+      const mapaClientes = new Map<string, string>();
+      for (const v of listaVeic || []) {
+        const cid = (v as any)?.cliente_id;
+        const cnome = (v as any)?.clientes?.nome_razao_social;
+        if (cid && cnome && !mapaClientes.has(cid)) mapaClientes.set(cid, cnome);
+      }
+      const clientesUnicos = Array.from(mapaClientes.entries()).map(([id, nome]) => ({ id, nome }));
+      if (clientesUnicos.length === 0) return null;
+
+      if (clientesUnicos.length === 1) {
+        const cliUnico = clientesUnicos[0];
+        const { data: veics } = await supabase
+          .from("veiculos")
+          .select("*, clientes(nome_razao_social, telefone)")
+          .eq("cliente_id", cliUnico.id)
+          .order("placa", { ascending: true });
+        const listaVeics = veics || [];
+        if (listaVeics.length === 0) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "selecao_sem_veiculos",
+            resposta: `⚠️ Nenhum veículo encontrado para *${cliUnico.nome}*.`,
+          };
+        }
+        await salvarSessaoDialogo(supabase, {
+          telefone: remetenteLimpo,
+          fluxo: "selecao_cliente_veiculo",
+          etapa: "aguardando_veiculo",
+          dados: {
+            comando: comandoAlvo,
+            cliente: cliUnico,
+            veiculos: listaVeics.map((v: any) => ({
+              id: v.id,
+              placa: v.placa,
+              marca_modelo: v.marca_modelo || "Veículo",
+            })),
+          },
+          updated_at: new Date().toISOString(),
+        });
+        const linhasV = listaVeics.map(
+          (v: any, i: number) => `${i + 1}. ${v.marca_modelo || "Veículo"} Placa *${v.placa}*`,
+        );
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: `${comandoAlvo.toLowerCase()}_listar_veiculos`,
+          resposta:
+            `🚗 *${cliUnico.nome} — Escolha o Veículo:*\n\n` +
+            linhasV.join("\n") +
+            `\n0. Cancelar\n\nResponda com o número do veículo.`,
+        };
+      }
+
+      await salvarSessaoDialogo(supabase, {
+        telefone: remetenteLimpo,
+        fluxo: "selecao_cliente_veiculo",
+        etapa: "aguardando_cliente",
+        dados: { comando: comandoAlvo, clientes: clientesUnicos },
+        updated_at: new Date().toISOString(),
+      });
+      return {
+        sucesso: true,
+        destinatario: remetenteLimpo,
+        acaoExecutada: `${comandoAlvo.toLowerCase()}_listar_clientes`,
+        resposta:
+          `${tituloComando} — Escolha o Cliente:*\n\n` +
+          clientesUnicos.map((c, idx) => `${idx + 1}. *${c.nome}*`).join("\n") +
+          "\n0. Cancelar\n\nResponda com o número do cliente.",
+      };
+    };
+
     // 4.4. Consulta e Geração de PIX de Clientes (por Placa ou Documento)
     if (textoUpper === "PIX" || textoUpper.startsWith("PIX ")) {
       const partes = textoLimpo.split(/\s+/);
       const alvoPix = partes.length >= 2 ? partes[1].replace(/\W/g, "").toUpperCase() : "";
 
       if (!alvoPix) {
-        const { data: listaVeic } = await supabase
-          .from("veiculos")
-          .select("cliente_id, clientes(id, nome_razao_social)")
-          .order("placa", { ascending: true });
-        const mapaClientes = new Map<string, string>();
-        for (const v of listaVeic || []) {
-          const cid = (v as any)?.cliente_id;
-          const cnome = (v as any)?.clientes?.nome_razao_social || "Cliente";
-          if (cid && !mapaClientes.has(cid)) mapaClientes.set(cid, cnome);
-        }
-        const clientesUnicos = Array.from(mapaClientes.entries()).map(([id, nome]) => ({
-          id,
-          nome,
-        }));
-        if (clientesUnicos.length === 0) {
-          return {
-            sucesso: true,
-            destinatario: remetenteLimpo,
-            acaoExecutada: "pix_adm_ajuda",
-            resposta: "⚠️ Nenhum cliente com veículo cadastrado encontrado.",
-          };
-        }
-        await salvarSessaoDialogo(supabase, {
-          telefone: remetenteLimpo,
-          fluxo: "selecao_cliente_veiculo",
-          etapa: "aguardando_cliente",
-          dados: { comando: "PIX", clientes: clientesUnicos },
-          updated_at: new Date().toISOString(),
-        });
-        const linhasC = clientesUnicos.map((c, idx) => `${idx + 1}. *${c.nome}*`);
+        const resSel = await iniciarSelecaoClienteOuVeiculoAdm("PIX", "💳 *PIX");
+        if (resSel) return resSel;
         return {
           sucesso: true,
           destinatario: remetenteLimpo,
-          acaoExecutada: "pix_listar_clientes",
-          resposta:
-            "💳 *PIX — Escolha o Cliente:*\n\n" +
-            linhasC.join("\n") +
-            "\n0. Cancelar\n\nResponda com o número do cliente.",
+          acaoExecutada: "pix_adm_ajuda",
+          resposta: "⚠️ Nenhum cliente com veículo cadastrado encontrado.",
         };
       }
 
@@ -7227,35 +7276,8 @@ export async function processarMensagemWhatsappRecebida(
 
     // 5. Envio de Comando Direto de Hardware
     if (textoUpper === "COMANDO") {
-      const { data: listaVeic } = await supabase
-        .from("veiculos")
-        .select("cliente_id, clientes(id, nome_razao_social)")
-        .order("placa", { ascending: true });
-      const mapaClientes = new Map<string, string>();
-      for (const v of listaVeic || []) {
-        const cid = (v as any)?.cliente_id;
-        const cnome = (v as any)?.clientes?.nome_razao_social || "Cliente";
-        if (cid && !mapaClientes.has(cid)) mapaClientes.set(cid, cnome);
-      }
-      const clientesUnicos = Array.from(mapaClientes.entries()).map(([id, nome]) => ({ id, nome }));
-      if (clientesUnicos.length > 0) {
-        await salvarSessaoDialogo(supabase, {
-          telefone: remetenteLimpo,
-          fluxo: "selecao_cliente_veiculo",
-          etapa: "aguardando_cliente",
-          dados: { comando: "COMANDO", clientes: clientesUnicos },
-          updated_at: new Date().toISOString(),
-        });
-        return {
-          sucesso: true,
-          destinatario: remetenteLimpo,
-          acaoExecutada: "comando_listar_clientes",
-          resposta:
-            "📡 *Comando de Hardware — Escolha o Cliente:*\n\n" +
-            clientesUnicos.map((c, idx) => `${idx + 1}. *${c.nome}*`).join("\n") +
-            "\n0. Cancelar\n\nResponda com o número do cliente.",
-        };
-      }
+      const resSel = await iniciarSelecaoClienteOuVeiculoAdm("COMANDO", "📡 *Comando de Hardware");
+      if (resSel) return resSel;
     }
 
     if (textoUpper.startsWith("COMANDO ")) {
@@ -7335,40 +7357,10 @@ export async function processarMensagemWhatsappRecebida(
         };
       }
 
-      // Se enviou apenas STATUS sem placa e for SuperADM/Operador: fluxo em 2 etapas (Cliente -> Veículo)
+      // Se enviou apenas STATUS sem placa e for SuperADM/Operador: fluxo em 2 etapas (ou direto para veículos se só houver 1 cliente)
       if (isAdmOuOperador) {
-        const { data: listaVeic } = await supabase
-          .from("veiculos")
-          .select("cliente_id, clientes(id, nome_razao_social)")
-          .order("placa", { ascending: true });
-        const mapaClientes = new Map<string, string>();
-        for (const v of listaVeic || []) {
-          const cid = (v as any)?.cliente_id;
-          const cnome = (v as any)?.clientes?.nome_razao_social;
-          if (cid && cnome && !mapaClientes.has(cid)) mapaClientes.set(cid, cnome);
-        }
-        const clientesUnicos = Array.from(mapaClientes.entries()).map(([id, nome]) => ({
-          id,
-          nome,
-        }));
-        if (clientesUnicos.length > 0) {
-          await salvarSessaoDialogo(supabase, {
-            telefone: remetenteLimpo,
-            fluxo: "selecao_cliente_veiculo",
-            etapa: "aguardando_cliente",
-            dados: { comando: "STATUS", clientes: clientesUnicos },
-            updated_at: new Date().toISOString(),
-          });
-          return {
-            sucesso: true,
-            destinatario: remetenteLimpo,
-            acaoExecutada: "status_listar_clientes",
-            resposta:
-              "📡 *Status Veicular — Escolha o Cliente:*\n\n" +
-              clientesUnicos.map((c, idx) => `${idx + 1}. *${c.nome}*`).join("\n") +
-              "\n0. Cancelar\n\nResponda com o número do cliente.",
-          };
-        }
+        const resSel = await iniciarSelecaoClienteOuVeiculoAdm("STATUS", "📡 *Status Veicular");
+        if (resSel) return resSel;
       }
 
       // Se enviou apenas STATUS sem placa (Cliente ou fallback): busca veículos e monta menu numerado
@@ -7451,44 +7443,16 @@ export async function processarMensagemWhatsappRecebida(
       const placaArg = partes[1] ? partes[1].replace(/\W/g, "").toUpperCase() : "";
 
       if (!placaArg) {
-        const { data: listaVeic } = await supabase
-          .from("veiculos")
-          .select("cliente_id, clientes(id, nome_razao_social)")
-          .order("placa", { ascending: true });
-        const mapaClientes = new Map<string, string>();
-        for (const v of listaVeic || []) {
-          const cid = (v as any)?.cliente_id;
-          const cnome = (v as any)?.clientes?.nome_razao_social || "Cliente";
-          if (cid && !mapaClientes.has(cid)) mapaClientes.set(cid, cnome);
-        }
-        const clientesUnicos = Array.from(mapaClientes.entries()).map(([id, nome]) => ({
-          id,
-          nome,
-        }));
-        if (clientesUnicos.length === 0) {
-          return {
-            sucesso: true,
-            destinatario: remetenteLimpo,
-            acaoExecutada: "localizacao_lista_opcoes",
-            resposta: "⚠️ Nenhum cliente com veículo cadastrado encontrado.",
-          };
-        }
-        await salvarSessaoDialogo(supabase, {
-          telefone: remetenteLimpo,
-          fluxo: "selecao_cliente_veiculo",
-          etapa: "aguardando_cliente",
-          dados: { comando: "LOCALIZACAO", clientes: clientesUnicos },
-          updated_at: new Date().toISOString(),
-        });
-        const linhasC = clientesUnicos.map((c, idx) => `${idx + 1}. *${c.nome}*`);
+        const resSel = await iniciarSelecaoClienteOuVeiculoAdm(
+          "LOCALIZACAO",
+          "📍 *Localização em Tempo Real",
+        );
+        if (resSel) return resSel;
         return {
           sucesso: true,
           destinatario: remetenteLimpo,
-          acaoExecutada: "localizacao_listar_clientes",
-          resposta:
-            "📍 *Localização em Tempo Real — Escolha o Cliente:*\n\n" +
-            linhasC.join("\n") +
-            "\n0. Cancelar\n\nResponda com o número do cliente.",
+          acaoExecutada: "localizacao_lista_opcoes",
+          resposta: "⚠️ Nenhum cliente com veículo cadastrado encontrado.",
         };
       }
 
@@ -7542,35 +7506,11 @@ export async function processarMensagemWhatsappRecebida(
       textoUpper === "DESBLOQUEAR SIM"
     ) {
       const cmdAlvo = textoUpper.includes("DESBLOQ") ? "DESBLOQUEIO" : "BLOQUEIO";
-      const { data: listaVeic } = await supabase
-        .from("veiculos")
-        .select("cliente_id, clientes(id, nome_razao_social)")
-        .order("placa", { ascending: true });
-      const mapaClientes = new Map<string, string>();
-      for (const v of listaVeic || []) {
-        const cid = (v as any)?.cliente_id;
-        const cnome = (v as any)?.clientes?.nome_razao_social || "Cliente";
-        if (cid && !mapaClientes.has(cid)) mapaClientes.set(cid, cnome);
-      }
-      const clientesUnicos = Array.from(mapaClientes.entries()).map(([id, nome]) => ({ id, nome }));
-      if (clientesUnicos.length > 0) {
-        await salvarSessaoDialogo(supabase, {
-          telefone: remetenteLimpo,
-          fluxo: "selecao_cliente_veiculo",
-          etapa: "aguardando_cliente",
-          dados: { comando: cmdAlvo, clientes: clientesUnicos },
-          updated_at: new Date().toISOString(),
-        });
-        return {
-          sucesso: true,
-          destinatario: remetenteLimpo,
-          acaoExecutada: `${cmdAlvo.toLowerCase()}_listar_clientes`,
-          resposta:
-            `${cmdAlvo === "BLOQUEIO" ? "🔴 *Bloqueio" : "🟢 *Desbloqueio"} Veicular — Escolha o Cliente:*\n\n` +
-            clientesUnicos.map((c, idx) => `${idx + 1}. *${c.nome}*`).join("\n") +
-            "\n0. Cancelar\n\nResponda com o número do cliente.",
-        };
-      }
+      const resSel = await iniciarSelecaoClienteOuVeiculoAdm(
+        cmdAlvo,
+        cmdAlvo === "BLOQUEIO" ? "🔴 *Bloqueio Veicular" : "🟢 *Desbloqueio Veicular",
+      );
+      if (resSel) return resSel;
     }
 
     if (textoUpper.startsWith("BLOQUEIO SIM ") || textoUpper.startsWith("BLOQUEAR SIM ")) {
