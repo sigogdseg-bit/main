@@ -7753,10 +7753,25 @@ export async function processarMensagemWhatsappRecebida(
         };
       }
 
-      const { data: listaUsers } = await supabase
+      let { data: listaUsers, error: errUsers } = await supabase
         .from("profiles")
         .select("id, nome, email, telefone, role, ativo, ultimo_acesso, updated_at")
         .order("nome", { ascending: true });
+
+      if (errUsers) {
+        const fallback1 = await supabase
+          .from("profiles")
+          .select("id, nome, email, role, ativo, updated_at")
+          .order("nome", { ascending: true });
+        listaUsers = fallback1.data as any;
+        if (fallback1.error) {
+          const fallback2 = await supabase
+            .from("profiles")
+            .select("id, nome, email, role, ativo")
+            .order("nome", { ascending: true });
+          listaUsers = fallback2.data as any;
+        }
+      }
 
       const usuarios = listaUsers || [];
       if (usuarios.length === 0) {

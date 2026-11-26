@@ -1599,25 +1599,28 @@ export function RefazerTrajetoModal({
   // Captura Fotográfica Real do Mapa com Trajeto e Paradas Georreferenciadas
   const capturarSnapshotMapa = async (): Promise<string | null> => {
     try {
-      if (modo === "3D" && map3DInstanceRef.current) {
-        const canvas = map3DInstanceRef.current.getCanvas();
-        if (canvas) {
-          return canvas.toDataURL("image/jpeg", 0.88);
-        }
-      }
-
       const map = map2DInstanceRef.current;
       const container = map2DContainerRef.current;
-      if (!map || !container) return null;
+      if (!map || !container) {
+        if (map3DInstanceRef.current) {
+          const canvas3d = map3DInstanceRef.current.getCanvas();
+          if (canvas3d) {
+            return canvas3d.toDataURL("image/png");
+          }
+        }
+        return null;
+      }
 
       const width = container.clientWidth || 800;
       const height = container.clientHeight || 500;
+      const scale = 2;
 
       const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
+      canvas.width = width * scale;
+      canvas.height = height * scale;
       const ctx = canvas.getContext("2d");
       if (!ctx) return null;
+      ctx.scale(scale, scale);
 
       ctx.fillStyle = theme === "dark" ? "#0f172a" : "#f8fafc";
       ctx.fillRect(0, 0, width, height);
@@ -1789,9 +1792,76 @@ export function RefazerTrajetoModal({
         doc.setDrawColor(203, 213, 225);
         doc.setLineWidth(0.5);
         doc.roundedRect(13.5, 56.5, larguraMapa + 1, alturaMapa + 1, 1.5, 1.5, "S");
-        doc.addImage(imgMapa, "JPEG", 14, 57, larguraMapa, alturaMapa, undefined, "FAST");
+        doc.addImage(imgMapa, "PNG", 14, 57, larguraMapa, alturaMapa);
 
         tabelaStartY = 57 + alturaMapa + 8;
+      }
+
+      // Infográfico de Telemetria (Cards KPI)
+      {
+        const kmValor =
+          tipoVisao === "jornada_completa" && jornadaConsolidada
+            ? formatarDistanciaViagem(jornadaConsolidada.kmTotal)
+            : viagemSelecionada
+              ? formatarDistanciaViagem(viagemSelecionada.km_percorrido)
+              : "0 km";
+        const movValor =
+          tipoVisao === "jornada_completa" && jornadaConsolidada
+            ? formatarMinutosJornada(jornadaConsolidada.tempoTransitoMinutos)
+            : "-";
+        const paradoValor =
+          tipoVisao === "jornada_completa" && jornadaConsolidada
+            ? formatarMinutosJornada(jornadaConsolidada.tempoParadoMinutos)
+            : "-";
+        const velMediaValor =
+          tipoVisao === "jornada_completa" &&
+          jornadaConsolidada &&
+          jornadaConsolidada.ciclos.length > 0
+            ? `${Math.round(jornadaConsolidada.ciclos.reduce((acc, c) => acc + (c.velocidade_media || 0), 0) / jornadaConsolidada.ciclos.length)} km/h`
+            : viagemSelecionada
+              ? `${viagemSelecionada.velocidade_media} km/h`
+              : "0 km/h";
+
+        const cards = [
+          {
+            label: "DISTÂNCIA TOTAL",
+            valor: kmValor,
+            cor: [234, 88, 12] as [number, number, number],
+          },
+          { label: "EM MOVIMENTO", valor: movValor, cor: [15, 23, 42] as [number, number, number] },
+          {
+            label: "TEMPO PARADO",
+            valor: paradoValor,
+            cor: [217, 119, 6] as [number, number, number],
+          },
+          {
+            label: "VEL. MÉDIA",
+            valor: velMediaValor,
+            cor: [15, 23, 42] as [number, number, number],
+          },
+        ];
+
+        const cardW = 43.5;
+        const cardH = 15;
+        const gap = 2.6;
+        cards.forEach((c, idx) => {
+          const x = 14 + idx * (cardW + gap);
+          const y = tabelaStartY;
+          doc.setFillColor(248, 250, 252);
+          doc.setDrawColor(203, 213, 225);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(x, y, cardW, cardH, 1.5, 1.5, "FD");
+          doc.setFontSize(6.5);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(100, 116, 139);
+          doc.text(c.label, x + 3, y + 5.2);
+          doc.setFontSize(10.5);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(c.cor[0], c.cor[1], c.cor[2]);
+          doc.text(c.valor, x + 3, y + 12);
+        });
+
+        tabelaStartY += cardH + 6;
       }
 
       if (tipoVisao === "jornada_completa" && jornadaConsolidada) {
