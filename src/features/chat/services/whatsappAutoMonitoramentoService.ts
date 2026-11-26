@@ -1640,7 +1640,7 @@ export function isSaudacaoSimples(textoUpper: string): boolean {
  * por número não cadastrado ou perfil sem tratamento de comandos deve ser sumariamente IGNORADO.
  */
 export const COMANDOS_SISTEMA_GLOBAL_REGEX =
-  /^(BLOQUEIO|DESBLOQUEIO|CORTE|COMANDO|RELAY|STATUS|LOCALIZACAO|LOCALIZAÇÃO|LOCAL|ONDE|ODOMETRO|ODÔMETRO|KM|RELATORIO|RELATÓRIO|FROTA|METRICAS|MÉTRICAS|INFRA|DIAG|DRE|RESUMO|SAUDE|SAÚDE|PAGAMENTOS|PAGAMENTO|COBRANCA|COBRANÇA|INADIMPLENTES|MENSALIDADES|MENSALIDADE|RECEBIMENTOS|RECEBER|COMISSAO|COMISSÃO|MARGEM|CONTRATOS|CONTRATO|CLIENTES|CARTEIRA|INSTALADORES|INSTALADOR|TECNICOS|TÉCNICOS|INSTALACAO|INSTALAÇÃO|INSTALACOES|INSTALAÇÕES|AGENDAMENTO|RASTREADOR|TRAJETO|TRAJETOS|USUARIO|USUARIOS|USUÁRIO|USUÁRIOS|TESTE|TESTES|DEGUSTACAO|DEGUSTAÇÃO|TESTAR|EXPERIMENTAR|TESTE GRATIS|TESTE GRÁTIS|QUERO TESTAR|DEGUSTAR|#TESTE|\/TESTE|!TESTE|REVALIDA|REVALIDAR|REVALIDACAO|REVALIDAÇÃO|#REVALIDA|\/REVALIDA|!REVALIDA|PARAM|PARAMETROS|PARÂMETROS|PIX|RESET|REINICIAR|DYD|HFYD)(\s|$)/i;
+  /^(BLOQUEIO|DESBLOQUEIO|CORTE|COMANDO|RELAY|STATUS|LOCALIZACAO|LOCALIZAÇÃO|LOCAL|ONDE|ODOMETRO|ODÔMETRO|KM|RELATORIO|RELATÓRIO|FROTA|METRICAS|MÉTRICAS|INFRA|DIAG|DRE|RESUMO|SAUDE|SAÚDE|PAGAMENTOS|PAGAMENTO|COBRANCA|COBRANÇA|INADIMPLENTES|MENSALIDADES|MENSALIDADE|RECEBIMENTOS|RECEBER|COMISSAO|COMISSÃO|MARGEM|CONTRATOS|CONTRATO|CLIENTES|CARTEIRA|INSTALADORES|INSTALADOR|TECNICOS|TÉCNICOS|INSTALACAO|INSTALAÇÃO|INSTALACOES|INSTALAÇÕES|AGENDAMENTO|RASTREADOR|TRAJETO|TRAJETOS|LINK|LINKS|USUARIO|USUARIOS|USUÁRIO|USUÁRIOS|TESTE|TESTES|DEGUSTACAO|DEGUSTAÇÃO|TESTAR|EXPERIMENTAR|TESTE GRATIS|TESTE GRÁTIS|QUERO TESTAR|DEGUSTAR|#TESTE|\/TESTE|!TESTE|REVALIDA|REVALIDAR|REVALIDACAO|REVALIDAÇÃO|#REVALIDA|\/REVALIDA|!REVALIDA|PARAM|PARAMETROS|PARÂMETROS|PIX|RESET|REINICIAR|DYD|HFYD)(\s|$)/i;
 
 /**
  * Envia comando de hardware para o gateway TCP do rastreador
@@ -3570,6 +3570,157 @@ export async function processarMensagemWhatsappRecebida(
         }
       }
     };
+
+    // ── FLUXO INTERATIVO DE LINK DE AUTO-CADASTRO (LINK / LINKS) ──
+    if (sessaoAtiva.fluxo === "selecao_link") {
+      const dadosLk = sessaoAtiva.dados || sessaoAtiva.dados_temporarios || {};
+      const etapaLk = sessaoAtiva.etapa || "aguardando_perfil";
+      const respTrim = textoLimpo.trim();
+
+      if (respTrim === "0" || textoUpper === "CANCELAR") {
+        await excluirSessaoAtiva();
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "link_cancelado",
+          resposta: "❌ Geração de link de auto-cadastro cancelada.",
+        };
+      }
+
+      if (etapaLk === "aguardando_perfil") {
+        const perfis = [
+          { chave: "cliente", label: "Cliente", rota: "/convite-cliente" },
+          { chave: "instalador", label: "Instalador", rota: "/convite-instalador" },
+          { chave: "vendedor", label: "Vendedor", rota: "/convite-parceiro?perfil=vendedor" },
+          { chave: "revendedor", label: "Revendedor", rota: "/convite-parceiro?perfil=revendedor" },
+        ];
+        const idx = parseInt(respTrim, 10) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= perfis.length) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "link_perfil_invalido",
+            resposta: "⚠️ Opção inválida. Envie de *1* a *4* (ou *0* para cancelar).",
+          };
+        }
+        const perfilSel = perfis[idx];
+        await salvarAtualizacaoSessao("aguardando_nome", { ...dadosLk, perfilSel });
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "link_aguardando_nome",
+          resposta: `🔗 *Link de Auto-Cadastro (${perfilSel.label})*\n\nDigite o *nome completo* do destinatário (ou *0* para cancelar):`,
+        };
+      }
+
+      if (etapaLk === "aguardando_nome") {
+        if (respTrim.length < 2) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "link_nome_invalido",
+            resposta:
+              "⚠️ Nome muito curto. Digite o *nome completo* do destinatário (ou *0* para cancelar):",
+          };
+        }
+        await salvarAtualizacaoSessao("aguardando_telefone", { ...dadosLk, nomeDest: respTrim });
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "link_aguardando_telefone",
+          resposta: `📱 Digite o *WhatsApp com DDD* de *${respTrim}* (ex: 24999999999) ou *0* para cancelar:`,
+        };
+      }
+
+      if (etapaLk === "aguardando_telefone") {
+        const telDigitos = respTrim.replace(/\D/g, "");
+        if (telDigitos.length < 10) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "link_telefone_invalido",
+            resposta:
+              "⚠️ Telefone inválido. Digite o *WhatsApp com DDD* (ex: 24999999999) ou *0* para cancelar:",
+          };
+        }
+        const perfilSel = dadosLk.perfilSel;
+        const nomeDest = dadosLk.nomeDest;
+        const tokenConvite = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+        const sep = perfilSel.rota.includes("?") ? String.fromCharCode(38) : "?";
+        const linkGerado = `https://gd.oficial.tec.br${perfilSel.rota}${sep}token=${tokenConvite}&nome=${encodeURIComponent(nomeDest)}&tel=${telDigitos}`;
+
+        await salvarAtualizacaoSessao("aguardando_envio", {
+          ...dadosLk,
+          telDigitos,
+          linkGerado,
+        });
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "link_aguardando_envio",
+          resposta:
+            `🔗 *Link de Auto-Cadastro (${perfilSel.label}) pronto!*\n\n` +
+            `1. Receber o link aqui no meu WhatsApp\n` +
+            `2. Enviar direto da Central para *${nomeDest}* (${telDigitos})\n` +
+            `0. Cancelar\n\nResponda com *1* ou *2*.`,
+        };
+      }
+
+      if (etapaLk === "aguardando_envio") {
+        const { perfilSel, nomeDest, telDigitos, linkGerado } = dadosLk;
+        if (respTrim === "1") {
+          await excluirSessaoAtiva();
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "link_entregue_solicitante",
+            resposta:
+              `🔗 *Link de Auto-Cadastro (${perfilSel.label})*\n` +
+              `• *Destinatário:* ${nomeDest} (${telDigitos})\n\n` +
+              `${linkGerado}`,
+          };
+        }
+        if (respTrim === "2") {
+          await excluirSessaoAtiva();
+          const telDest = telDigitos.startsWith("55") ? telDigitos : `55${telDigitos}`;
+          const tokenGw =
+            (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
+            "hunter-guardiao-whatsapp-secret-key-2026";
+          const gwBase = (gatewayUrl || "https://gps.oficial.tec.br/gd/whatsapp").replace(
+            /\/+$/,
+            "",
+          );
+          await fetch(`${gwBase}/api/v1/messages/send`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${tokenGw}`,
+              "X-Hunter-Token": tokenGw,
+            },
+            body: JSON.stringify({
+              recipient: telDest,
+              message:
+                `🛡️ *GD Rastreamento — Convite de Auto-Cadastro (${perfilSel.label})*\n\n` +
+                `Olá *${nomeDest}*! Acesse o link abaixo para concluir seu cadastro:\n\n${linkGerado}`,
+            }),
+          }).catch(() => {});
+
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "link_enviado_central",
+            resposta: `✅ Link de auto-cadastro (${perfilSel.label}) enviado pela Central para *${nomeDest}* (${telDigitos})!`,
+          };
+        }
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "link_envio_invalido",
+          resposta:
+            "⚠️ Opção inválida. Envie *1* (receber aqui), *2* (enviar pela Central) ou *0* (cancelar).",
+        };
+      }
+    }
 
     // ── FLUXO INTERATIVO DE RELATÓRIO DE TRAJETO EM PDF (TRAJETO / TRAJETOS) ──
     if (sessaoAtiva.fluxo === "selecao_trajeto") {
@@ -8115,6 +8266,24 @@ export async function processarMensagemWhatsappRecebida(
       };
     }
 
+    // 4.35b. Link de Auto-Cadastro (LINK / LINKS)
+    if (textoUpper === "LINK" || textoUpper === "LINKS") {
+      await salvarSessaoDialogo(supabase, {
+        telefone: remetenteLimpo,
+        fluxo: "selecao_link",
+        etapa: "aguardando_perfil",
+        dados: {},
+      });
+      return {
+        sucesso: true,
+        destinatario: remetenteLimpo,
+        acaoExecutada: "link_listar_perfis",
+        resposta:
+          "🔗 *Gerar Link de Auto-Cadastro*\n\nEscolha o perfil:\n" +
+          "1. Cliente\n2. Instalador\n3. Vendedor\n4. Revendedor\n0. Cancelar\n\nResponda com o número.",
+      };
+    }
+
     // 4.36. Relatório de Trajeto em PDF (TRAJETO / TRAJETOS)
     if (textoUpper === "TRAJETO" || textoUpper === "TRAJETOS") {
       if (isAdmOuOperador) {
@@ -8544,6 +8713,7 @@ export async function processarMensagemWhatsappRecebida(
           "• *DESBLOQUEIO SIM <PLACA>* — Liberação de combustível\n" +
           "• *STATUS* (ou *STATUS <PLACA>*) — Odômetro apurado e telemetria do veículo\n" +
           "• *TRAJETO* — Laudo oficial de telemetria e percurso em PDF (mapa 2D, ciclos e paradas)\n" +
+          "• *LINK* — Gera e envia link de auto-cadastro (Cliente, Instalador, Vendedor ou Revendedor)\n" +
           "• *COMANDO <PLACA> <CMD>* — Envia comando direto ao rastreador (ex: COMANDO AXH0E44 STATUS#)\n" +
           (isSuperAdm
             ? "• *USUARIO* — Gestão de usuários (detalhes, reset de senha e bloqueio/desbloqueio)\n"
