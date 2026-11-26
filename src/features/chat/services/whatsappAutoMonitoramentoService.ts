@@ -4162,17 +4162,34 @@ export async function processarMensagemWhatsappRecebida(
       };
 
       if (etapaTj === "aguardando_dia_inicio") {
-        const matchData = respTrim.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (respTrim === "6") {
+          await excluirSessaoAtiva();
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_cancelado",
+            resposta: "❌ Consulta de trajeto cancelada.",
+          };
+        }
+        let diaInicio = respTrim;
+        if (["1", "2", "3", "4", "5"].includes(respTrim)) {
+          const offset = parseInt(respTrim, 10) - 1;
+          const agoraBr = new Date(
+            new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+          );
+          agoraBr.setDate(agoraBr.getDate() - offset);
+          diaInicio = `${String(agoraBr.getDate()).padStart(2, "0")}/${String(agoraBr.getMonth() + 1).padStart(2, "0")}/${agoraBr.getFullYear()}`;
+        }
+        const matchData = diaInicio.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
         if (!matchData) {
           return {
             sucesso: true,
             destinatario: remetenteLimpo,
             acaoExecutada: "trajeto_dia_invalido",
             resposta:
-              "⚠️ Data inválida. Digite a data de início no formato *DD/MM/AAAA* (ex: 24/11/2026) ou *0* para cancelar.",
+              "⚠️ Data inválida. Envie de *1* a *5*, digite a data de início no formato *DD/MM/AAAA* (ex: 24/11/2026), ou *6* para cancelar.",
           };
         }
-        const diaInicio = respTrim;
         const { start, end } = toIsoRangeBr(diaInicio);
         const { data: saidasRaw } = await supabase
           .from("viagens_trajetos")
@@ -4202,10 +4219,11 @@ export async function processarMensagemWhatsappRecebida(
             destinatario: remetenteLimpo,
             acaoExecutada: "trajeto_aguardando_dia_fim",
             resposta:
-              `📅 *Data Final — ${veic.placa}*\n\n` +
-              `1. Usar a mesma data de início (*${diaInicio}*)\n` +
-              `2. Usar o dia seguinte (*${proximoDiaBr(diaInicio)}*)\n\n` +
-              `Ou digite a *data final* no formato *DD/MM/AAAA* (ex: 25/11/2026) ou *0* para cancelar.`,
+              `📅 *Data Final* - *${veic.placa}*\n\n` +
+              `1. *${diaInicio}*\n` +
+              `2. *${proximoDiaBr(diaInicio)}*\n` +
+              `3. *Cancelar*\n\n` +
+              `Ou digite a *data final* no formato *DD/MM/AAAA*.`,
           };
         }
         await salvarAtualizacaoSessao("aguardando_inicio_ciclo", {
@@ -4252,14 +4270,24 @@ export async function processarMensagemWhatsappRecebida(
           destinatario: remetenteLimpo,
           acaoExecutada: "trajeto_aguardando_dia_fim",
           resposta:
-            `📅 *Data Final — ${veic.placa}*\n\n` +
-            `1. Usar a mesma data de início (*${dadosTj.diaInicio}*)\n` +
-            `2. Usar o dia seguinte (*${proximoDiaBr(String(dadosTj.diaInicio))}*)\n\n` +
-            `Ou digite a *data final* no formato *DD/MM/AAAA* (ex: 25/11/2026) ou *0* para cancelar.`,
+            `📅 *Data Final* - *${veic.placa}*\n\n` +
+            `1. *${dadosTj.diaInicio}*\n` +
+            `2. *${proximoDiaBr(String(dadosTj.diaInicio))}*\n` +
+            `3. *Cancelar*\n\n` +
+            `Ou digite a *data final* no formato *DD/MM/AAAA*.`,
         };
       }
 
       if (etapaTj === "aguardando_dia_fim") {
+        if (respTrim === "3") {
+          await excluirSessaoAtiva();
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_cancelado",
+            resposta: "❌ Consulta de trajeto cancelada.",
+          };
+        }
         const diaFim =
           respTrim === "1" && dadosTj.diaInicio
             ? String(dadosTj.diaInicio)
@@ -4540,7 +4568,29 @@ export async function processarMensagemWhatsappRecebida(
             acaoExecutada: "trajeto_aguardando_dia_inicio",
             resposta:
               `🗺️ *Trajeto — ${vAlvo.marca_modelo || "Veículo"} (${vAlvo.placa})*\n\n` +
-              `Digite a *data de início* no formato *DD/MM/AAAA* (ex: 24/11/2026) ou *0* para cancelar.`,
+              (() => {
+                const formatarDatasIniciaisTrajeto = (placa: string) => {
+                  const agoraBr = new Date(
+                    new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+                  );
+                  const fmtD = (offset: number) => {
+                    const dt = new Date(agoraBr);
+                    dt.setDate(dt.getDate() - offset);
+                    return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
+                  };
+                  return (
+                    `📅 *Data Inicial* - *${placa}*\n\n` +
+                    `1. *${fmtD(0)}*\n` +
+                    `2. *${fmtD(1)}*\n` +
+                    `3. *${fmtD(2)}*\n` +
+                    `4. *${fmtD(3)}*\n` +
+                    `5. *${fmtD(4)}*\n` +
+                    `6. *Cancelar*\n\n` +
+                    `Ou digite a *data de início* no formato *DD/MM/AAAA* (ex: 24/11/2026)`
+                  );
+                };
+                return formatarDatasIniciaisTrajeto(vAlvo.placa);
+              })(),
           };
         }
 
@@ -8130,7 +8180,29 @@ export async function processarMensagemWhatsappRecebida(
               acaoExecutada: "trajeto_aguardando_dia_inicio",
               resposta:
                 `🗺️ *Trajeto — ${vUnico.marca_modelo || "Veículo"} (${vUnico.placa})*\n\n` +
-                `Digite a *data de início* no formato *DD/MM/AAAA* (ex: 24/11/2026) ou *0* para cancelar.`,
+                (() => {
+                  const formatarDatasIniciaisTrajeto = (placa: string) => {
+                    const agoraBr = new Date(
+                      new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }),
+                    );
+                    const fmtD = (offset: number) => {
+                      const dt = new Date(agoraBr);
+                      dt.setDate(dt.getDate() - offset);
+                      return `${String(dt.getDate()).padStart(2, "0")}/${String(dt.getMonth() + 1).padStart(2, "0")}/${dt.getFullYear()}`;
+                    };
+                    return (
+                      `📅 *Data Inicial* - *${placa}*\n\n` +
+                      `1. *${fmtD(0)}*\n` +
+                      `2. *${fmtD(1)}*\n` +
+                      `3. *${fmtD(2)}*\n` +
+                      `4. *${fmtD(3)}*\n` +
+                      `5. *${fmtD(4)}*\n` +
+                      `6. *Cancelar*\n\n` +
+                      `Ou digite a *data de início* no formato *DD/MM/AAAA* (ex: 24/11/2026)`
+                    );
+                  };
+                  return formatarDatasIniciaisTrajeto(vUnico.placa);
+                })(),
             };
           }
 
