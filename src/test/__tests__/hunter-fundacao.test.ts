@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 describe("GD Segurança — Validação da Fundação Canônica", () => {
   test("Versão canônica A.B.C.D está definida corretamente", () => {
     assert.match(APP_VERSION_NUMERO, /^\d+\.\d+\.\d+\.\d+$/);
-    assert.equal(APP_VERSION_NUMERO, "1.0.1.106");
+    assert.equal(APP_VERSION_NUMERO, "1.0.1.107");
     assert.equal(APP_NOME, "GD Segurança");
   });
 

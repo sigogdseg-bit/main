@@ -3868,9 +3868,14 @@ export async function processarMensagemWhatsappRecebida(
 
         try {
           try {
-            const { carregarPontosViagem } =
-              await import("@/features/monitor-gps/services/gpsService");
-            const ptsReais = await carregarPontosViagem(veic.id, inicioIso, fimIso, 5000);
+            const { data: ptsReais } = await supabase
+              .from("telemetria_posicoes")
+              .select("id, latitude, longitude, data_hora_gps")
+              .eq("veiculo_id", veic.id)
+              .gte("data_hora_gps", inicioIso)
+              .lte("data_hora_gps", fimIso)
+              .order("data_hora_gps", { ascending: true })
+              .limit(5000);
             pts = (ptsReais || [])
               .filter(
                 (pt: any) =>
@@ -3879,7 +3884,7 @@ export async function processarMensagemWhatsappRecebida(
               .map((pt: any) => ({
                 latitude: Number(pt.latitude),
                 longitude: Number(pt.longitude),
-                timestamp: pt.data_hora || pt.timestamp || pt.created_at,
+                timestamp: pt.data_hora_gps,
               }));
           } catch {}
           if (pts.length === 0) {
