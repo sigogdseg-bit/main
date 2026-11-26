@@ -2045,9 +2045,9 @@ export function RefazerTrajetoModal({
 
       doc.save(nomeArquivo);
       toast.success("Laudo oficial baixado com sucesso!");
-    } catch (e) {
-      console.error(e);
-      toast.error("Falha ao gerar o laudo.");
+    } catch (e: any) {
+      console.error("[RefazerTrajetoModal] Falha ao gerar o laudo:", e);
+      toast.error(`Falha ao gerar o laudo: ${e?.message || String(e)}`);
     }
   };
 

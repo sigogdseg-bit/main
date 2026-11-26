@@ -1640,7 +1640,7 @@ export function isSaudacaoSimples(textoUpper: string): boolean {
  * por número não cadastrado ou perfil sem tratamento de comandos deve ser sumariamente IGNORADO.
  */
 export const COMANDOS_SISTEMA_GLOBAL_REGEX =
-  /^(BLOQUEIO|DESBLOQUEIO|CORTE|COMANDO|RELAY|STATUS|LOCALIZACAO|LOCALIZAÇÃO|LOCAL|ONDE|ODOMETRO|ODÔMETRO|KM|RELATORIO|RELATÓRIO|FROTA|METRICAS|MÉTRICAS|INFRA|DIAG|DRE|RESUMO|SAUDE|SAÚDE|PAGAMENTOS|PAGAMENTO|COBRANCA|COBRANÇA|INADIMPLENTES|MENSALIDADES|MENSALIDADE|RECEBIMENTOS|RECEBER|COMISSAO|COMISSÃO|MARGEM|CONTRATOS|CONTRATO|CLIENTES|CARTEIRA|INSTALADORES|INSTALADOR|TECNICOS|TÉCNICOS|INSTALACAO|INSTALAÇÃO|INSTALACOES|INSTALAÇÕES|AGENDAMENTO|RASTREADOR|USUARIO|USUARIOS|USUÁRIO|USUÁRIOS|TESTE|TESTES|DEGUSTACAO|DEGUSTAÇÃO|TESTAR|EXPERIMENTAR|TESTE GRATIS|TESTE GRÁTIS|QUERO TESTAR|DEGUSTAR|#TESTE|\/TESTE|!TESTE|REVALIDA|REVALIDAR|REVALIDACAO|REVALIDAÇÃO|#REVALIDA|\/REVALIDA|!REVALIDA|PARAM|PARAMETROS|PARÂMETROS|PIX|RESET|REINICIAR|DYD|HFYD)(\s|$)/i;
+  /^(BLOQUEIO|DESBLOQUEIO|CORTE|COMANDO|RELAY|STATUS|LOCALIZACAO|LOCALIZAÇÃO|LOCAL|ONDE|ODOMETRO|ODÔMETRO|KM|RELATORIO|RELATÓRIO|FROTA|METRICAS|MÉTRICAS|INFRA|DIAG|DRE|RESUMO|SAUDE|SAÚDE|PAGAMENTOS|PAGAMENTO|COBRANCA|COBRANÇA|INADIMPLENTES|MENSALIDADES|MENSALIDADE|RECEBIMENTOS|RECEBER|COMISSAO|COMISSÃO|MARGEM|CONTRATOS|CONTRATO|CLIENTES|CARTEIRA|INSTALADORES|INSTALADOR|TECNICOS|TÉCNICOS|INSTALACAO|INSTALAÇÃO|INSTALACOES|INSTALAÇÕES|AGENDAMENTO|RASTREADOR|TRAJETO|TRAJETOS|USUARIO|USUARIOS|USUÁRIO|USUÁRIOS|TESTE|TESTES|DEGUSTACAO|DEGUSTAÇÃO|TESTAR|EXPERIMENTAR|TESTE GRATIS|TESTE GRÁTIS|QUERO TESTAR|DEGUSTAR|#TESTE|\/TESTE|!TESTE|REVALIDA|REVALIDAR|REVALIDACAO|REVALIDAÇÃO|#REVALIDA|\/REVALIDA|!REVALIDA|PARAM|PARAMETROS|PARÂMETROS|PIX|RESET|REINICIAR|DYD|HFYD)(\s|$)/i;
 
 /**
  * Envia comando de hardware para o gateway TCP do rastreador
@@ -3570,6 +3570,350 @@ export async function processarMensagemWhatsappRecebida(
         }
       }
     };
+
+    // ── FLUXO INTERATIVO DE RELATÓRIO DE TRAJETO EM PDF (TRAJETO / TRAJETOS) ──
+    if (sessaoAtiva.fluxo === "selecao_trajeto") {
+      const dadosTj = sessaoAtiva.dados || sessaoAtiva.dados_temporarios || {};
+      const etapaTj = sessaoAtiva.etapa || "aguardando_dia_inicio";
+      const respTrim = textoLimpo.trim();
+
+      if (respTrim === "0" || textoUpper === "CANCELAR") {
+        await excluirSessaoAtiva();
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "trajeto_cancelado",
+          resposta: "❌ Consulta de trajeto cancelada.",
+        };
+      }
+
+      const gerarEEnviarPdfTrajeto = async (
+        veic: any,
+        inicioIso: string,
+        fimIso: string,
+        ciclosSelecionados: any[],
+      ) => {
+        await excluirSessaoAtiva();
+        const { jsPDF } = await import("jspdf");
+        const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+        const fmtBr = (iso: string) =>
+          new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+
+        doc.setFontSize(16);
+        doc.text("GD Rastreamento - Relatorio de Trajeto", 14, 18);
+        doc.setFontSize(10);
+        doc.text(`Veiculo: ${veic.marca_modelo || "Veiculo"} | Placa: ${veic.placa}`, 14, 26);
+        doc.text(`Periodo: ${fmtBr(inicioIso)} ate ${fmtBr(fimIso)}`, 14, 32);
+
+        let totalKm = 0;
+        let velMax = 0;
+        let y = 42;
+        doc.setFontSize(9);
+        for (const c of ciclosSelecionados) {
+          const km = Number(c.distancia_km || 0);
+          const vm = Number(c.velocidade_max_kmh || 0);
+          totalKm += km;
+          if (vm > velMax) velMax = vm;
+          const linha = `• ${fmtBr(c.inicio_em)} -> ${c.fim_em ? fmtBr(c.fim_em) : "Em andamento"} | ${km.toFixed(1)} km | Max: ${Math.round(vm)} km/h`;
+          doc.text(linha, 14, y);
+          y += 6;
+          if (y > 275) {
+            doc.addPage();
+            y = 18;
+          }
+        }
+        doc.setFontSize(11);
+        doc.text(
+          `Resumo: ${ciclosSelecionados.length} ciclo(s) | Distancia Total: ${totalKm.toFixed(1)} km | Vel. Maxima: ${Math.round(velMax)} km/h`,
+          14,
+          Math.min(y + 6, 285),
+        );
+
+        const dataUri = doc.output("datauristring");
+        const base64Pdf = dataUri.includes(",") ? dataUri.split(",")[1] : dataUri;
+        const nomeArq = `Trajeto_${veic.placa}_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+        const tokenGw =
+          (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
+          "hunter-guardiao-whatsapp-secret-key-2026";
+        const gwBase = (gatewayUrl || "https://gps.oficial.tec.br/gd/whatsapp").replace(/\/+$/, "");
+        await fetch(`${gwBase}/api/v1/messages/send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${tokenGw}`,
+            "X-Hunter-Token": tokenGw,
+          },
+          body: JSON.stringify({
+            recipient: remetenteLimpo,
+            message: `🗺️ *Relatório de Trajeto — ${veic.placa}* (${totalKm.toFixed(1)} km)`,
+            documento: {
+              nome: nomeArq,
+              base64: base64Pdf,
+              mimetype: "application/pdf",
+            },
+          }),
+        }).catch(() => {});
+
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "trajeto_pdf_enviado",
+          resposta: `📄 *Relatório de Trajeto (${veic.placa})* gerado e enviado em PDF! (${ciclosSelecionados.length} ciclo(s), ${totalKm.toFixed(1)} km).`,
+        };
+      };
+
+      const ciclos: any[] = dadosTj.ciclos || [];
+      const veic = dadosTj.veiculo || {};
+
+      if (etapaTj === "aguardando_dia_inicio") {
+        const dias: string[] = dadosTj.diasInicio || [];
+        const idx = parseInt(respTrim, 10) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= dias.length) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_dia_invalido",
+            resposta: `⚠️ Opção inválida. Envie de *1* a *${dias.length}* (ou *0* para cancelar).`,
+          };
+        }
+        const diaInicio = dias[idx];
+        const ciclosDia = ciclos.filter(
+          (c) =>
+            new Date(c.inicio_em).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) ===
+            diaInicio,
+        );
+        if (ciclosDia.length === 1) {
+          const inicioSel = ciclosDia[0].inicio_em;
+          const diasFim = Array.from(
+            new Set(
+              ciclos
+                .filter((c) => new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime())
+                .map((c) =>
+                  new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
+                    timeZone: "America/Sao_Paulo",
+                  }),
+                ),
+            ),
+          );
+          if (diasFim.length <= 1) {
+            const diaFim = diasFim[0] || diaInicio;
+            const fins = ciclos.filter(
+              (c) =>
+                new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
+                new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                }) === diaFim,
+            );
+            if (fins.length <= 1) {
+              return await gerarEEnviarPdfTrajeto(
+                veic,
+                inicioSel,
+                fins[0]?.fim_em || fins[0]?.inicio_em || inicioSel,
+                fins.length > 0 ? fins : ciclosDia,
+              );
+            }
+            await salvarAtualizacaoSessao("aguardando_fim_ciclo", {
+              ...dadosTj,
+              diaInicio,
+              inicioSel,
+              diaFim,
+              fins,
+            });
+            return {
+              sucesso: true,
+              destinatario: remetenteLimpo,
+              acaoExecutada: "trajeto_listar_fins",
+              resposta:
+                `🏁 *Escolha o Fim do Ciclo (${diaFim}):*\n\n` +
+                fins
+                  .map(
+                    (c: any, i: number) =>
+                      `${i + 1}. ${new Date(c.fim_em || c.inicio_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })} (${Number(c.distancia_km || 0).toFixed(1)} km)`,
+                  )
+                  .join("\n") +
+                "\n0. Cancelar",
+            };
+          }
+          await salvarAtualizacaoSessao("aguardando_dia_fim", {
+            ...dadosTj,
+            diaInicio,
+            inicioSel,
+            diasFim,
+          });
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_listar_dias_fim",
+            resposta:
+              `📅 *Escolha a Data Final:*\n\n` +
+              diasFim.map((d, i) => `${i + 1}. ${d}`).join("\n") +
+              "\n0. Cancelar",
+          };
+        }
+
+        await salvarAtualizacaoSessao("aguardando_inicio_ciclo", {
+          ...dadosTj,
+          diaInicio,
+          ciclosDia,
+        });
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "trajeto_listar_inicios",
+          resposta:
+            `🕒 *Inícios de Ciclo em ${diaInicio} — Escolha:*\n\n` +
+            ciclosDia
+              .map(
+                (c: any, i: number) =>
+                  `${i + 1}. ${new Date(c.inicio_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })} (${Number(c.distancia_km || 0).toFixed(1)} km)`,
+              )
+              .join("\n") +
+            "\n0. Cancelar",
+        };
+      }
+
+      if (etapaTj === "aguardando_inicio_ciclo") {
+        const ciclosDia: any[] = dadosTj.ciclosDia || [];
+        const idx = parseInt(respTrim, 10) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= ciclosDia.length) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_inicio_invalido",
+            resposta: `⚠️ Opção inválida. Envie de *1* a *${ciclosDia.length}* (ou *0* para cancelar).`,
+          };
+        }
+        const inicioSel = ciclosDia[idx].inicio_em;
+        const diasFim = Array.from(
+          new Set(
+            ciclos
+              .filter((c) => new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime())
+              .map((c) =>
+                new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                }),
+              ),
+          ),
+        );
+        if (diasFim.length <= 1) {
+          const diaFim = diasFim[0] || dadosTj.diaInicio;
+          const fins = ciclos.filter(
+            (c) =>
+              new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
+              new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
+                timeZone: "America/Sao_Paulo",
+              }) === diaFim,
+          );
+          if (fins.length <= 1) {
+            const fimIso = fins[0]?.fim_em || fins[0]?.inicio_em || inicioSel;
+            return await gerarEEnviarPdfTrajeto(
+              veic,
+              inicioSel,
+              fimIso,
+              fins.length ? fins : [ciclosDia[idx]],
+            );
+          }
+          await salvarAtualizacaoSessao("aguardando_fim_ciclo", {
+            ...dadosTj,
+            inicioSel,
+            diaFim,
+            fins,
+          });
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_listar_fins",
+            resposta:
+              `🏁 *Escolha o Fim do Ciclo (${diaFim}):*\n\n` +
+              fins
+                .map(
+                  (c: any, i: number) =>
+                    `${i + 1}. ${new Date(c.fim_em || c.inicio_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })} (${Number(c.distancia_km || 0).toFixed(1)} km)`,
+                )
+                .join("\n") +
+              "\n0. Cancelar",
+          };
+        }
+        await salvarAtualizacaoSessao("aguardando_dia_fim", { ...dadosTj, inicioSel, diasFim });
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "trajeto_listar_dias_fim",
+          resposta:
+            `📅 *Escolha a Data Final:*\n\n` +
+            diasFim.map((d, i) => `${i + 1}. ${d}`).join("\n") +
+            "\n0. Cancelar",
+        };
+      }
+
+      if (etapaTj === "aguardando_dia_fim") {
+        const diasFim: string[] = dadosTj.diasFim || [];
+        const idx = parseInt(respTrim, 10) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= diasFim.length) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_dia_fim_invalido",
+            resposta: `⚠️ Opção inválida. Envie de *1* a *${diasFim.length}* (ou *0* para cancelar).`,
+          };
+        }
+        const diaFim = diasFim[idx];
+        const inicioSel = dadosTj.inicioSel;
+        const fins = ciclos.filter(
+          (c) =>
+            new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
+            new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
+              timeZone: "America/Sao_Paulo",
+            }) === diaFim,
+        );
+        if (fins.length <= 1) {
+          const fimIso = fins[0]?.fim_em || fins[0]?.inicio_em || inicioSel;
+          const selecionados = ciclos.filter(
+            (c) =>
+              new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
+              new Date(c.fim_em || c.inicio_em).getTime() <= new Date(fimIso).getTime(),
+          );
+          return await gerarEEnviarPdfTrajeto(veic, inicioSel, fimIso, selecionados);
+        }
+        await salvarAtualizacaoSessao("aguardando_fim_ciclo", { ...dadosTj, diaFim, fins });
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "trajeto_listar_fins",
+          resposta:
+            `🏁 *Escolha o Fim do Ciclo (${diaFim}):*\n\n` +
+            fins
+              .map(
+                (c: any, i: number) =>
+                  `${i + 1}. ${new Date(c.fim_em || c.inicio_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })} (${Number(c.distancia_km || 0).toFixed(1)} km)`,
+              )
+              .join("\n") +
+            "\n0. Cancelar",
+        };
+      }
+
+      if (etapaTj === "aguardando_fim_ciclo") {
+        const fins: any[] = dadosTj.fins || [];
+        const idx = parseInt(respTrim, 10) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= fins.length) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_fim_invalido",
+            resposta: `⚠️ Opção inválida. Envie de *1* a *${fins.length}* (ou *0* para cancelar).`,
+          };
+        }
+        const fimIso = fins[idx].fim_em || fins[idx].inicio_em;
+        const inicioSel = dadosTj.inicioSel;
+        const selecionados = ciclos.filter(
+          (c) =>
+            new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
+            new Date(c.fim_em || c.inicio_em).getTime() <= new Date(fimIso).getTime(),
+        );
+        return await gerarEEnviarPdfTrajeto(veic, inicioSel, fimIso, selecionados);
+      }
+    }
 
     // ── FLUXO INTERATIVO DE SELEÇÃO DE USUÁRIO (USUARIO / USUARIOS — EXCLUSIVO SUPERADM) ──
     if (sessaoAtiva.fluxo === "selecao_usuario") {
@@ -7474,6 +7818,20 @@ export async function processarMensagemWhatsappRecebida(
           "👥 *Usuários do Sistema — Escolha o Usuário:*\n\n" +
           linhasU.join("\n") +
           "\n0. Cancelar\n\nEnvie o número do usuário (ou *0* para cancelar).",
+      };
+    }
+
+    // 4.36. Relatório de Trajeto em PDF (TRAJETO / TRAJETOS)
+    if (textoUpper === "TRAJETO" || textoUpper === "TRAJETOS") {
+      if (isAdmOuOperador) {
+        const resSel = await iniciarSelecaoClienteOuVeiculoAdm("TRAJETO" as any, "🗺️ *Trajeto");
+        if (resSel) return resSel;
+      }
+      return {
+        sucesso: true,
+        destinatario: remetenteLimpo,
+        acaoExecutada: "trajeto_indisponivel",
+        resposta: "⚠️ Nenhum veículo disponível para gerar relatório de trajeto.",
       };
     }
 
