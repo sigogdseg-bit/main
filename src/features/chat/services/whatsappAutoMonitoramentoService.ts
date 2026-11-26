@@ -3595,39 +3595,116 @@ export async function processarMensagemWhatsappRecebida(
       ) => {
         await excluirSessaoAtiva();
         const { jsPDF } = await import("jspdf");
+        const autoTableModule = await import("jspdf-autotable");
+        const autoTable = autoTableModule.default || (autoTableModule as any);
         const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
         const fmtBr = (iso: string) =>
           new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+        const fmtHora = (iso: string) =>
+          new Date(iso).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "America/Sao_Paulo",
+          });
 
-        doc.setFontSize(16);
-        doc.text("GD Rastreamento - Relatorio de Trajeto", 14, 18);
+        // Cabeçalho Institucional Hunter (mesmo padrão do módulo Trajeto)
+        doc.setFillColor(15, 23, 42);
+        doc.rect(0, 0, doc.internal.pageSize.width, 26, "F");
+        doc.setFillColor(16, 185, 129);
+        doc.rect(0, 24, doc.internal.pageSize.width, 2, "F");
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text("GD RASTREAMENTO — LAUDO DE TELEMETRIA E HISTÓRICO VEICULAR", 14, 11);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(148, 163, 184);
+        doc.text("SISTEMA CANÔNICO DE AUDITORIA E PERCURSO VEICULAR", 14, 17);
+
+        doc.setTextColor(30, 41, 59);
         doc.setFontSize(10);
-        doc.text(`Veiculo: ${veic.marca_modelo || "Veiculo"} | Placa: ${veic.placa}`, 14, 26);
-        doc.text(`Periodo: ${fmtBr(inicioIso)} ate ${fmtBr(fimIso)}`, 14, 32);
+        doc.setFont("helvetica", "bold");
+        doc.text("DADOS DO VEÍCULO E PERÍODO", 14, 34);
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "normal");
+        doc.text(`Placa: ${veic.placa} | Modelo: ${veic.marca_modelo || "Veículo"}`, 14, 40);
+        doc.text(`Período: ${fmtBr(inicioIso)} até ${fmtBr(fimIso)}`, 14, 45);
 
         let totalKm = 0;
         let velMax = 0;
-        let y = 42;
-        doc.setFontSize(9);
+        let somaVelMed = 0;
         for (const c of ciclosSelecionados) {
-          const km = Number(c.distancia_km || 0);
-          const vm = Number(c.velocidade_max_kmh || 0);
+          const km = Number(c.km_percorrido ?? c.distancia_km ?? 0);
+          const vm = Number(c.velocidade_maxima ?? c.velocidade_max_kmh ?? 0);
+          const vmed = Number(c.velocidade_media ?? 0);
           totalKm += km;
           if (vm > velMax) velMax = vm;
-          const linha = `• ${fmtBr(c.inicio_em)} -> ${c.fim_em ? fmtBr(c.fim_em) : "Em andamento"} | ${km.toFixed(1)} km | Max: ${Math.round(vm)} km/h`;
-          doc.text(linha, 14, y);
-          y += 6;
-          if (y > 275) {
-            doc.addPage();
-            y = 18;
-          }
+          somaVelMed += vmed;
         }
-        doc.setFontSize(11);
-        doc.text(
-          `Resumo: ${ciclosSelecionados.length} ciclo(s) | Distancia Total: ${totalKm.toFixed(1)} km | Vel. Maxima: ${Math.round(velMax)} km/h`,
-          14,
-          Math.min(y + 6, 285),
-        );
+        const velMediaGeral =
+          ciclosSelecionados.length > 0 ? Math.round(somaVelMed / ciclosSelecionados.length) : 0;
+
+        // Cards KPI (Infográfico)
+        const cards = [
+          {
+            label: "DISTÂNCIA TOTAL",
+            valor: `${totalKm.toFixed(1)} km`,
+            cor: [234, 88, 12] as [number, number, number],
+          },
+          {
+            label: "CICLOS",
+            valor: `${ciclosSelecionados.length}`,
+            cor: [15, 23, 42] as [number, number, number],
+          },
+          {
+            label: "VEL. MÉDIA",
+            valor: `${velMediaGeral} km/h`,
+            cor: [15, 23, 42] as [number, number, number],
+          },
+          {
+            label: "VEL. MÁXIMA",
+            valor: `${Math.round(velMax)} km/h`,
+            cor: [217, 119, 6] as [number, number, number],
+          },
+        ];
+        const cardW = 43.5;
+        const cardH = 14;
+        const gap = 2.6;
+        cards.forEach((c, idx) => {
+          const x = 14 + idx * (cardW + gap);
+          const y = 50;
+          doc.setFillColor(248, 250, 252);
+          doc.setDrawColor(203, 213, 225);
+          doc.setLineWidth(0.3);
+          doc.roundedRect(x, y, cardW, cardH, 1.5, 1.5, "FD");
+          doc.setFontSize(6.5);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(100, 116, 139);
+          doc.text(c.label, x + 3, y + 5);
+          doc.setFontSize(10);
+          doc.setTextColor(c.cor[0], c.cor[1], c.cor[2]);
+          doc.text(c.valor, x + 3, y + 11.5);
+        });
+
+        const rowsCiclos = ciclosSelecionados.map((v: any) => [
+          fmtHora(v.inicio_at || v.inicio_em),
+          v.fim_at || v.fim_em ? fmtHora(v.fim_at || v.fim_em) : "Em rota",
+          `${Number(v.km_percorrido ?? v.distancia_km ?? 0).toFixed(1)} km`,
+          `${Math.round(Number(v.velocidade_media ?? 0))} km/h`,
+          `${Math.round(Number(v.velocidade_maxima ?? v.velocidade_max_kmh ?? 0))} km/h`,
+        ]);
+
+        autoTable(doc, {
+          startY: 70,
+          head: [
+            ["Saída (Ignição ON)", "Chegada (Ignição OFF)", "Distância", "Vel. Média", "Vel. Máx"],
+          ],
+          body: rowsCiclos,
+          theme: "striped",
+          headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
+          styles: { fontSize: 8 },
+        });
 
         const dataUri = doc.output("datauristring");
         const base64Pdf = dataUri.includes(",") ? dataUri.split(",")[1] : dataUri;
@@ -3663,8 +3740,14 @@ export async function processarMensagemWhatsappRecebida(
         };
       };
 
-      const ciclos: any[] = dadosTj.ciclos || [];
       const veic = dadosTj.veiculo || {};
+      const toIsoRangeBr = (ddmmyyyy: string) => {
+        const [dd, mm, yyyy] = ddmmyyyy.split("/");
+        return {
+          start: `${yyyy}-${mm}-${dd}T00:00:00-03:00`,
+          end: `${yyyy}-${mm}-${dd}T23:59:59-03:00`,
+        };
+      };
 
       if (etapaTj === "aguardando_dia_inicio") {
         const matchData = respTrim.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
@@ -3678,106 +3761,60 @@ export async function processarMensagemWhatsappRecebida(
           };
         }
         const diaInicio = respTrim;
-        const ciclosDia = ciclos.filter(
-          (c) =>
-            new Date(c.inicio_em).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) ===
-            diaInicio,
-        );
+        const { start, end } = toIsoRangeBr(diaInicio);
+        const { data: saidasRaw } = await supabase
+          .from("viagens_veiculos")
+          .select("*")
+          .eq("veiculo_id", veic.id)
+          .gte("inicio_at", start)
+          .lte("inicio_at", end)
+          .order("inicio_at", { ascending: true });
+        const ciclosDia = saidasRaw || [];
         if (ciclosDia.length === 0) {
           return {
             sucesso: true,
             destinatario: remetenteLimpo,
             acaoExecutada: "trajeto_dia_sem_ciclos",
-            resposta: `⚠️ Nenhum ciclo encontrado para *${diaInicio}*. Digite outra data (*DD/MM/AAAA*) ou *0* para cancelar.`,
+            resposta: `⚠️ Nenhuma saída (início de ciclo) encontrada em *${diaInicio}*. Digite outra data (*DD/MM/AAAA*) ou *0* para cancelar.`,
           };
         }
         if (ciclosDia.length === 1) {
-          const inicioSel = ciclosDia[0].inicio_em;
-          const diasFim = Array.from(
-            new Set(
-              ciclos
-                .filter((c) => new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime())
-                .map((c) =>
-                  new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
-                    timeZone: "America/Sao_Paulo",
-                  }),
-                ),
-            ),
-          );
-          if (diasFim.length <= 1) {
-            const diaFim = diasFim[0] || diaInicio;
-            const fins = ciclos.filter(
-              (c) =>
-                new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
-                new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
-                  timeZone: "America/Sao_Paulo",
-                }) === diaFim,
-            );
-            if (fins.length <= 1) {
-              return await gerarEEnviarPdfTrajeto(
-                veic,
-                inicioSel,
-                fins[0]?.fim_em || fins[0]?.inicio_em || inicioSel,
-                fins.length > 0 ? fins : ciclosDia,
-              );
-            }
-            await salvarAtualizacaoSessao("aguardando_fim_ciclo", {
-              ...dadosTj,
-              diaInicio,
-              inicioSel,
-              diaFim,
-              fins,
-            });
-            return {
-              sucesso: true,
-              destinatario: remetenteLimpo,
-              acaoExecutada: "trajeto_listar_fins",
-              resposta:
-                `🏁 *Escolha o Fim do Ciclo (${diaFim}):*\n\n` +
-                fins
-                  .map(
-                    (c: any, i: number) =>
-                      `${i + 1}. ${new Date(c.fim_em || c.inicio_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })} (${Number(c.distancia_km || 0).toFixed(1)} km)`,
-                  )
-                  .join("\n") +
-                "\n0. Cancelar",
-            };
-          }
+          const inicioSel = ciclosDia[0].inicio_at;
           await salvarAtualizacaoSessao("aguardando_dia_fim", {
             ...dadosTj,
             diaInicio,
             inicioSel,
-            diasFim,
           });
           return {
             sucesso: true,
             destinatario: remetenteLimpo,
-            acaoExecutada: "trajeto_listar_dias_fim",
+            acaoExecutada: "trajeto_aguardando_dia_fim",
             resposta:
-              `📅 *Escolha a Data Final:*\n\n` +
-              diasFim.map((d, i) => `${i + 1}. ${d}`).join("\n") +
-              "\n0. Cancelar",
+              `📅 *Data Final — ${veic.placa}*\n\n` +
+              `1. Usar a mesma data de início (*${diaInicio}*)\n\n` +
+              `Ou digite a *data final* no formato *DD/MM/AAAA* (ex: 25/11/2026) ou *0* para cancelar.`,
           };
         }
-
         await salvarAtualizacaoSessao("aguardando_inicio_ciclo", {
           ...dadosTj,
           diaInicio,
           ciclosDia,
+        });
+        const linhas = ciclosDia.map((c: any, i: number) => {
+          const hr = new Date(c.inicio_at).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "America/Sao_Paulo",
+          });
+          return `${i + 1}. ${hr} — ${Number(c.km_percorrido || 0).toFixed(1)} km`;
         });
         return {
           sucesso: true,
           destinatario: remetenteLimpo,
           acaoExecutada: "trajeto_listar_inicios",
           resposta:
-            `🕒 *Inícios de Ciclo em ${diaInicio} — Escolha:*\n\n` +
-            ciclosDia
-              .map(
-                (c: any, i: number) =>
-                  `${i + 1}. ${new Date(c.inicio_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })} (${Number(c.distancia_km || 0).toFixed(1)} km)`,
-              )
-              .join("\n") +
-            "\n0. Cancelar",
+            `📍 *Inícios de Ciclo em ${diaInicio} (${veic.placa}):*\n\n` +
+            `${linhas.join("\n")}\n0. Cancelar\n\nResponda com o número do início.`,
         };
       }
 
@@ -3792,120 +3829,78 @@ export async function processarMensagemWhatsappRecebida(
             resposta: `⚠️ Opção inválida. Envie de *1* a *${ciclosDia.length}* (ou *0* para cancelar).`,
           };
         }
-        const inicioSel = ciclosDia[idx].inicio_em;
-        const diasFim = Array.from(
-          new Set(
-            ciclos
-              .filter((c) => new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime())
-              .map((c) =>
-                new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
-                  timeZone: "America/Sao_Paulo",
-                }),
-              ),
-          ),
-        );
-        if (diasFim.length <= 1) {
-          const diaFim = diasFim[0] || dadosTj.diaInicio;
-          const fins = ciclos.filter(
-            (c) =>
-              new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
-              new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
-                timeZone: "America/Sao_Paulo",
-              }) === diaFim,
-          );
-          if (fins.length <= 1) {
-            const fimIso = fins[0]?.fim_em || fins[0]?.inicio_em || inicioSel;
-            return await gerarEEnviarPdfTrajeto(
-              veic,
-              inicioSel,
-              fimIso,
-              fins.length ? fins : [ciclosDia[idx]],
-            );
-          }
-          await salvarAtualizacaoSessao("aguardando_fim_ciclo", {
-            ...dadosTj,
-            inicioSel,
-            diaFim,
-            fins,
-          });
-          return {
-            sucesso: true,
-            destinatario: remetenteLimpo,
-            acaoExecutada: "trajeto_listar_fins",
-            resposta:
-              `🏁 *Escolha o Fim do Ciclo (${diaFim}):*\n\n` +
-              fins
-                .map(
-                  (c: any, i: number) =>
-                    `${i + 1}. ${new Date(c.fim_em || c.inicio_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })} (${Number(c.distancia_km || 0).toFixed(1)} km)`,
-                )
-                .join("\n") +
-              "\n0. Cancelar",
-          };
-        }
-        await salvarAtualizacaoSessao("aguardando_dia_fim", { ...dadosTj, inicioSel, diasFim });
+        const inicioSel = ciclosDia[idx].inicio_at;
+        await salvarAtualizacaoSessao("aguardando_dia_fim", {
+          ...dadosTj,
+          inicioSel,
+        });
         return {
           sucesso: true,
           destinatario: remetenteLimpo,
-          acaoExecutada: "trajeto_listar_dias_fim",
+          acaoExecutada: "trajeto_aguardando_dia_fim",
           resposta:
-            `📅 *Escolha a Data Final:*\n\n` +
-            diasFim.map((d, i) => `${i + 1}. ${d}`).join("\n") +
-            "\n0. Cancelar",
+            `📅 *Data Final — ${veic.placa}*\n\n` +
+            `1. Usar a mesma data de início (*${dadosTj.diaInicio}*)\n\n` +
+            `Ou digite a *data final* no formato *DD/MM/AAAA* (ex: 25/11/2026) ou *0* para cancelar.`,
         };
       }
 
       if (etapaTj === "aguardando_dia_fim") {
-        const matchFim = respTrim.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-        if (!matchFim) {
+        const diaFim = respTrim === "1" && dadosTj.diaInicio ? String(dadosTj.diaInicio) : respTrim;
+        if (!/^(\d{2})\/(\d{2})\/(\d{4})$/.test(diaFim)) {
           return {
             sucesso: true,
             destinatario: remetenteLimpo,
             acaoExecutada: "trajeto_dia_fim_invalido",
-            resposta:
-              "⚠️ Data inválida. Digite a data final no formato *DD/MM/AAAA* (ex: 25/11/2026) ou *0* para cancelar.",
+            resposta: `⚠️ Data inválida. Envie *1* para usar *${dadosTj.diaInicio}*, digite a data final (*DD/MM/AAAA*), ou *0* para cancelar.`,
           };
         }
-        const diaFim = respTrim;
         const inicioSel = dadosTj.inicioSel;
-        const fins = ciclos.filter(
-          (c) =>
-            new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
-            new Date(c.fim_em || c.inicio_em).toLocaleDateString("pt-BR", {
-              timeZone: "America/Sao_Paulo",
-            }) === diaFim,
-        );
+        const { start, end } = toIsoRangeBr(diaFim);
+        const { data: finsRaw } = await supabase
+          .from("viagens_veiculos")
+          .select("*")
+          .eq("veiculo_id", veic.id)
+          .gte("inicio_at", inicioSel)
+          .gte("fim_at", start)
+          .lte("fim_at", end)
+          .order("fim_at", { ascending: true });
+        const fins = finsRaw || [];
         if (fins.length === 0) {
           return {
             sucesso: true,
             destinatario: remetenteLimpo,
             acaoExecutada: "trajeto_dia_fim_sem_ciclos",
-            resposta: `⚠️ Nenhum fim de ciclo encontrado para *${diaFim}*. Digite outra data (*DD/MM/AAAA*) ou *0* para cancelar.`,
+            resposta: `⚠️ Nenhuma chegada (término de ciclo) encontrada em *${diaFim}*. Digite outra data (*DD/MM/AAAA*), *1* para usar *${dadosTj.diaInicio}*, ou *0* para cancelar.`,
           };
         }
-        if (fins.length <= 1) {
-          const fimIso = fins[0]?.fim_em || fins[0]?.inicio_em || inicioSel;
-          const selecionados = ciclos.filter(
-            (c) =>
-              new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
-              new Date(c.fim_em || c.inicio_em).getTime() <= new Date(fimIso).getTime(),
-          );
-          return await gerarEEnviarPdfTrajeto(veic, inicioSel, fimIso, selecionados);
+        if (fins.length === 1) {
+          const fimIso = fins[0].fim_at || fins[0].inicio_at || inicioSel;
+          const { data: selRaw } = await supabase
+            .from("viagens_veiculos")
+            .select("*")
+            .eq("veiculo_id", veic.id)
+            .gte("inicio_at", inicioSel)
+            .lte("inicio_at", fimIso)
+            .order("inicio_at", { ascending: true });
+          return await gerarEEnviarPdfTrajeto(veic, inicioSel, fimIso, selRaw || fins);
         }
         await salvarAtualizacaoSessao("aguardando_fim_ciclo", { ...dadosTj, diaFim, fins });
+        const linhasF = fins.map((c: any, i: number) => {
+          const hr = new Date(c.fim_at || c.inicio_at).toLocaleTimeString("pt-BR", {
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "America/Sao_Paulo",
+          });
+          return `${i + 1}. ${hr} — ${Number(c.km_percorrido || 0).toFixed(1)} km`;
+        });
         return {
           sucesso: true,
           destinatario: remetenteLimpo,
           acaoExecutada: "trajeto_listar_fins",
           resposta:
-            `🏁 *Escolha o Fim do Ciclo (${diaFim}):*\n\n` +
-            fins
-              .map(
-                (c: any, i: number) =>
-                  `${i + 1}. ${new Date(c.fim_em || c.inicio_em).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })} (${Number(c.distancia_km || 0).toFixed(1)} km)`,
-              )
-              .join("\n") +
-            "\n0. Cancelar",
+            `🏁 *Términos de Ciclo em ${diaFim} (${veic.placa}):*\n\n` +
+            `${linhasF.join("\n")}\n0. Cancelar\n\nResponda com o número do término.`,
         };
       }
 
@@ -3920,14 +3915,16 @@ export async function processarMensagemWhatsappRecebida(
             resposta: `⚠️ Opção inválida. Envie de *1* a *${fins.length}* (ou *0* para cancelar).`,
           };
         }
-        const fimIso = fins[idx].fim_em || fins[idx].inicio_em;
         const inicioSel = dadosTj.inicioSel;
-        const selecionados = ciclos.filter(
-          (c) =>
-            new Date(c.inicio_em).getTime() >= new Date(inicioSel).getTime() &&
-            new Date(c.fim_em || c.inicio_em).getTime() <= new Date(fimIso).getTime(),
-        );
-        return await gerarEEnviarPdfTrajeto(veic, inicioSel, fimIso, selecionados);
+        const fimIso = fins[idx].fim_at || fins[idx].inicio_at || inicioSel;
+        const { data: selRaw } = await supabase
+          .from("viagens_veiculos")
+          .select("*")
+          .eq("veiculo_id", veic.id)
+          .gte("inicio_at", inicioSel)
+          .lte("inicio_at", fimIso)
+          .order("inicio_at", { ascending: true });
+        return await gerarEEnviarPdfTrajeto(veic, inicioSel, fimIso, selRaw || [fins[idx]]);
       }
     }
 
