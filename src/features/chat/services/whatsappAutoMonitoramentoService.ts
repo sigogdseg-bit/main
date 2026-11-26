@@ -3725,7 +3725,14 @@ export async function processarMensagemWhatsappRecebida(
                 Number.isFinite(Number(pt.latitude)) && Number.isFinite(Number(pt.longitude)),
             );
           }
-          if (pts.length >= 2) {
+          if (
+            pts.length === 0 &&
+            Number.isFinite(Number(veic.latitude)) &&
+            Number.isFinite(Number(veic.longitude))
+          ) {
+            pts = [{ latitude: Number(veic.latitude), longitude: Number(veic.longitude) }];
+          }
+          if (pts.length >= 1) {
             let minLat = Infinity,
               maxLat = -Infinity,
               minLng = Infinity,
@@ -8536,7 +8543,12 @@ export async function processarMensagemWhatsappRecebida(
           "• *BLOQUEIO SIM <PLACA>* — Protocolo de corte de combustível\n" +
           "• *DESBLOQUEIO SIM <PLACA>* — Liberação de combustível\n" +
           "• *STATUS* (ou *STATUS <PLACA>*) — Odômetro apurado e telemetria do veículo\n" +
-          "• *COMANDO <PLACA> <CMD>* — Envia comando direto ao rastreador (ex: COMANDO AXH0E44 STATUS#)\n\n" +
+          "• *TRAJETO* — Laudo oficial de telemetria e percurso em PDF (mapa 2D, ciclos e paradas)\n" +
+          "• *COMANDO <PLACA> <CMD>* — Envia comando direto ao rastreador (ex: COMANDO AXH0E44 STATUS#)\n" +
+          (isSuperAdm
+            ? "• *USUARIO* — Gestão de usuários (detalhes, reset de senha e bloqueio/desbloqueio)\n"
+            : "") +
+          "\n" +
           "💡 *Dica:* Em comandos como PAGAMENTOS, CONTRATOS e PROPOSTAS, envie apenas a palavra para o consolidado geral ou adicione o nome para filtrar.",
       };
     }
