@@ -3613,15 +3613,28 @@ export async function processarMensagemWhatsappRecebida(
         doc.setFillColor(16, 185, 129);
         doc.rect(0, 26, doc.internal.pageSize.width, 2, "F");
 
+        let offsetTextoX = 14;
+        try {
+          const logoResp = await fetch("https://gd.oficial.tec.br/logo.png");
+          if (logoResp.ok) {
+            const lBuf = await logoResp.arrayBuffer();
+            const lBytes = new Uint8Array(lBuf);
+            let lBin = "";
+            for (let i = 0; i < lBytes.length; i++) lBin += String.fromCharCode(lBytes[i]);
+            doc.addImage(btoa(lBin), "PNG", 8, 2, 24, 24);
+            offsetTextoX = 38;
+          }
+        } catch {}
+
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(13);
         doc.setFont("helvetica", "bold");
-        doc.text("GD RASTREAMENTO — LAUDO DE TELEMETRIA E HISTÓRICO VEICULAR", 14, 12);
+        doc.text("GD RASTREAMENTO — LAUDO DE TELEMETRIA E HISTÓRICO VEICULAR", offsetTextoX, 12);
         doc.setFontSize(8);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(148, 163, 184);
-        doc.text("SISTEMA CANÔNICO DE AUDITORIA E PERCURSO VEICULAR", 14, 18);
-        doc.text("Emissão Autenticada · Via WhatsApp", 14, 23);
+        doc.text("SISTEMA CANÔNICO DE AUDITORIA E PERCURSO VEICULAR", offsetTextoX, 18);
+        doc.text("Emissão Autenticada · Via WhatsApp", offsetTextoX, 23);
 
         doc.setTextColor(30, 41, 59);
         doc.setFontSize(10);
@@ -3667,6 +3680,90 @@ export async function processarMensagemWhatsappRecebida(
         const velMediaGeral =
           ciclosSelecionados.length > 0 ? Math.round(somaVelMed / ciclosSelecionados.length) : 0;
 
+        // Mapa 2D Georreferenciado (ArcGIS World_Street_Map + Polyline do Trajeto)
+        let yCursor = 51;
+        try {
+          const { data: ptsRaw } = await supabase
+            .from("posicoes_gps")
+            .select("latitude, longitude")
+            .eq("veiculo_id", veic.id)
+            .gte("data_hora", inicioIso)
+            .lte("data_hora", fimIso)
+            .order("data_hora", { ascending: true })
+            .limit(500);
+          const pts = (ptsRaw || []).filter(
+            (pt: any) =>
+              Number.isFinite(Number(pt.latitude)) && Number.isFinite(Number(pt.longitude)),
+          );
+          if (pts.length >= 2) {
+            let minLat = Infinity,
+              maxLat = -Infinity,
+              minLng = Infinity,
+              maxLng = -Infinity;
+            for (const pt of pts) {
+              const la = Number(pt.latitude),
+                ln = Number(pt.longitude);
+              if (la < minLat) minLat = la;
+              if (la > maxLat) maxLat = la;
+              if (ln < minLng) minLng = ln;
+              if (ln > maxLng) maxLng = ln;
+            }
+            const padLat = Math.max((maxLat - minLat) * 0.18, 0.004);
+            const padLng = Math.max((maxLng - minLng) * 0.18, 0.004);
+            minLat -= padLat;
+            maxLat += padLat;
+            minLng -= padLng;
+            maxLng += padLng;
+
+            const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&imageSR=4326&size=910,340&format=jpg&f=image`;
+            const mapResp = await fetch(mapUrl);
+            if (mapResp.ok) {
+              const buf = await mapResp.arrayBuffer();
+              const bytes = new Uint8Array(buf);
+              let bin = "";
+              for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+              const mapB64 = btoa(bin);
+              const mapX = 14,
+                mapY = 54,
+                mapW = 182,
+                mapH = 68;
+              doc.setFontSize(9);
+              doc.setFont("helvetica", "bold");
+              doc.setTextColor(15, 23, 42);
+              doc.text("REGISTRO FOTOGRÁFICO DO TRAJETO GEORREFERENCIADO", 14, 51);
+              doc.setDrawColor(203, 213, 225);
+              doc.setLineWidth(0.5);
+              doc.roundedRect(mapX - 0.5, mapY - 0.5, mapW + 1, mapH + 1, 1.5, 1.5, "S");
+              doc.addImage(mapB64, "JPEG", mapX, mapY, mapW, mapH);
+
+              const toX = (ln: number) => mapX + ((ln - minLng) / (maxLng - minLng)) * mapW;
+              const toY = (la: number) => mapY + ((maxLat - la) / (maxLat - minLat)) * mapH;
+              doc.setDrawColor(16, 185, 129);
+              doc.setLineWidth(1.1);
+              for (let i = 1; i < pts.length; i++) {
+                doc.line(
+                  toX(Number(pts[i - 1].longitude)),
+                  toY(Number(pts[i - 1].latitude)),
+                  toX(Number(pts[i].longitude)),
+                  toY(Number(pts[i].latitude)),
+                );
+              }
+              doc.setFillColor(34, 197, 94);
+              doc.circle(toX(Number(pts[0].longitude)), toY(Number(pts[0].latitude)), 1.8, "F");
+              doc.setFillColor(239, 68, 68);
+              doc.circle(
+                toX(Number(pts[pts.length - 1].longitude)),
+                toY(Number(pts[pts.length - 1].latitude)),
+                1.8,
+                "F",
+              );
+              yCursor = mapY + mapH + 6;
+            }
+          }
+        } catch {
+          // Fallback silencioso caso o serviço de mapa esteja indisponível
+        }
+
         const cards = [
           {
             label: "DISTÂNCIA TOTAL",
@@ -3694,7 +3791,7 @@ export async function processarMensagemWhatsappRecebida(
         const gap = 2.6;
         cards.forEach((c, idx) => {
           const x = 14 + idx * (cardW + gap);
-          const y = 51;
+          const y = yCursor;
           doc.setFillColor(248, 250, 252);
           doc.setDrawColor(203, 213, 225);
           doc.setLineWidth(0.3);
@@ -3717,7 +3814,7 @@ export async function processarMensagemWhatsappRecebida(
         ]);
 
         autoTable(doc, {
-          startY: 72,
+          startY: yCursor + 21,
           head: [
             ["Saída (Ignição ON)", "Chegada (Ignição OFF)", "Distância", "Vel. Média", "Vel. Máx"],
           ],
@@ -3726,6 +3823,49 @@ export async function processarMensagemWhatsappRecebida(
           headStyles: { fillColor: [15, 23, 42], textColor: [255, 255, 255] },
           styles: { fontSize: 8 },
         });
+
+        // Tabela 2: Paradas Intermediárias Detectadas (intervalos >= 5 min entre ciclos)
+        const paradasRows: string[][] = [];
+        for (let i = 0; i < ciclosSelecionados.length - 1; i++) {
+          const cAtual = ciclosSelecionados[i];
+          const cProx = ciclosSelecionados[i + 1];
+          const fimAtual = new Date(cAtual.fim_at || cAtual.fim_em || cAtual.inicio_at).getTime();
+          const iniProx = new Date(cProx.inicio_at || cProx.inicio_em).getTime();
+          const diffMin = Math.round((iniProx - fimAtual) / 60000);
+          if (diffMin >= 5) {
+            const h = Math.floor(diffMin / 60);
+            const m = diffMin % 60;
+            const durFmt = h > 0 ? `${h}h ${m}min` : `${m}min`;
+            const latP = Number(cAtual.destino_lat ?? cAtual.latitude_fim ?? 0);
+            const lngP = Number(cAtual.destino_lng ?? cAtual.longitude_fim ?? 0);
+            const coordStr = latP && lngP ? `${latP.toFixed(5)}, ${lngP.toFixed(5)}` : "-";
+            paradasRows.push([
+              `Parada ${paradasRows.length + 1}`,
+              fmtHora(cAtual.fim_at || cAtual.fim_em || cAtual.inicio_at),
+              fmtHora(cProx.inicio_at || cProx.inicio_em),
+              durFmt,
+              cAtual.endereco_destino || "Local registrado",
+              coordStr,
+            ]);
+          }
+        }
+        if (paradasRows.length > 0) {
+          const finalY = ((doc as any).lastAutoTable?.finalY || yCursor + 50) + 8;
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(15, 23, 42);
+          doc.text("PARADAS INTERMEDIÁRIAS DETECTADAS", 14, finalY);
+          autoTable(doc, {
+            startY: finalY + 4,
+            head: [
+              ["Parada", "Início", "Retomada", "Tempo Parado", "Endereço do Local", "Coordenadas"],
+            ],
+            body: paradasRows,
+            theme: "grid",
+            headStyles: { fillColor: [217, 119, 6], textColor: [255, 255, 255] },
+            styles: { fontSize: 7, cellPadding: 2 },
+          });
+        }
 
         const payloadIntegridade = `${veic.id}:${veic.placa}:${inicioIso}:${fimIso}:${ciclosSelecionados.length}`;
         const hashBuf = await crypto.subtle.digest(
