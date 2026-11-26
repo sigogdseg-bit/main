@@ -3912,20 +3912,22 @@ export async function processarMensagemWhatsappRecebida(
           minLng -= padLng;
           maxLng += padLng;
 
-          const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&imageSR=4326&size=1820,680&dpi=192&format=jpg&f=image`;
+          const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&imageSR=4326&size=1820,680&dpi=192&format=png32&f=image`;
           const mapResp = await fetch(mapUrl);
           if (mapResp.ok) {
             const buf = await mapResp.arrayBuffer();
             const bytes = new Uint8Array(buf);
             let bin = "";
             for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-            doc.addImage(btoa(bin), "JPEG", mapX, mapY, mapW, mapH);
+            doc.addImage(btoa(bin), "PNG", mapX, mapY, mapW, mapH);
           }
           const toX = (ln: number) => mapX + ((ln - minLng) / (maxLng - minLng)) * mapW;
           const toY = (la: number) => mapY + ((maxLat - la) / (maxLat - minLat)) * mapH;
           if (pts.length >= 2) {
             doc.setDrawColor(16, 185, 129);
-            doc.setLineWidth(1.1);
+            doc.setLineWidth(0.9);
+            doc.setLineCap("round");
+            doc.setLineJoin("round");
             for (let i = 1; i < pts.length; i++) {
               doc.line(
                 toX(pts[i - 1].longitude),
