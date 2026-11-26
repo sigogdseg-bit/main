@@ -3832,8 +3832,21 @@ export async function processarMensagemWhatsappRecebida(
         const velMediaGeral =
           ciclosSelecionados.length > 0 ? Math.round(somaVelMed / ciclosSelecionados.length) : 0;
 
-        // Mapa 2D Georreferenciado (ArcGIS World_Street_Map + Polyline do Trajeto)
-        let yCursor = 51;
+        // Mapa 2D Georreferenciado (sempre desenhado)
+        const mapX = 14,
+          mapY = 54,
+          mapW = 182,
+          mapH = 68;
+        doc.setFontSize(9);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 23, 42);
+        doc.text("REGISTRO FOTOGRÁFICO DO TRAJETO GEORREFERENCIADO", 14, 51);
+        doc.setFillColor(241, 245, 249);
+        doc.setDrawColor(203, 213, 225);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(mapX - 0.5, mapY - 0.5, mapW + 1, mapH + 1, 1.5, 1.5, "FD");
+        const yCursor = mapY + mapH + 6;
+
         try {
           let pts: Array<{ latitude: number; longitude: number }> = [];
           for (const c of ciclosSelecionados) {
@@ -3858,12 +3871,10 @@ export async function processarMensagemWhatsappRecebida(
               const oLn = Number(c.origem_lng ?? c.longitude_inicio);
               const dLa = Number(c.destino_lat ?? c.latitude_fim);
               const dLn = Number(c.destino_lng ?? c.longitude_fim);
-              if (Number.isFinite(oLa) && Number.isFinite(oLn) && (oLa !== 0 || oLn !== 0)) {
+              if (Number.isFinite(oLa) && Number.isFinite(oLn) && (oLa !== 0 || oLn !== 0))
                 pts.push({ latitude: oLa, longitude: oLn });
-              }
-              if (Number.isFinite(dLa) && Number.isFinite(dLn) && (dLa !== 0 || dLn !== 0)) {
+              if (Number.isFinite(dLa) && Number.isFinite(dLn) && (dLa !== 0 || dLn !== 0))
                 pts.push({ latitude: dLa, longitude: dLn });
-              }
             }
           }
           if (pts.length < 2) {
@@ -3880,81 +3891,64 @@ export async function processarMensagemWhatsappRecebida(
                 Number.isFinite(Number(pt.latitude)) && Number.isFinite(Number(pt.longitude)),
             );
           }
-          if (
-            pts.length === 0 &&
-            Number.isFinite(Number(veic.latitude)) &&
-            Number.isFinite(Number(veic.longitude))
-          ) {
-            pts = [{ latitude: Number(veic.latitude), longitude: Number(veic.longitude) }];
+          if (pts.length === 0) {
+            pts = [
+              {
+                latitude: Number(veic.latitude) || -22.5231,
+                longitude: Number(veic.longitude) || -44.1044,
+              },
+            ];
           }
-          if (pts.length >= 1) {
-            let minLat = Infinity,
-              maxLat = -Infinity,
-              minLng = Infinity,
-              maxLng = -Infinity;
-            for (const pt of pts) {
-              const la = Number(pt.latitude),
-                ln = Number(pt.longitude);
-              if (la < minLat) minLat = la;
-              if (la > maxLat) maxLat = la;
-              if (ln < minLng) minLng = ln;
-              if (ln > maxLng) maxLng = ln;
-            }
-            const padLat = Math.max((maxLat - minLat) * 0.18, 0.004);
-            const padLng = Math.max((maxLng - minLng) * 0.18, 0.004);
-            minLat -= padLat;
-            maxLat += padLat;
-            minLng -= padLng;
-            maxLng += padLng;
+          let minLat = Infinity,
+            maxLat = -Infinity,
+            minLng = Infinity,
+            maxLng = -Infinity;
+          for (const pt of pts) {
+            if (pt.latitude < minLat) minLat = pt.latitude;
+            if (pt.latitude > maxLat) maxLat = pt.latitude;
+            if (pt.longitude < minLng) minLng = pt.longitude;
+            if (pt.longitude > maxLng) maxLng = pt.longitude;
+          }
+          const padLat = Math.max((maxLat - minLat) * 0.18, 0.004);
+          const padLng = Math.max((maxLng - minLng) * 0.18, 0.004);
+          minLat -= padLat;
+          maxLat += padLat;
+          minLng -= padLng;
+          maxLng += padLng;
 
-            const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&imageSR=4326&size=910,340&format=jpg&f=image`;
-            const mapResp = await fetch(mapUrl);
-            if (mapResp.ok) {
-              const buf = await mapResp.arrayBuffer();
-              const bytes = new Uint8Array(buf);
-              let bin = "";
-              for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-              const mapB64 = btoa(bin);
-              const mapX = 14,
-                mapY = 54,
-                mapW = 182,
-                mapH = 68;
-              doc.setFontSize(9);
-              doc.setFont("helvetica", "bold");
-              doc.setTextColor(15, 23, 42);
-              doc.text("REGISTRO FOTOGRÁFICO DO TRAJETO GEORREFERENCIADO", 14, 51);
-              doc.setDrawColor(203, 213, 225);
-              doc.setLineWidth(0.5);
-              doc.roundedRect(mapX - 0.5, mapY - 0.5, mapW + 1, mapH + 1, 1.5, 1.5, "S");
-              doc.addImage(mapB64, "JPEG", mapX, mapY, mapW, mapH);
-
-              const toX = (ln: number) => mapX + ((ln - minLng) / (maxLng - minLng)) * mapW;
-              const toY = (la: number) => mapY + ((maxLat - la) / (maxLat - minLat)) * mapH;
-              doc.setDrawColor(16, 185, 129);
-              doc.setLineWidth(1.1);
-              for (let i = 1; i < pts.length; i++) {
-                doc.line(
-                  toX(Number(pts[i - 1].longitude)),
-                  toY(Number(pts[i - 1].latitude)),
-                  toX(Number(pts[i].longitude)),
-                  toY(Number(pts[i].latitude)),
-                );
-              }
-              doc.setFillColor(34, 197, 94);
-              doc.circle(toX(Number(pts[0].longitude)), toY(Number(pts[0].latitude)), 1.8, "F");
-              doc.setFillColor(239, 68, 68);
-              doc.circle(
-                toX(Number(pts[pts.length - 1].longitude)),
-                toY(Number(pts[pts.length - 1].latitude)),
-                1.8,
-                "F",
+          const mapUrl = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/export?bbox=${minLng},${minLat},${maxLng},${maxLat}&bboxSR=4326&imageSR=4326&size=910,340&format=jpg&f=image`;
+          const mapResp = await fetch(mapUrl);
+          if (mapResp.ok) {
+            const buf = await mapResp.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let bin = "";
+            for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+            doc.addImage(btoa(bin), "JPEG", mapX, mapY, mapW, mapH);
+          }
+          const toX = (ln: number) => mapX + ((ln - minLng) / (maxLng - minLng)) * mapW;
+          const toY = (la: number) => mapY + ((maxLat - la) / (maxLat - minLat)) * mapH;
+          if (pts.length >= 2) {
+            doc.setDrawColor(16, 185, 129);
+            doc.setLineWidth(1.1);
+            for (let i = 1; i < pts.length; i++) {
+              doc.line(
+                toX(pts[i - 1].longitude),
+                toY(pts[i - 1].latitude),
+                toX(pts[i].longitude),
+                toY(pts[i].latitude),
               );
-              yCursor = mapY + mapH + 6;
             }
           }
-        } catch {
-          // Fallback silencioso caso o serviço de mapa esteja indisponível
-        }
+          doc.setFillColor(34, 197, 94);
+          doc.circle(toX(pts[0].longitude), toY(pts[0].latitude), 1.8, "F");
+          doc.setFillColor(239, 68, 68);
+          doc.circle(
+            toX(pts[pts.length - 1].longitude),
+            toY(pts[pts.length - 1].latitude),
+            1.8,
+            "F",
+          );
+        } catch {}
 
         const cards = [
           {
