@@ -6941,14 +6941,23 @@ export async function processarMensagemWhatsappRecebida(
       const alvoPix = partes.length >= 2 ? partes[1].replace(/\W/g, "").toUpperCase() : "";
 
       if (!alvoPix) {
+        const { data: listaVeic } = await supabase
+          .from("veiculos")
+          .select("placa, marca_modelo, clientes(nome_razao_social)")
+          .order("placa", { ascending: true })
+          .limit(20);
+        const linhas = (listaVeic || []).map(
+          (v: any, idx: number) =>
+            `${idx + 1}. *${v.placa}* — ${v.marca_modelo || "Veículo"} (${v.clientes?.nome_razao_social || "Cliente"})\n   ↳ Envie: *PIX ${v.placa}*`,
+        );
         return {
           sucesso: true,
           destinatario: remetenteLimpo,
           acaoExecutada: "pix_adm_ajuda",
           resposta:
-            "💳 *Consulta e Geração de PIX — Gestão*\n\n" +
-            "Para consultar a fatura e gerar o código PIX Copia e Cola de um cliente, envie:\n" +
-            "*PIX <PLACA OU DOCUMENTO>* (ex: PIX AXH0E44)",
+            "💳 *Consulta e Geração de PIX — Escolha o Veículo/Cliente:*\n\n" +
+            (linhas.length > 0 ? linhas.join("\n") : "Nenhum veículo cadastrado encontrado.") +
+            "\n\nOu envie diretamente: *PIX <PLACA>*",
         };
       }
 
@@ -7149,13 +7158,37 @@ export async function processarMensagemWhatsappRecebida(
 
     // 7. Localização em Tempo Real (SuperADM e Operador)
     if (
+      textoUpper === "LOCALIZACAO" ||
+      textoUpper === "LOCALIZAÇÃO" ||
+      textoUpper === "ONDE ESTA" ||
+      textoUpper === "ONDE ESTÁ" ||
       textoUpper.startsWith("LOCALIZACAO ") ||
       textoUpper.startsWith("LOCALIZAÇÃO ") ||
       textoUpper.startsWith("ONDE ESTA ") ||
       textoUpper.startsWith("ONDE ESTÁ ")
     ) {
       const partes = textoLimpo.split(/\s+/);
-      const placaArg = partes[1].replace(/\W/g, "").toUpperCase();
+      const placaArg = partes[1] ? partes[1].replace(/\W/g, "").toUpperCase() : "";
+
+      if (!placaArg) {
+        const { data: listaVeic } = await supabase
+          .from("veiculos")
+          .select("placa, marca_modelo, clientes(nome_razao_social)")
+          .order("placa", { ascending: true })
+          .limit(20);
+        const linhas = (listaVeic || []).map(
+          (v: any, idx: number) =>
+            `${idx + 1}. *${v.placa}* — ${v.marca_modelo || "Veículo"} (${v.clientes?.nome_razao_social || "Cliente"})\n   ↳ Envie: *LOCALIZACAO ${v.placa}*`,
+        );
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "localizacao_lista_opcoes",
+          resposta:
+            "📍 *Localização em Tempo Real — Escolha o Veículo:*\n\n" +
+            (linhas.length > 0 ? linhas.join("\n") : "Nenhum veículo cadastrado encontrado."),
+        };
+      }
 
       const { data: vAlvo } = await supabase
         .from("veiculos")
