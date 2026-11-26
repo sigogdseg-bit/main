@@ -3864,53 +3864,24 @@ export async function processarMensagemWhatsappRecebida(
         doc.setLineWidth(0.5);
         doc.roundedRect(mapX - 0.5, mapY - 0.5, mapW + 1, mapH + 1, 1.5, 1.5, "FD");
         const yCursor = mapY + mapH + 6;
+        let pts: Array<{ latitude: number; longitude: number; timestamp?: string }> = [];
 
         try {
-          let pts: Array<{ latitude: number; longitude: number }> = [];
-          for (const c of ciclosSelecionados) {
-            const arr = Array.isArray(c.pontos)
-              ? c.pontos
-              : Array.isArray(c.pontos_rota)
-                ? c.pontos_rota
-                : Array.isArray(c.coordenadas)
-                  ? c.coordenadas
-                  : Array.isArray(c.rota)
-                    ? c.rota
-                    : [];
-            for (const item of arr) {
-              const la = Number(Array.isArray(item) ? item[0] : (item?.latitude ?? item?.lat));
-              const ln = Number(
-                Array.isArray(item) ? item[1] : (item?.longitude ?? item?.lng ?? item?.lon),
-              );
-              if (Number.isFinite(la) && Number.isFinite(ln) && (la !== 0 || ln !== 0)) {
-                pts.push({ latitude: la, longitude: ln });
-              }
-            }
-            if (arr.length === 0) {
-              const oLa = Number(c.origem_lat ?? c.latitude_inicio);
-              const oLn = Number(c.origem_lng ?? c.longitude_inicio);
-              const dLa = Number(c.destino_lat ?? c.latitude_fim);
-              const dLn = Number(c.destino_lng ?? c.longitude_fim);
-              if (Number.isFinite(oLa) && Number.isFinite(oLn) && (oLa !== 0 || oLn !== 0))
-                pts.push({ latitude: oLa, longitude: oLn });
-              if (Number.isFinite(dLa) && Number.isFinite(dLn) && (dLa !== 0 || dLn !== 0))
-                pts.push({ latitude: dLa, longitude: dLn });
-            }
-          }
-          if (pts.length < 2) {
-            const { data: ptsRaw } = await supabase
-              .from("posicoes_gps")
-              .select("latitude, longitude")
-              .eq("veiculo_id", veic.id)
-              .gte("created_at", inicioIso)
-              .lte("created_at", fimIso)
-              .order("created_at", { ascending: true })
-              .limit(500);
-            pts = (ptsRaw || []).filter(
-              (pt: any) =>
-                Number.isFinite(Number(pt.latitude)) && Number.isFinite(Number(pt.longitude)),
-            );
-          }
+          try {
+            const { carregarPontosViagem } =
+              await import("@/features/monitor-gps/services/gpsService");
+            const ptsReais = await carregarPontosViagem(veic.id, inicioIso, fimIso, 5000);
+            pts = (ptsReais || [])
+              .filter(
+                (pt: any) =>
+                  Number.isFinite(Number(pt.latitude)) && Number.isFinite(Number(pt.longitude)),
+              )
+              .map((pt: any) => ({
+                latitude: Number(pt.latitude),
+                longitude: Number(pt.longitude),
+                timestamp: pt.data_hora || pt.timestamp || pt.created_at,
+              }));
+          } catch {}
           if (pts.length === 0) {
             pts = [
               {
@@ -4045,21 +4016,19 @@ export async function processarMensagemWhatsappRecebida(
             const durFmt = h > 0 ? `${h}h ${m}min` : `${m}min`;
             let latP = Number(cAtual.destino_lat ?? cAtual.latitude_fim ?? 0);
             let lngP = Number(cAtual.destino_lng ?? cAtual.longitude_fim ?? 0);
-            if (!latP || !lngP) {
-              try {
-                const { data: ptParada } = await supabase
-                  .from("posicoes_gps")
-                  .select("latitude, longitude")
-                  .eq("veiculo_id", veic.id)
-                  .lte("created_at", fimIsoP)
-                  .order("created_at", { ascending: false })
-                  .limit(1)
-                  .maybeSingle();
-                if (ptParada) {
-                  latP = Number(ptParada.latitude);
-                  lngP = Number(ptParada.longitude);
+            if ((!latP || !lngP) && pts.length > 0) {
+              let melhor = pts[0];
+              let menorDiff = Infinity;
+              for (const pt of pts) {
+                const tPt = pt.timestamp ? new Date(pt.timestamp).getTime() : 0;
+                const d = tPt ? Math.abs(tPt - fimAtual) : Infinity;
+                if (d < menorDiff) {
+                  menorDiff = d;
+                  melhor = pt;
                 }
-              } catch {}
+              }
+              latP = melhor.latitude;
+              lngP = melhor.longitude;
             }
             const coordStr = latP && lngP ? `${latP.toFixed(5)}, ${lngP.toFixed(5)}` : "-";
             let endStr = cAtual.endereco_destino || "";
