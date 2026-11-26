@@ -1640,7 +1640,7 @@ export function isSaudacaoSimples(textoUpper: string): boolean {
  * por número não cadastrado ou perfil sem tratamento de comandos deve ser sumariamente IGNORADO.
  */
 export const COMANDOS_SISTEMA_GLOBAL_REGEX =
-  /^(BLOQUEIO|DESBLOQUEIO|CORTE|COMANDO|RELAY|STATUS|LOCALIZACAO|LOCALIZAÇÃO|LOCAL|ONDE|ODOMETRO|ODÔMETRO|KM|RELATORIO|RELATÓRIO|FROTA|METRICAS|MÉTRICAS|INFRA|DIAG|DRE|RESUMO|SAUDE|SAÚDE|PAGAMENTOS|PAGAMENTO|COBRANCA|COBRANÇA|INADIMPLENTES|MENSALIDADES|MENSALIDADE|RECEBIMENTOS|RECEBER|COMISSAO|COMISSÃO|MARGEM|CONTRATOS|CONTRATO|CLIENTES|CARTEIRA|INSTALADORES|INSTALADOR|TECNICOS|TÉCNICOS|INSTALACAO|INSTALAÇÃO|INSTALACOES|INSTALAÇÕES|AGENDAMENTO|RASTREADOR|TESTE|TESTES|DEGUSTACAO|DEGUSTAÇÃO|TESTAR|EXPERIMENTAR|TESTE GRATIS|TESTE GRÁTIS|QUERO TESTAR|DEGUSTAR|#TESTE|\/TESTE|!TESTE|REVALIDA|REVALIDAR|REVALIDACAO|REVALIDAÇÃO|#REVALIDA|\/REVALIDA|!REVALIDA|PARAM|PARAMETROS|PARÂMETROS|PIX|RESET|REINICIAR|DYD|HFYD)(\s|$)/i;
+  /^(BLOQUEIO|DESBLOQUEIO|CORTE|COMANDO|RELAY|STATUS|LOCALIZACAO|LOCALIZAÇÃO|LOCAL|ONDE|ODOMETRO|ODÔMETRO|KM|RELATORIO|RELATÓRIO|FROTA|METRICAS|MÉTRICAS|INFRA|DIAG|DRE|RESUMO|SAUDE|SAÚDE|PAGAMENTOS|PAGAMENTO|COBRANCA|COBRANÇA|INADIMPLENTES|MENSALIDADES|MENSALIDADE|RECEBIMENTOS|RECEBER|COMISSAO|COMISSÃO|MARGEM|CONTRATOS|CONTRATO|CLIENTES|CARTEIRA|INSTALADORES|INSTALADOR|TECNICOS|TÉCNICOS|INSTALACAO|INSTALAÇÃO|INSTALACOES|INSTALAÇÕES|AGENDAMENTO|RASTREADOR|USUARIO|USUARIOS|USUÁRIO|USUÁRIOS|TESTE|TESTES|DEGUSTACAO|DEGUSTAÇÃO|TESTAR|EXPERIMENTAR|TESTE GRATIS|TESTE GRÁTIS|QUERO TESTAR|DEGUSTAR|#TESTE|\/TESTE|!TESTE|REVALIDA|REVALIDAR|REVALIDACAO|REVALIDAÇÃO|#REVALIDA|\/REVALIDA|!REVALIDA|PARAM|PARAMETROS|PARÂMETROS|PIX|RESET|REINICIAR|DYD|HFYD)(\s|$)/i;
 
 /**
  * Envia comando de hardware para o gateway TCP do rastreador
@@ -3570,6 +3570,47 @@ export async function processarMensagemWhatsappRecebida(
         }
       }
     };
+
+    // ── FLUXO INTERATIVO DE SELEÇÃO DE USUÁRIO (USUARIO / USUARIOS) ──
+    if (sessaoAtiva.fluxo === "selecao_usuario") {
+      const dadosUsr = sessaoAtiva.dados || sessaoAtiva.dados_temporarios || {};
+      const usuariosLista: any[] = dadosUsr.usuarios || [];
+      const respTrim = textoLimpo.trim();
+
+      if (respTrim === "0" || textoUpper === "CANCELAR") {
+        await excluirSessaoAtiva();
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "selecao_usuario_cancelada",
+          resposta: "❌ Consulta de usuário cancelada.",
+        };
+      }
+
+      const idx = parseInt(respTrim, 10) - 1;
+      if (isNaN(idx) || idx < 0 || idx >= usuariosLista.length) {
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "selecao_usuario_invalida",
+          resposta: `⚠️ Opção inválida. Envie um número de *1* a *${usuariosLista.length}* (ou *0* para cancelar).`,
+        };
+      }
+
+      const u = usuariosLista[idx];
+      await excluirSessaoAtiva();
+      return {
+        sucesso: true,
+        destinatario: remetenteLimpo,
+        acaoExecutada: "usuario_detalhes",
+        resposta:
+          `👤 *Usuário — ${u.nome || "Sem nome"}*\n\n` +
+          `• Perfil: ${u.role || "—"}\n` +
+          `• Telefone: ${u.telefone || "—"}\n` +
+          `• E-mail: ${u.email || "—"}\n` +
+          `• Status: ${u.ativo === false ? "🔴 Inativo" : "🟢 Ativo"}`,
+      };
+    }
 
     // ── FLUXO INTERATIVO DE SELEÇÃO EM 2 ETAPAS (CLIENTE -> VEÍCULO) ──
     if (sessaoAtiva.fluxo === "selecao_cliente_veiculo") {
@@ -7281,6 +7322,65 @@ export async function processarMensagemWhatsappRecebida(
           "\n0. Cancelar\n\nResponda com o número do cliente.",
       };
     };
+
+    // 4.35. Consulta de Usuários do Sistema (USUARIO / USUARIOS)
+    if (
+      textoUpper === "USUARIO" ||
+      textoUpper === "USUARIOS" ||
+      textoUpper === "USUÁRIO" ||
+      textoUpper === "USUÁRIOS"
+    ) {
+      const { data: listaUsers } = await supabase
+        .from("profiles")
+        .select("id, nome, email, telefone, role, ativo")
+        .order("nome", { ascending: true });
+
+      const usuarios = listaUsers || [];
+      if (usuarios.length === 0) {
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "usuarios_vazio",
+          resposta: "⚠️ Nenhum usuário cadastrado encontrado.",
+        };
+      }
+
+      if (usuarios.length === 1) {
+        const u = usuarios[0];
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "usuario_detalhes",
+          resposta:
+            `👤 *Usuário — ${u.nome || "Sem nome"}*\n\n` +
+            `• Perfil: ${u.role || "—"}\n` +
+            `• Telefone: ${u.telefone || "—"}\n` +
+            `• E-mail: ${u.email || "—"}\n` +
+            `• Status: ${u.ativo === false ? "🔴 Inativo" : "🟢 Ativo"}`,
+        };
+      }
+
+      await salvarSessaoDialogo(supabase, {
+        telefone: remetenteLimpo,
+        fluxo: "selecao_usuario",
+        etapa: "aguardando_usuario",
+        dados: { usuarios },
+        updated_at: new Date().toISOString(),
+      });
+
+      const linhasU = usuarios.map(
+        (u: any, idx: number) => `${idx + 1}. *${u.nome || "Sem nome"}* (${u.role || "—"})`,
+      );
+      return {
+        sucesso: true,
+        destinatario: remetenteLimpo,
+        acaoExecutada: "usuarios_listar",
+        resposta:
+          "👥 *Usuários do Sistema — Escolha o Usuário:*\n\n" +
+          linhasU.join("\n") +
+          "\n0. Cancelar\n\nEnvie o número do usuário (ou *0* para cancelar).",
+      };
+    }
 
     // 4.4. Consulta e Geração de PIX de Clientes (por Placa ou Documento)
     if (textoUpper === "PIX" || textoUpper.startsWith("PIX ")) {
