@@ -7160,6 +7160,81 @@ export async function processarMensagemWhatsappRecebida(
             resposta: `⚠️ Nenhum veículo encontrado para *${cliUnico.nome}*.`,
           };
         }
+        if (
+          listaVeics.length === 1 &&
+          (comandoAlvo === "PIX" || comandoAlvo === "LOCALIZACAO" || comandoAlvo === "STATUS")
+        ) {
+          const vUnico: any = listaVeics[0];
+          if (comandoAlvo === "PIX") {
+            const { data: mAlvo } = await supabase
+              .from("mensalidades")
+              .select("*")
+              .eq("cliente_id", vUnico.cliente_id)
+              .neq("status", "paga")
+              .order("data_vencimento", { ascending: true })
+              .limit(1)
+              .maybeSingle();
+            if (mAlvo) {
+              const valNum = Number(mAlvo.valor) || 79.9;
+              const pixPayload = gerarPayloadPix({
+                chavePix: "financeiro@oficial.tec.br",
+                nomeRecebedor: "GD Rastreamento",
+                cidadeRecebedor: "Volta Redonda",
+                valor: valNum,
+                identificador: `FAT${mAlvo.id}`.slice(0, 20),
+              });
+              return {
+                sucesso: true,
+                destinatario: remetenteLimpo,
+                acaoExecutada: "pix_adm_gerado",
+                resposta:
+                  `💳 *PIX Gerado para ${cliUnico.nome} (${vUnico.placa})*\n\n` +
+                  `• Valor: R$ ${valNum.toFixed(2).replace(".", ",")}\n` +
+                  `• Vencimento: ${mAlvo.data_vencimento}\n\n` +
+                  `Código Copia e Cola:\n\`\`\`${pixPayload}\`\`\``,
+              };
+            }
+            return {
+              sucesso: true,
+              destinatario: remetenteLimpo,
+              acaoExecutada: "pix_adm_nao_encontrado",
+              resposta: `⚠️ Nenhuma mensalidade pendente encontrada para *${vUnico.placa}*.`,
+            };
+          }
+          const lat = vUnico.ultima_latitude ?? vUnico.latitude;
+          const lon = vUnico.ultima_longitude ?? vUnico.longitude;
+          const temCoord = lat && lon && (lat !== 0 || lon !== 0);
+          const linkMapa = temCoord
+            ? `https://maps.google.com/?q=${lat},${lon}`
+            : "Aguardando fixação GPS";
+          const ign = Boolean(vUnico.ignicao_status ?? vUnico.ignicao);
+          const vel = Math.round(Number(vUnico.velocidade_atual ?? vUnico.velocidade ?? 0));
+          if (comandoAlvo === "STATUS") {
+            return {
+              sucesso: true,
+              destinatario: remetenteLimpo,
+              acaoExecutada: "status_veiculo_selecionado",
+              resposta:
+                `📡 *Status do Veículo ${vUnico.placa} (${vUnico.marca_modelo || "Rastreamento"})*\n\n` +
+                `• Ignição: ${ign ? "Ligada 🟢" : "Desligada ⚪"}\n` +
+                `• Velocidade: ${vel} km/h\n` +
+                `• Bloqueio: ${vUnico.bloqueado ? "🔴 Bloqueado" : "🟢 Liberado"}\n` +
+                `• Odômetro: ${Number(vUnico.odometro_km || 0).toFixed(1)} km\n` +
+                `• Mapa:\n${linkMapa}`,
+            };
+          }
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "localizacao_enviada_adm",
+            resposta:
+              `📍 *Localização do Veículo ${vUnico.placa} (${vUnico.marca_modelo || "Rastreamento"})*\n\n` +
+              `• Ignição: ${ign ? "Ligada 🟢" : "Desligada ⚪"}\n` +
+              `• Velocidade: ${vel} km/h\n` +
+              `• Status: ${vUnico.bloqueado ? "🔴 Bloqueado" : "🟢 Liberado"}\n` +
+              `• Mapa em Tempo Real:\n${linkMapa}`,
+          };
+        }
         await salvarSessaoDialogo(supabase, {
           telefone: remetenteLimpo,
           fluxo: "selecao_cliente_veiculo",
