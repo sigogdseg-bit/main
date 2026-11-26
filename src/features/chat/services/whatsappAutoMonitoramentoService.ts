@@ -3615,13 +3615,10 @@ export async function processarMensagemWhatsappRecebida(
 
         let offsetTextoX = 14;
         try {
-          const logoResp = await fetch("https://gd.oficial.tec.br/logo.png");
-          if (logoResp.ok) {
-            const lBuf = await logoResp.arrayBuffer();
-            const lBytes = new Uint8Array(lBuf);
-            let lBin = "";
-            for (let i = 0; i < lBytes.length; i++) lBin += String.fromCharCode(lBytes[i]);
-            doc.addImage(btoa(lBin), "PNG", 8, 2, 24, 24);
+          const { carregarLogoEmblemaBase64 } = await import("@/shared/lib/pdfLogoHelper");
+          const logoB64 = await carregarLogoEmblemaBase64();
+          if (logoB64) {
+            doc.addImage(logoB64, "PNG", 8, 2, 24, 24);
             offsetTextoX = 38;
           }
         } catch {}
