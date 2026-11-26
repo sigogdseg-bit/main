@@ -4113,16 +4113,13 @@ export async function processarMensagemWhatsappRecebida(
 
         if (comandoAlvo === "TRAJETO") {
           await excluirSessaoAtiva();
-          await supabase.from("whatsapp_sessoes_dialogo").upsert(
-            {
-              telefone: remetenteLimpo,
-              fluxo: "selecao_trajeto",
-              etapa: "aguardando_dia_inicio",
-              dados: { veiculo: vAlvo },
-              expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-            },
-            { onConflict: "telefone" },
-          );
+          await supabase.from("whatsapp_sessoes_dialogo").insert({
+            telefone: remetenteLimpo,
+            fluxo: "selecao_trajeto",
+            etapa: "aguardando_dia_inicio",
+            dados: { veiculo: vAlvo },
+            expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          });
           return {
             sucesso: true,
             destinatario: remetenteLimpo,
