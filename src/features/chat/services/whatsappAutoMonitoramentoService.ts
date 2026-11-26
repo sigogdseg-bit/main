@@ -3680,18 +3680,51 @@ export async function processarMensagemWhatsappRecebida(
         // Mapa 2D Georreferenciado (ArcGIS World_Street_Map + Polyline do Trajeto)
         let yCursor = 51;
         try {
-          const { data: ptsRaw } = await supabase
-            .from("posicoes_gps")
-            .select("latitude, longitude")
-            .eq("veiculo_id", veic.id)
-            .gte("data_hora", inicioIso)
-            .lte("data_hora", fimIso)
-            .order("data_hora", { ascending: true })
-            .limit(500);
-          const pts = (ptsRaw || []).filter(
-            (pt: any) =>
-              Number.isFinite(Number(pt.latitude)) && Number.isFinite(Number(pt.longitude)),
-          );
+          let pts: Array<{ latitude: number; longitude: number }> = [];
+          for (const c of ciclosSelecionados) {
+            const arr = Array.isArray(c.pontos_rota)
+              ? c.pontos_rota
+              : Array.isArray(c.coordenadas)
+                ? c.coordenadas
+                : Array.isArray(c.rota)
+                  ? c.rota
+                  : [];
+            for (const item of arr) {
+              const la = Number(Array.isArray(item) ? item[0] : (item?.latitude ?? item?.lat));
+              const ln = Number(
+                Array.isArray(item) ? item[1] : (item?.longitude ?? item?.lng ?? item?.lon),
+              );
+              if (Number.isFinite(la) && Number.isFinite(ln) && (la !== 0 || ln !== 0)) {
+                pts.push({ latitude: la, longitude: ln });
+              }
+            }
+            if (arr.length === 0) {
+              const oLa = Number(c.origem_lat ?? c.latitude_inicio);
+              const oLn = Number(c.origem_lng ?? c.longitude_inicio);
+              const dLa = Number(c.destino_lat ?? c.latitude_fim);
+              const dLn = Number(c.destino_lng ?? c.longitude_fim);
+              if (Number.isFinite(oLa) && Number.isFinite(oLn) && (oLa !== 0 || oLn !== 0)) {
+                pts.push({ latitude: oLa, longitude: oLn });
+              }
+              if (Number.isFinite(dLa) && Number.isFinite(dLn) && (dLa !== 0 || dLn !== 0)) {
+                pts.push({ latitude: dLa, longitude: dLn });
+              }
+            }
+          }
+          if (pts.length < 2) {
+            const { data: ptsRaw } = await supabase
+              .from("posicoes_gps")
+              .select("latitude, longitude")
+              .eq("veiculo_id", veic.id)
+              .gte("created_at", inicioIso)
+              .lte("created_at", fimIso)
+              .order("created_at", { ascending: true })
+              .limit(500);
+            pts = (ptsRaw || []).filter(
+              (pt: any) =>
+                Number.isFinite(Number(pt.latitude)) && Number.isFinite(Number(pt.longitude)),
+            );
+          }
           if (pts.length >= 2) {
             let minLat = Infinity,
               maxLat = -Infinity,
