@@ -3607,33 +3607,41 @@ export async function processarMensagemWhatsappRecebida(
             timeZone: "America/Sao_Paulo",
           });
 
-        // Cabeçalho Institucional Hunter (mesmo padrão do módulo Trajeto)
+        // Cabeçalho Institucional Hunter (idêntico ao módulo Trajeto)
         doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, doc.internal.pageSize.width, 26, "F");
+        doc.rect(0, 0, doc.internal.pageSize.width, 28, "F");
         doc.setFillColor(16, 185, 129);
-        doc.rect(0, 24, doc.internal.pageSize.width, 2, "F");
+        doc.rect(0, 26, doc.internal.pageSize.width, 2, "F");
 
         doc.setTextColor(255, 255, 255);
-        doc.setFontSize(12);
+        doc.setFontSize(13);
         doc.setFont("helvetica", "bold");
-        doc.text("GD RASTREAMENTO — LAUDO DE TELEMETRIA E HISTÓRICO VEICULAR", 14, 11);
+        doc.text("GD RASTREAMENTO — LAUDO DE TELEMETRIA E HISTÓRICO VEICULAR", 14, 12);
         doc.setFontSize(8);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(148, 163, 184);
-        doc.text("SISTEMA CANÔNICO DE AUDITORIA E PERCURSO VEICULAR", 14, 17);
+        doc.text("SISTEMA CANÔNICO DE AUDITORIA E PERCURSO VEICULAR", 14, 18);
+        doc.text("Emissão Autenticada · Via WhatsApp", 14, 23);
 
         doc.setTextColor(30, 41, 59);
         doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
-        doc.text("DADOS DO VEÍCULO E PERÍODO", 14, 34);
+        doc.text("DADOS DO VEÍCULO E CLIENTE", 14, 35);
         doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
         doc.text(`Placa: ${veic.placa} | Modelo: ${veic.marca_modelo || "Veículo"}`, 14, 40);
-        doc.text(`Período: ${fmtBr(inicioIso)} até ${fmtBr(fimIso)}`, 14, 45);
+        const clienteNomePdf =
+          veic?.clientes?.nome_razao_social || veic?.cliente_nome || "Não informado";
+        doc.text(
+          `Cliente: ${clienteNomePdf} | Período: ${fmtBr(inicioIso)} até ${fmtBr(fimIso)}`,
+          14,
+          45,
+        );
 
         let totalKm = 0;
         let velMax = 0;
         let somaVelMed = 0;
+        let transitoMs = 0;
         for (const c of ciclosSelecionados) {
           const km = Number(c.km_percorrido ?? c.distancia_km ?? 0);
           const vm = Number(c.velocidade_maxima ?? c.velocidade_max_kmh ?? 0);
@@ -3641,11 +3649,24 @@ export async function processarMensagemWhatsappRecebida(
           totalKm += km;
           if (vm > velMax) velMax = vm;
           somaVelMed += vmed;
+          const ini = new Date(c.inicio_at || c.inicio_em).getTime();
+          const fim = new Date(c.fim_at || c.fim_em || c.inicio_at || c.inicio_em).getTime();
+          if (fim > ini) transitoMs += fim - ini;
         }
+        const totalPeriodoMs = Math.max(
+          transitoMs,
+          new Date(fimIso).getTime() - new Date(inicioIso).getTime(),
+        );
+        const paradoMs = Math.max(0, totalPeriodoMs - transitoMs);
+        const fmtDuracao = (ms: number) => {
+          const mins = Math.round(ms / 60000);
+          const h = Math.floor(mins / 60);
+          const m = mins % 60;
+          return h > 0 ? `${h}h ${m}min` : `${m}min`;
+        };
         const velMediaGeral =
           ciclosSelecionados.length > 0 ? Math.round(somaVelMed / ciclosSelecionados.length) : 0;
 
-        // Cards KPI (Infográfico)
         const cards = [
           {
             label: "DISTÂNCIA TOTAL",
@@ -3653,27 +3674,27 @@ export async function processarMensagemWhatsappRecebida(
             cor: [234, 88, 12] as [number, number, number],
           },
           {
-            label: "CICLOS",
-            valor: `${ciclosSelecionados.length}`,
+            label: "EM MOVIMENTO",
+            valor: fmtDuracao(transitoMs),
             cor: [15, 23, 42] as [number, number, number],
+          },
+          {
+            label: "TEMPO PARADO",
+            valor: fmtDuracao(paradoMs),
+            cor: [217, 119, 6] as [number, number, number],
           },
           {
             label: "VEL. MÉDIA",
             valor: `${velMediaGeral} km/h`,
             cor: [15, 23, 42] as [number, number, number],
           },
-          {
-            label: "VEL. MÁXIMA",
-            valor: `${Math.round(velMax)} km/h`,
-            cor: [217, 119, 6] as [number, number, number],
-          },
         ];
         const cardW = 43.5;
-        const cardH = 14;
+        const cardH = 15;
         const gap = 2.6;
         cards.forEach((c, idx) => {
           const x = 14 + idx * (cardW + gap);
-          const y = 50;
+          const y = 51;
           doc.setFillColor(248, 250, 252);
           doc.setDrawColor(203, 213, 225);
           doc.setLineWidth(0.3);
@@ -3681,10 +3702,10 @@ export async function processarMensagemWhatsappRecebida(
           doc.setFontSize(6.5);
           doc.setFont("helvetica", "bold");
           doc.setTextColor(100, 116, 139);
-          doc.text(c.label, x + 3, y + 5);
-          doc.setFontSize(10);
+          doc.text(c.label, x + 3, y + 5.2);
+          doc.setFontSize(10.5);
           doc.setTextColor(c.cor[0], c.cor[1], c.cor[2]);
-          doc.text(c.valor, x + 3, y + 11.5);
+          doc.text(c.valor, x + 3, y + 12);
         });
 
         const rowsCiclos = ciclosSelecionados.map((v: any) => [
@@ -3696,7 +3717,7 @@ export async function processarMensagemWhatsappRecebida(
         ]);
 
         autoTable(doc, {
-          startY: 70,
+          startY: 72,
           head: [
             ["Saída (Ignição ON)", "Chegada (Ignição OFF)", "Distância", "Vel. Média", "Vel. Máx"],
           ],
@@ -3706,9 +3727,39 @@ export async function processarMensagemWhatsappRecebida(
           styles: { fontSize: 8 },
         });
 
+        const payloadIntegridade = `${veic.id}:${veic.placa}:${inicioIso}:${fimIso}:${ciclosSelecionados.length}`;
+        const hashBuf = await crypto.subtle.digest(
+          "SHA-256",
+          new TextEncoder().encode(payloadIntegridade),
+        );
+        const hashSha256 = Array.from(new Uint8Array(hashBuf))
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("");
+        const pageCount = (doc as any).internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          doc.setFontSize(7);
+          doc.setTextColor(100, 116, 139);
+          doc.text(
+            "GD Rastreamento · Laudo Oficial com Cadeia de Custódia",
+            14,
+            doc.internal.pageSize.height - 10,
+          );
+          doc.text(
+            `Hash de Integridade SHA-256: ${hashSha256}`,
+            14,
+            doc.internal.pageSize.height - 6,
+          );
+          doc.text(
+            `Página ${i} de ${pageCount}`,
+            doc.internal.pageSize.width - 30,
+            doc.internal.pageSize.height - 8,
+          );
+        }
+
         const dataUri = doc.output("datauristring");
         const base64Pdf = dataUri.includes(",") ? dataUri.split(",")[1] : dataUri;
-        const nomeArq = `Trajeto_${veic.placa}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        const nomeArq = `GD_Rastreamento_Laudo_Telemetria_${veic.placa}.pdf`;
 
         const tokenGw =
           (typeof process !== "undefined" ? process.env?.GD_WHATSAPP_TOKEN : undefined) ||
