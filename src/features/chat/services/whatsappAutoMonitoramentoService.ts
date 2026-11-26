@@ -3660,9 +3660,9 @@ export async function processarMensagemWhatsappRecebida(
           .from(tabelaConvite)
           .insert({
             token: tokenConvite,
-            nome: nomeDest,
-            telefone: telDigitos,
-            status: "pendente",
+            observacoes: `${nomeDest} (${telDigitos})`,
+            expira_em: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            usado: false,
             ...(perfilSel.chave === "vendedor" || perfilSel.chave === "revendedor"
               ? { role: perfilSel.chave }
               : {}),
@@ -3868,13 +3868,15 @@ export async function processarMensagemWhatsappRecebida(
         try {
           let pts: Array<{ latitude: number; longitude: number }> = [];
           for (const c of ciclosSelecionados) {
-            const arr = Array.isArray(c.pontos_rota)
-              ? c.pontos_rota
-              : Array.isArray(c.coordenadas)
-                ? c.coordenadas
-                : Array.isArray(c.rota)
-                  ? c.rota
-                  : [];
+            const arr = Array.isArray(c.pontos)
+              ? c.pontos
+              : Array.isArray(c.pontos_rota)
+                ? c.pontos_rota
+                : Array.isArray(c.coordenadas)
+                  ? c.coordenadas
+                  : Array.isArray(c.rota)
+                    ? c.rota
+                    : [];
             for (const item of arr) {
               const la = Number(Array.isArray(item) ? item[0] : (item?.latitude ?? item?.lat));
               const ln = Number(
