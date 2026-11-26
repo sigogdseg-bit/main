@@ -4015,22 +4015,58 @@ export async function processarMensagemWhatsappRecebida(
         for (let i = 0; i < ciclosSelecionados.length - 1; i++) {
           const cAtual = ciclosSelecionados[i];
           const cProx = ciclosSelecionados[i + 1];
-          const fimAtual = new Date(cAtual.fim_at || cAtual.fim_em || cAtual.inicio_at).getTime();
+          const fimIsoP = cAtual.fim_at || cAtual.fim_em || cAtual.inicio_at;
+          const fimAtual = new Date(fimIsoP).getTime();
           const iniProx = new Date(cProx.inicio_at || cProx.inicio_em).getTime();
           const diffMin = Math.round((iniProx - fimAtual) / 60000);
           if (diffMin >= 5) {
             const h = Math.floor(diffMin / 60);
             const m = diffMin % 60;
             const durFmt = h > 0 ? `${h}h ${m}min` : `${m}min`;
-            const latP = Number(cAtual.destino_lat ?? cAtual.latitude_fim ?? 0);
-            const lngP = Number(cAtual.destino_lng ?? cAtual.longitude_fim ?? 0);
+            let latP = Number(cAtual.destino_lat ?? cAtual.latitude_fim ?? 0);
+            let lngP = Number(cAtual.destino_lng ?? cAtual.longitude_fim ?? 0);
+            if (!latP || !lngP) {
+              try {
+                const { data: ptParada } = await supabase
+                  .from("posicoes_gps")
+                  .select("latitude, longitude")
+                  .eq("veiculo_id", veic.id)
+                  .lte("created_at", fimIsoP)
+                  .order("created_at", { ascending: false })
+                  .limit(1)
+                  .maybeSingle();
+                if (ptParada) {
+                  latP = Number(ptParada.latitude);
+                  lngP = Number(ptParada.longitude);
+                }
+              } catch {}
+            }
             const coordStr = latP && lngP ? `${latP.toFixed(5)}, ${lngP.toFixed(5)}` : "-";
+            let endStr = cAtual.endereco_destino || "";
+            if (!endStr && latP && lngP) {
+              try {
+                const nomResp = await fetch(
+                  `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latP}&lon=${lngP}&zoom=18&addressdetails=1`,
+                  { headers: { "User-Agent": "GDRastreamento/1.0" } },
+                );
+                if (nomResp.ok) {
+                  const nomJson: any = await nomResp.json();
+                  const a = nomJson?.address || {};
+                  const partes = [
+                    a.road,
+                    a.suburb || a.neighbourhood,
+                    a.city || a.town || a.municipality,
+                  ].filter(Boolean);
+                  if (partes.length > 0) endStr = partes.join(", ");
+                }
+              } catch {}
+            }
             paradasRows.push([
               `Parada ${paradasRows.length + 1}`,
-              fmtHora(cAtual.fim_at || cAtual.fim_em || cAtual.inicio_at),
+              fmtHora(fimIsoP),
               fmtHora(cProx.inicio_at || cProx.inicio_em),
               durFmt,
-              cAtual.endereco_destino || "Local registrado",
+              endStr || "Local registrado",
               coordStr,
             ]);
           }
@@ -4113,7 +4149,7 @@ export async function processarMensagemWhatsappRecebida(
           sucesso: true,
           destinatario: remetenteLimpo,
           acaoExecutada: "trajeto_pdf_enviado",
-          resposta: `⏳ *PDF gerado, aguarde o envio...* (${veic.placa} · ${ciclosSelecionados.length} ciclo(s), ${totalKm.toFixed(1)} km).`,
+          resposta: `📄 *Laudo de Telemetria (${veic.placa})* enviado em PDF! (${ciclosSelecionados.length} ciclo(s), ${totalKm.toFixed(1)} km).`,
         };
       };
 
