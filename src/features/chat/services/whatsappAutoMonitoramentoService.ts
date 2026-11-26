@@ -3667,22 +3667,30 @@ export async function processarMensagemWhatsappRecebida(
       const veic = dadosTj.veiculo || {};
 
       if (etapaTj === "aguardando_dia_inicio") {
-        const dias: string[] = dadosTj.diasInicio || [];
-        const idx = parseInt(respTrim, 10) - 1;
-        if (isNaN(idx) || idx < 0 || idx >= dias.length) {
+        const matchData = respTrim.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!matchData) {
           return {
             sucesso: true,
             destinatario: remetenteLimpo,
             acaoExecutada: "trajeto_dia_invalido",
-            resposta: `⚠️ Opção inválida. Envie de *1* a *${dias.length}* (ou *0* para cancelar).`,
+            resposta:
+              "⚠️ Data inválida. Digite a data de início no formato *DD/MM/AAAA* (ex: 24/11/2026) ou *0* para cancelar.",
           };
         }
-        const diaInicio = dias[idx];
+        const diaInicio = respTrim;
         const ciclosDia = ciclos.filter(
           (c) =>
             new Date(c.inicio_em).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" }) ===
             diaInicio,
         );
+        if (ciclosDia.length === 0) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_dia_sem_ciclos",
+            resposta: `⚠️ Nenhum ciclo encontrado para *${diaInicio}*. Digite outra data (*DD/MM/AAAA*) ou *0* para cancelar.`,
+          };
+        }
         if (ciclosDia.length === 1) {
           const inicioSel = ciclosDia[0].inicio_em;
           const diasFim = Array.from(
@@ -3848,17 +3856,17 @@ export async function processarMensagemWhatsappRecebida(
       }
 
       if (etapaTj === "aguardando_dia_fim") {
-        const diasFim: string[] = dadosTj.diasFim || [];
-        const idx = parseInt(respTrim, 10) - 1;
-        if (isNaN(idx) || idx < 0 || idx >= diasFim.length) {
+        const matchFim = respTrim.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!matchFim) {
           return {
             sucesso: true,
             destinatario: remetenteLimpo,
             acaoExecutada: "trajeto_dia_fim_invalido",
-            resposta: `⚠️ Opção inválida. Envie de *1* a *${diasFim.length}* (ou *0* para cancelar).`,
+            resposta:
+              "⚠️ Data inválida. Digite a data final no formato *DD/MM/AAAA* (ex: 25/11/2026) ou *0* para cancelar.",
           };
         }
-        const diaFim = diasFim[idx];
+        const diaFim = respTrim;
         const inicioSel = dadosTj.inicioSel;
         const fins = ciclos.filter(
           (c) =>
@@ -3867,6 +3875,14 @@ export async function processarMensagemWhatsappRecebida(
               timeZone: "America/Sao_Paulo",
             }) === diaFim,
         );
+        if (fins.length === 0) {
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_dia_fim_sem_ciclos",
+            resposta: `⚠️ Nenhum fim de ciclo encontrado para *${diaFim}*. Digite outra data (*DD/MM/AAAA*) ou *0* para cancelar.`,
+          };
+        }
         if (fins.length <= 1) {
           const fimIso = fins[0]?.fim_em || fins[0]?.inicio_em || inicioSel;
           const selecionados = ciclos.filter(
