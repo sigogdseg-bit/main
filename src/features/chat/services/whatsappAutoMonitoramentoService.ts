@@ -6547,8 +6547,7 @@ export async function processarMensagemWhatsappRecebida(
     if (textoUpper === "FROTA" || textoUpper === "RESUMO") {
       const { data: veiculos } = await supabase
         .from("veiculos")
-        .select("id, placa, ignicao, velocidade, updated_at")
-        .eq("ativo", true);
+        .select("id, placa, ignicao_status, velocidade_atual, ultima_atualizacao");
 
       const lista = veiculos || [];
       const total = lista.length;
@@ -6561,12 +6560,17 @@ export async function processarMensagemWhatsappRecebida(
       let incomunicavel = 0;
 
       for (const v of lista) {
-        const tempoDesdeUpdate = v.updated_at ? agora - new Date(v.updated_at).getTime() : Infinity;
+        const dtAtualizacao = v.ultima_atualizacao ?? v.updated_at;
+        const ign = v.ignicao_status ?? v.ignicao;
+        const vel = v.velocidade_atual ?? v.velocidade ?? 0;
+        const tempoDesdeUpdate = dtAtualizacao
+          ? agora - new Date(dtAtualizacao).getTime()
+          : Infinity;
         if (tempoDesdeUpdate > limiteIncomunicavelMs) {
           incomunicavel++;
-        } else if (v.ignicao && (v.velocidade || 0) > 0) {
+        } else if (ign && vel > 0) {
           emMovimento++;
-        } else if (v.ignicao) {
+        } else if (ign) {
           paradoLigado++;
         } else {
           desligado++;
