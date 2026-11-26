@@ -3571,10 +3571,10 @@ export async function processarMensagemWhatsappRecebida(
       }
     };
 
-    // ── FLUXO INTERATIVO DE SELEÇÃO DE USUÁRIO (USUARIO / USUARIOS) ──
+    // ── FLUXO INTERATIVO DE SELEÇÃO DE USUÁRIO (USUARIO / USUARIOS — EXCLUSIVO SUPERADM) ──
     if (sessaoAtiva.fluxo === "selecao_usuario") {
       const dadosUsr = sessaoAtiva.dados || sessaoAtiva.dados_temporarios || {};
-      const usuariosLista: any[] = dadosUsr.usuarios || [];
+      const etapaUsr = sessaoAtiva.etapa || "aguardando_usuario";
       const respTrim = textoLimpo.trim();
 
       if (respTrim === "0" || textoUpper === "CANCELAR") {
@@ -3583,10 +3583,70 @@ export async function processarMensagemWhatsappRecebida(
           sucesso: true,
           destinatario: remetenteLimpo,
           acaoExecutada: "selecao_usuario_cancelada",
-          resposta: "❌ Consulta de usuário cancelada.",
+          resposta: "❌ Operação de usuário cancelada.",
         };
       }
 
+      if (etapaUsr === "acao_usuario") {
+        const u = dadosUsr.usuario;
+        if (!u) {
+          await excluirSessaoAtiva();
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "usuario_nao_encontrado",
+            resposta: "⚠️ Sessão expirada. Envie *USUARIOS* novamente.",
+          };
+        }
+
+        if (respTrim === "1") {
+          const novaSenha = `Gd@${Math.floor(100000 + Math.random() * 900000)}`;
+          try {
+            if ((supabase as any)?.auth?.admin?.updateUserById) {
+              await (supabase as any).auth.admin.updateUserById(u.id, { password: novaSenha });
+            }
+            await supabase
+              .from("profiles")
+              .update({ primeiro_acesso: true, updated_at: new Date().toISOString() })
+              .eq("id", u.id);
+          } catch (_) {}
+          await excluirSessaoAtiva();
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "usuario_reset_senha",
+            resposta:
+              `🔑 *Senha Resetada — ${u.nome || "Usuário"}*\n\n` +
+              `• Nova senha provisória: \`${novaSenha}\`\n` +
+              `• O usuário deverá alterar no próximo login.`,
+          };
+        }
+
+        if (respTrim === "2") {
+          const novoAtivo = u.ativo === false;
+          await supabase
+            .from("profiles")
+            .update({ ativo: novoAtivo, updated_at: new Date().toISOString() })
+            .eq("id", u.id);
+          await excluirSessaoAtiva();
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: novoAtivo ? "usuario_desbloqueado" : "usuario_bloqueado",
+            resposta: `${novoAtivo ? "🟢 *Usuário Desbloqueado" : "🔴 *Usuário Bloqueado"}:* ${u.nome || u.email || u.id}`,
+          };
+        }
+
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "selecao_usuario_acao_invalida",
+          resposta:
+            "⚠️ Opção inválida. Envie *1* (Resetar Senha), *2* (Bloquear/Desbloquear) ou *0* (Cancelar).",
+        };
+      }
+
+      const usuariosLista: any[] = dadosUsr.usuarios || [];
       const idx = parseInt(respTrim, 10) - 1;
       if (isNaN(idx) || idx < 0 || idx >= usuariosLista.length) {
         return {
@@ -3598,7 +3658,12 @@ export async function processarMensagemWhatsappRecebida(
       }
 
       const u = usuariosLista[idx];
-      await excluirSessaoAtiva();
+      const ultimoAcessoRaw = u.ultimo_acesso || u.updated_at;
+      const ultimoAcessoFmt = ultimoAcessoRaw
+        ? new Date(ultimoAcessoRaw).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
+        : "Sem registro";
+
+      await salvarAtualizacaoSessao("acao_usuario", { usuario: u });
       return {
         sucesso: true,
         destinatario: remetenteLimpo,
@@ -3608,7 +3673,12 @@ export async function processarMensagemWhatsappRecebida(
           `• Perfil: ${u.role || "—"}\n` +
           `• Telefone: ${u.telefone || "—"}\n` +
           `• E-mail: ${u.email || "—"}\n` +
-          `• Status: ${u.ativo === false ? "🔴 Inativo" : "🟢 Ativo"}`,
+          `• Status: ${u.ativo === false ? "🔴 Bloqueado / Inativo" : "🟢 Ativo"}\n` +
+          `• Último acesso: ${ultimoAcessoFmt}\n\n` +
+          `*Ações disponíveis:*\n` +
+          `1. Resetar Senha\n` +
+          `2. ${u.ativo === false ? "Desbloquear Usuário" : "Bloquear Usuário"}\n` +
+          `0. Cancelar`,
       };
     }
 
@@ -7323,16 +7393,25 @@ export async function processarMensagemWhatsappRecebida(
       };
     };
 
-    // 4.35. Consulta de Usuários do Sistema (USUARIO / USUARIOS)
+    // 4.35. Consulta de Usuários do Sistema (USUARIO / USUARIOS — EXCLUSIVO SUPERADM)
     if (
       textoUpper === "USUARIO" ||
       textoUpper === "USUARIOS" ||
       textoUpper === "USUÁRIO" ||
       textoUpper === "USUÁRIOS"
     ) {
+      if (!isSuperAdm) {
+        return {
+          sucesso: true,
+          destinatario: remetenteLimpo,
+          acaoExecutada: "usuario_bloqueado_operador",
+          resposta: "⛔ Comando *USUARIO* restrito exclusivamente ao SuperADM.",
+        };
+      }
+
       const { data: listaUsers } = await supabase
         .from("profiles")
-        .select("id, nome, email, telefone, role, ativo")
+        .select("id, nome, email, telefone, role, ativo, ultimo_acesso, updated_at")
         .order("nome", { ascending: true });
 
       const usuarios = listaUsers || [];
@@ -7347,6 +7426,17 @@ export async function processarMensagemWhatsappRecebida(
 
       if (usuarios.length === 1) {
         const u = usuarios[0];
+        const ultimoAcessoRaw = (u as any).ultimo_acesso || (u as any).updated_at;
+        const ultimoAcessoFmt = ultimoAcessoRaw
+          ? new Date(ultimoAcessoRaw).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })
+          : "Sem registro";
+        await salvarSessaoDialogo(supabase, {
+          telefone: remetenteLimpo,
+          fluxo: "selecao_usuario",
+          etapa: "acao_usuario",
+          dados: { usuario: u },
+          updated_at: new Date().toISOString(),
+        });
         return {
           sucesso: true,
           destinatario: remetenteLimpo,
@@ -7356,7 +7446,12 @@ export async function processarMensagemWhatsappRecebida(
             `• Perfil: ${u.role || "—"}\n` +
             `• Telefone: ${u.telefone || "—"}\n` +
             `• E-mail: ${u.email || "—"}\n` +
-            `• Status: ${u.ativo === false ? "🔴 Inativo" : "🟢 Ativo"}`,
+            `• Status: ${u.ativo === false ? "🔴 Bloqueado / Inativo" : "🟢 Ativo"}\n` +
+            `• Último acesso: ${ultimoAcessoFmt}\n\n` +
+            `*Ações disponíveis:*\n` +
+            `1. Resetar Senha\n` +
+            `2. ${u.ativo === false ? "Desbloquear Usuário" : "Bloquear Usuário"}\n` +
+            `0. Cancelar`,
         };
       }
 
