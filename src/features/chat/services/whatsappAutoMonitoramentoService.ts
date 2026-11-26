@@ -3589,10 +3589,14 @@ export async function processarMensagemWhatsappRecebida(
 
       if (etapaLk === "aguardando_perfil") {
         const perfis = [
-          { chave: "cliente", label: "Cliente", rota: "/convite-cliente" },
-          { chave: "instalador", label: "Instalador", rota: "/convite-instalador" },
-          { chave: "vendedor", label: "Vendedor", rota: "/convite-parceiro?perfil=vendedor" },
-          { chave: "revendedor", label: "Revendedor", rota: "/convite-parceiro?perfil=revendedor" },
+          { chave: "cliente", label: "Cliente", rota: "/cadastro-cliente" },
+          { chave: "instalador", label: "Instalador", rota: "/cadastro-instalador" },
+          { chave: "vendedor", label: "Vendedor", rota: "/cadastro-parceiro?perfil=vendedor" },
+          {
+            chave: "revendedor",
+            label: "Revendedor",
+            rota: "/cadastro-parceiro?perfil=revendedor",
+          },
         ];
         const idx = parseInt(respTrim, 10) - 1;
         if (isNaN(idx) || idx < 0 || idx >= perfis.length) {
