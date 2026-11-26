@@ -3763,7 +3763,7 @@ export async function processarMensagemWhatsappRecebida(
         const diaInicio = respTrim;
         const { start, end } = toIsoRangeBr(diaInicio);
         const { data: saidasRaw } = await supabase
-          .from("viagens_veiculos")
+          .from("viagens_trajetos")
           .select("*")
           .eq("veiculo_id", veic.id)
           .gte("inicio_at", start)
@@ -3858,7 +3858,7 @@ export async function processarMensagemWhatsappRecebida(
         const inicioSel = dadosTj.inicioSel;
         const { start, end } = toIsoRangeBr(diaFim);
         const { data: finsRaw } = await supabase
-          .from("viagens_veiculos")
+          .from("viagens_trajetos")
           .select("*")
           .eq("veiculo_id", veic.id)
           .gte("inicio_at", inicioSel)
@@ -3877,7 +3877,7 @@ export async function processarMensagemWhatsappRecebida(
         if (fins.length === 1) {
           const fimIso = fins[0].fim_at || fins[0].inicio_at || inicioSel;
           const { data: selRaw } = await supabase
-            .from("viagens_veiculos")
+            .from("viagens_trajetos")
             .select("*")
             .eq("veiculo_id", veic.id)
             .gte("inicio_at", inicioSel)
@@ -3918,7 +3918,7 @@ export async function processarMensagemWhatsappRecebida(
         const inicioSel = dadosTj.inicioSel;
         const fimIso = fins[idx].fim_at || fins[idx].inicio_at || inicioSel;
         const { data: selRaw } = await supabase
-          .from("viagens_veiculos")
+          .from("viagens_trajetos")
           .select("*")
           .eq("veiculo_id", veic.id)
           .gte("inicio_at", inicioSel)
