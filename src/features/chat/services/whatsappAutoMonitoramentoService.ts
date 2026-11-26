@@ -4112,13 +4112,11 @@ export async function processarMensagemWhatsappRecebida(
         const vel = Math.round(Number(vAlvo.velocidade_atual ?? vAlvo.velocidade ?? 0));
 
         if (comandoAlvo === "TRAJETO") {
-          await excluirSessaoAtiva();
-          await supabase.from("whatsapp_sessoes_dialogo").insert({
+          await salvarSessaoDialogo(supabase, {
             telefone: remetenteLimpo,
             fluxo: "selecao_trajeto",
             etapa: "aguardando_dia_inicio",
             dados: { veiculo: vAlvo },
-            expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
           });
           return {
             sucesso: true,
@@ -7704,12 +7702,11 @@ export async function processarMensagemWhatsappRecebida(
           const ign = Boolean(vUnico.ignicao_status ?? vUnico.ignicao);
           const vel = Math.round(Number(vUnico.velocidade_atual ?? vUnico.velocidade ?? 0));
           if (comandoAlvo === "TRAJETO") {
-            await supabase.from("whatsapp_sessoes_dialogo").insert({
+            await salvarSessaoDialogo(supabase, {
               telefone: remetenteLimpo,
               fluxo: "selecao_trajeto",
               etapa: "aguardando_dia_inicio",
               dados: { veiculo: vUnico },
-              expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
             });
             return {
               sucesso: true,
