@@ -3659,7 +3659,7 @@ export async function processarMensagemWhatsappRecebida(
           sucesso: true,
           destinatario: remetenteLimpo,
           acaoExecutada: "trajeto_pdf_enviado",
-          resposta: `📄 *Relatório de Trajeto (${veic.placa})* gerado e enviado em PDF! (${ciclosSelecionados.length} ciclo(s), ${totalKm.toFixed(1)} km).`,
+          resposta: `⏳ *PDF gerado, aguarde o envio...* (${veic.placa} · ${ciclosSelecionados.length} ciclo(s), ${totalKm.toFixed(1)} km).`,
         };
       };
 
@@ -4110,6 +4110,24 @@ export async function processarMensagemWhatsappRecebida(
           : "Aguardando fixação GPS";
         const ign = Boolean(vAlvo.ignicao_status ?? vAlvo.ignicao);
         const vel = Math.round(Number(vAlvo.velocidade_atual ?? vAlvo.velocidade ?? 0));
+
+        if (comandoAlvo === "TRAJETO") {
+          await supabase.from("whatsapp_sessoes_dialogo").insert({
+            telefone: remetenteLimpo,
+            fluxo: "selecao_trajeto",
+            etapa: "aguardando_dia_inicio",
+            dados: { veiculo: vAlvo },
+            expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+          });
+          return {
+            sucesso: true,
+            destinatario: remetenteLimpo,
+            acaoExecutada: "trajeto_aguardando_dia_inicio",
+            resposta:
+              `🗺️ *Trajeto — ${vAlvo.marca_modelo || "Veículo"} (${vAlvo.placa})*\n\n` +
+              `Digite a *data de início* no formato *DD/MM/AAAA* (ex: 24/11/2026) ou *0* para cancelar.`,
+          };
+        }
 
         if (comandoAlvo === "STATUS") {
           return {
@@ -7599,7 +7617,8 @@ export async function processarMensagemWhatsappRecebida(
     }
 
     const iniciarSelecaoClienteOuVeiculoAdm = async (
-      comandoAlvo: "PIX" | "COMANDO" | "STATUS" | "LOCALIZACAO" | "BLOQUEIO" | "DESBLOQUEIO",
+      comandoAlvo:
+        "PIX" | "COMANDO" | "STATUS" | "LOCALIZACAO" | "BLOQUEIO" | "DESBLOQUEIO" | "TRAJETO",
       tituloComando: string,
     ) => {
       const { data: listaVeic } = await supabase
@@ -7633,7 +7652,10 @@ export async function processarMensagemWhatsappRecebida(
         }
         if (
           listaVeics.length === 1 &&
-          (comandoAlvo === "PIX" || comandoAlvo === "LOCALIZACAO" || comandoAlvo === "STATUS")
+          (comandoAlvo === "PIX" ||
+            comandoAlvo === "LOCALIZACAO" ||
+            comandoAlvo === "STATUS" ||
+            comandoAlvo === "TRAJETO")
         ) {
           const vUnico: any = listaVeics[0];
           if (comandoAlvo === "PIX") {
@@ -7680,6 +7702,24 @@ export async function processarMensagemWhatsappRecebida(
             : "Aguardando fixação GPS";
           const ign = Boolean(vUnico.ignicao_status ?? vUnico.ignicao);
           const vel = Math.round(Number(vUnico.velocidade_atual ?? vUnico.velocidade ?? 0));
+          if (comandoAlvo === "TRAJETO") {
+            await supabase.from("whatsapp_sessoes_dialogo").insert({
+              telefone: remetenteLimpo,
+              fluxo: "selecao_trajeto",
+              etapa: "aguardando_dia_inicio",
+              dados: { veiculo: vUnico },
+              expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+            });
+            return {
+              sucesso: true,
+              destinatario: remetenteLimpo,
+              acaoExecutada: "trajeto_aguardando_dia_inicio",
+              resposta:
+                `🗺️ *Trajeto — ${vUnico.marca_modelo || "Veículo"} (${vUnico.placa})*\n\n` +
+                `Digite a *data de início* no formato *DD/MM/AAAA* (ex: 24/11/2026) ou *0* para cancelar.`,
+            };
+          }
+
           if (comandoAlvo === "STATUS") {
             return {
               sucesso: true,
