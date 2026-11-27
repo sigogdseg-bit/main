@@ -4132,6 +4132,7 @@ export async function processarMensagemWhatsappRecebida(
             descricao: `Laudo Oficial de Telemetria via WhatsApp - Veículo ${veic.placa} (${veic.marca_modelo || "Veículo"})`,
             tamanho_bytes: pdfBuf.byteLength,
             emissor_nome: remetenteLimpo,
+            emissor_email: "whatsapp@gdseguranca.com.br",
             metadata: {
               origem: "whatsapp_auto_monitoramento",
               placa: veic.placa,
@@ -7130,6 +7131,7 @@ export async function processarMensagemWhatsappRecebida(
             tipo_documento: "PROPOSTA_COMERCIAL",
             descricao: `Proposta Comercial Oficial #${numProposta} via WhatsApp - Cliente ${dados.cliente_nome}`,
             emissor_nome: remetenteLimpo,
+            emissor_email: "whatsapp@gdseguranca.com.br",
             metadata: {
               origem: "whatsapp_proposta",
               numero_proposta: numProposta,
