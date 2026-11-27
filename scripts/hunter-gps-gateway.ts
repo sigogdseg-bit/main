@@ -1208,9 +1208,21 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
       }
     } else if (keyword === "acc on") {
       conn.ignicaoStatus = true;
+      if (conn.veiculoId && !process.env.GATEWAY_TEST_MODE) {
+        await supabase
+          .from("veiculos")
+          .update({ ignicao_status: true, ultima_atualizacao: new Date().toISOString() })
+          .eq("id", conn.veiculoId);
+      }
       processarAutoThrottleCoban(imei, true, 0, socket);
     } else if (keyword === "acc off") {
       conn.ignicaoStatus = false;
+      if (conn.veiculoId && !process.env.GATEWAY_TEST_MODE) {
+        await supabase
+          .from("veiculos")
+          .update({ ignicao_status: false, ultima_atualizacao: new Date().toISOString() })
+          .eq("id", conn.veiculoId);
+      }
       processarAutoThrottleCoban(imei, false, 0, socket);
     }
 
@@ -1420,7 +1432,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
       const accByte22 = buf.readUInt8(offset + 26);
       if (accByte22 === 0x00) {
         conn.ignicaoStatus = false;
-      } else if (accByte22 === 0x01 || accByte22 === 0x02) {
+      } else if ((accByte22 & 0x03) !== 0) {
         conn.ignicaoStatus = true;
       }
     }
@@ -2002,8 +2014,9 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     // Validação determinística de sanidade
     const coordsValidas =
       latitude !== 0 && longitude !== 0 && !isNaN(latitude) && !isNaN(longitude);
+    let distM: number | null = null;
+    let saltoImpossivel = false;
     if (
-      gpsFixado &&
       coordsValidas &&
       conn.ultimoLat &&
       conn.ultimoLng &&
@@ -2020,8 +2033,9 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
           Math.cos((latitude * Math.PI) / 180) *
           sinLng *
           sinLng;
-      const distM = 2 * 6371000 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+      distM = 2 * 6371000 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
       if (distM > 50000 && velocidade < 300) {
+        saltoImpossivel = true;
         console.warn(
           `⚠️ [GPS GATEWAY] Descarte de teleporte impossível no alarme 0x16 (${(distM / 1000).toFixed(1)} km) para ${conn.imei}. Mantendo última coordenada válida.`,
         );
@@ -2118,18 +2132,23 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
         case 0x09: // Moving Alarm
           // Blindagem anti-falso-positivo na raiz:
           // - Se ignição está ligada, NÃO é guincho/reboque com motor desligado.
-          // - Se ignição está desligada e velocidade < 15 km/h, trata-se de deriva GNSS estacionado.
+          // - Exige GNSS fixado, ausência de teleporte, velocidade >= 20 km/h e deslocamento >= 50m (quando há referência anterior).
           if (ignicao) {
             tipoAlerta = "movimento";
             tituloEvento = "Movimento com Ignição Ligada";
             descEvento = "Alarme de movimento recebido com ignição ligada.";
             severidade = "info";
             gravidadeAlerta = "media";
-          } else if (velocidade < 15) {
+          } else if (
+            !gpsFixado ||
+            saltoImpossivel ||
+            velocidade < 20 ||
+            (distM !== null && distM < 50)
+          ) {
             tipoAlerta = "deriva_gps_estacionado";
             tituloEvento = "Oscilação GNSS Estacionado";
             descEvento =
-              "Oscilação de antena GNSS detectada com veículo parado e ignição desligada.";
+              "Oscilação de antena GNSS ou pacote sem fixação detectado com veículo estacionado e ignição desligada.";
             severidade = "info";
             gravidadeAlerta = "media";
           } else {
@@ -2138,7 +2157,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
             descEvento =
               "Veículo deslocou-se com a ignição desligada (possível reboque ou guincho).";
             severidade = "critico";
-            gravidadeAlerta = "alta";
+            gravidadeAlerta = "critica";
           }
           break;
         case 0x0e: // Low Battery
@@ -2188,9 +2207,9 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     );
 
     if (conn.veiculoId) {
-      // 1. Salva a posição GPS caso seja válida
-      if (latitude !== 0 && longitude !== 0) {
-        const ehDerivaEstacionado = alarmCode === 0x09 && !ignicao && velocidade < 5;
+      // 1. Salva a posição GPS somente quando fixada por satélite (GNSS) e sem teleporte impossível
+      if (coordsValidas && gpsFixado && !saltoImpossivel) {
+        const ehDerivaEstacionado = alarmCode === 0x09 && tipoAlerta === "deriva_gps_estacionado";
         if (!ehDerivaEstacionado) {
           conn.ultimoLat = latitude;
           conn.ultimoLng = longitude;
@@ -2200,7 +2219,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
           rastreadorId: conn.rastreadorId,
           latitude: ehDerivaEstacionado && conn.ultimoLat ? conn.ultimoLat : latitude,
           longitude: ehDerivaEstacionado && conn.ultimoLng ? conn.ultimoLng : longitude,
-          velocidade,
+          velocidade: ehDerivaEstacionado ? 0 : velocidade,
           ignicao,
           satelites,
           rumo,
@@ -2710,17 +2729,30 @@ async function salvarAlertaSegurancaNoHunter(dados: {
         clienteId = v?.cliente_id;
       }
       if (clienteId) {
-        await supabase.from("alertas_seguranca").insert({
-          veiculo_id: dados.veiculoId,
-          cliente_id: clienteId,
-          tipo: dados.tipo,
-          gravidade: dados.gravidade || "alta",
-          latitude: dados.lat || 0.0,
-          longitude: dados.lon || 0.0,
-          velocidade: Math.round(dados.velocidade || 0),
-          detalhes: dados.detalhes,
-          reconhecido: false,
-        });
+        const cincoMinAtras = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+        const { data: existenteFallback } = await supabase
+          .from("alertas_seguranca")
+          .select("id")
+          .eq("veiculo_id", dados.veiculoId)
+          .eq("tipo", dados.tipo)
+          .eq("reconhecido", false)
+          .gte("created_at", cincoMinAtras)
+          .limit(1)
+          .maybeSingle();
+
+        if (!existenteFallback?.id) {
+          await supabase.from("alertas_seguranca").insert({
+            veiculo_id: dados.veiculoId,
+            cliente_id: clienteId,
+            tipo: dados.tipo,
+            gravidade: dados.gravidade || "alta",
+            latitude: latFinal,
+            longitude: lonFinal,
+            velocidade: Math.round(dados.velocidade || 0),
+            detalhes: dados.detalhes,
+            reconhecido: false,
+          });
+        }
       }
     } else {
       console.log(
@@ -2860,6 +2892,7 @@ async function salvarPosicaoNoHunter(dados: {
       satelites: dados.satelites,
       sinalGsm: dados.sinalGsm,
       dataHoraGps: dados.dataHoraGps,
+      gpsFixado: dados.gpsFixado ?? true,
       statusOperacional,
       status_operacional: statusOperacional,
       origem: "gps_posicao",

@@ -281,20 +281,30 @@ export function AlertasAcidenteBanner({
       ? `https://www.google.com/maps?q=${alerta.latitude},${alerta.longitude}`
       : "Indisponível (aguardando sinal GPS)";
 
-    const texto = [
+    const ehGuincho = alerta.tipo === "guincho";
+    const linhasBriefing = [
       `*OCORRÊNCIA DE EMERGÊNCIA — GD RASTREAMENTO*`,
       `*Tipo:* ${formatarTituloTipo(alerta.tipo, alerta.detalhes)} (${alerta.gravidade.toUpperCase()})`,
       `*Veículo:* ${alerta.placa || "Placa N/I"} — ${alerta.marca_modelo || "Modelo N/I"}`,
       `*Cliente/Proprietário:* ${alerta.cliente_nome || "Não informado"}`,
       `*Telefone:* ${alerta.cliente_telefone || "Não informado"}`,
       `*Documento:* ${alerta.cliente_documento || "Não informado"}`,
-      `*Velocidade no Impacto:* ${alerta.velocidade} km/h`,
-      `*Força G:* ${alerta.vibracao_g}G | *Inclinação:* ${alerta.inclinacao_graus}°`,
+      ehGuincho
+        ? `*Velocidade Detectada:* ${alerta.velocidade} km/h (Ignição Desligada)`
+        : `*Velocidade no Impacto:* ${alerta.velocidade} km/h`,
+    ];
+    if (!ehGuincho) {
+      linhasBriefing.push(
+        `*Força G:* ${alerta.vibracao_g}G | *Inclinação:* ${alerta.inclinacao_graus}°`,
+      );
+    }
+    linhasBriefing.push(
       `*Detalhes:* ${alerta.detalhes}`,
       `*Coordenadas:* ${coordsTexto}`,
       `*Google Maps:* ${mapsTexto}`,
       `*Horário:* ${new Date(alerta.created_at).toLocaleString("pt-BR")}`,
-    ].join("\n");
+    );
+    const texto = linhasBriefing.join("\n");
 
     navigator.clipboard.writeText(texto);
     setCopiadoBriefing(true);

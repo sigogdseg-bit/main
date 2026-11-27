@@ -590,6 +590,7 @@ export function GpsMonitorView({
   const prefsNotificacaoRef = useRef<PreferenciasNotificacao>(PREFERENCIAS_PADRAO);
   const prefsPorVeiculoRef = useRef<Map<string, PreferenciasNotificacao>>(new Map());
   const guinchoConfirmacaoRef = useRef<Map<string, number>>(new Map());
+  const guinchoBasePosRef = useRef<Map<string, { lat: number; lng: number }>>(new Map());
   const veiculosCacheIniciadoRef = useRef<Set<string>>(new Set());
 
   // Pré-carrega preferências de cada veículo da lista para evitar vazar regras entre veículos distintos
@@ -1045,23 +1046,43 @@ export function GpsMonitorView({
         }
 
         // ── ALERTA 4: Guincho (Movimento com Ignição Desligada) ─────────
-        // Anti-Jitter: descarta oscilação de antena (0 a 19 km/h) e exige 5 leituras
-        // consecutivas >= 20 km/h com ignição desligada para evitar falso positivo por GPS Drift ou queda momentânea de ACC.
+        // Anti-Jitter: exige GPS fixado, ignição factualmente desligada, >= 20 km/h por 5 leituras
+        // consecutivas E deslocamento físico real >= 50 metros a partir da âncora inicial.
+        const coordsValidasGuincho =
+          typeof v.latitude === "number" &&
+          typeof v.longitude === "number" &&
+          (Math.abs(v.latitude) > 0.0001 || Math.abs(v.longitude) > 0.0001);
         const emMovimentoSemIgnicao =
-          v.ignicao === false && typeof v.velocidade === "number" && v.velocidade >= 20;
+          v.ignicao === false &&
+          v.gps_fixado !== false &&
+          coordsValidasGuincho &&
+          typeof v.velocidade === "number" &&
+          v.velocidade >= 20;
         if (!emMovimentoSemIgnicao) {
           guinchoConfirmacaoRef.current.set(v.id, 0);
+          guinchoBasePosRef.current.delete(v.id);
         } else {
+          let basePos = guinchoBasePosRef.current.get(v.id);
+          if (!basePos) {
+            basePos = { lat: v.latitude, lng: v.longitude };
+            guinchoBasePosRef.current.set(v.id, basePos);
+          }
+          const distDeslocamentoM = calcularDistanciaMetros(
+            basePos.lat,
+            basePos.lng,
+            v.latitude,
+            v.longitude,
+          );
           const contagemGuincho = (guinchoConfirmacaoRef.current.get(v.id) ?? 0) + 1;
           guinchoConfirmacaoRef.current.set(v.id, contagemGuincho);
-          if (permiteAlertaTel("guincho") && contagemGuincho >= 5) {
+          if (permiteAlertaTel("guincho") && contagemGuincho >= 5 && distDeslocamentoM >= 50) {
             dispararAlerta(
               {
                 chaveDeduplicacao: `guincho_${v.id}`,
                 tipo: "guincho",
                 gravidade: "critica",
                 titulo: `🚨 Veículo em Movimento com Motor Desligado — ${v.placa}`,
-                mensagem: `Veículo ${v.placa} detectado em ${v.velocidade} km/h com ignição desligada. Possível reboque ou furto em andamento.`,
+                mensagem: `Veículo ${v.placa} detectado a ${Math.round(v.velocidade)} km/h com ignição desligada. Possível reboque ou furto em andamento.`,
               },
               prefs,
             );

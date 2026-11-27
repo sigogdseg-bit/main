@@ -168,6 +168,7 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
           horimetro_modo,
           horimetro_horas,
           ignicao_status,
+          gps_fixado,
           bloqueado,
           velocidade_atual,
           odometro_km,
@@ -233,6 +234,7 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
             cor,
             ano,
             ignicao_status,
+            gps_fixado,
             bloqueado,
             velocidade_atual,
             odometro_km,
@@ -313,8 +315,8 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
 
     return veiculosValidos.map((v: any) => {
       const velocidade = Number(v.velocidade_atual) || 0;
-      // Regra Canônica Hunter: Se velocidade > 3 km/h, o veículo está inegavelmente em deslocamento real
-      const ignicao = !!v.ignicao_status || velocidade > 3;
+      // Preserva estritamente o estado factual da ignição reportado pelo rastreador/banco
+      const ignicao = !!v.ignicao_status;
       const bloqueado = !!v.bloqueado;
 
       const statusBanco =
@@ -357,6 +359,8 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
         ano: v.ano || undefined,
         tipo_veiculo: (v.tipo_veiculo as any) || "carro",
         ignicao,
+        ignicao_status: !!v.ignicao_status,
+        gps_fixado: v.gps_fixado !== false,
         bloqueado,
         bloqueador_instalado: v.bloqueador_instalado !== false,
         tipo_bloqueador: v.tipo_bloqueador || "rele_combustivel",

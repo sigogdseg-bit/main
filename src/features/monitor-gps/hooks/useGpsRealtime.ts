@@ -14,6 +14,7 @@ export interface PatchTelemetriaTempoReal {
   longitude?: number | null;
   velocidade?: number | null;
   ignicao?: boolean | null;
+  gps_fixado?: boolean | null;
   bloqueado?: boolean | null;
   rumo?: number | null;
   ultima_atualizacao?: string | null;
@@ -46,13 +47,13 @@ export function calcularStatusOperacionalFrontend(
     inicioParadaPorVeiculo.delete(veiculoId);
     return "bloqueado";
   }
-  if (!ignicao) {
-    inicioParadaPorVeiculo.delete(veiculoId);
-    return "estacionado";
-  }
   if (velocidade > 3) {
     inicioParadaPorVeiculo.delete(veiculoId);
     return "em_rota";
+  }
+  if (!ignicao) {
+    inicioParadaPorVeiculo.delete(veiculoId);
+    return "estacionado";
   }
 
   // ignicao === true && velocidade <= 3 (parado com motor ligado)
@@ -102,8 +103,8 @@ export function aplicarPatchTempoRealNaLista(
     typeof patch.velocidade === "number" && !isNaN(patch.velocidade)
       ? patch.velocidade
       : atual.velocidade;
-  const ignicaoBase = typeof patch.ignicao === "boolean" ? patch.ignicao : atual.ignicao;
-  const ignicao = ignicaoBase || velocidade > 3;
+  const ignicao = typeof patch.ignicao === "boolean" ? patch.ignicao : atual.ignicao;
+  const gps_fixado = typeof patch.gps_fixado === "boolean" ? patch.gps_fixado : atual.gps_fixado;
   const bloqueado = typeof patch.bloqueado === "boolean" ? patch.bloqueado : atual.bloqueado;
 
   const status_operacional = calcularStatusOperacionalFrontend(
@@ -137,6 +138,8 @@ export function aplicarPatchTempoRealNaLista(
         : atual.longitude,
     velocidade,
     ignicao,
+    ignicao_status: ignicao,
+    gps_fixado,
     bloqueado,
     status_operacional,
     rumo: typeof patch.rumo === "number" && !isNaN(patch.rumo) ? patch.rumo : atual.rumo,
@@ -663,6 +666,12 @@ export function useGpsRealtime() {
             longitude: typeof dados?.longitude === "number" ? dados.longitude : undefined,
             velocidade: typeof dados?.velocidade === "number" ? dados.velocidade : undefined,
             ignicao: typeof dados?.ignicao === "boolean" ? dados.ignicao : undefined,
+            gps_fixado:
+              typeof dados?.gpsFixado === "boolean"
+                ? dados.gpsFixado
+                : typeof dados?.gps_fixado === "boolean"
+                  ? dados.gps_fixado
+                  : undefined,
             rumo: typeof dados?.rumo === "number" ? dados.rumo : undefined,
             satelites: typeof dados?.satelites === "number" ? dados.satelites : undefined,
             sinal_gsm:

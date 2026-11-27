@@ -4346,6 +4346,7 @@ async function handleApiVeiculos(request: Request, env: unknown): Promise<Respon
           horimetro_modo,
           horimetro_horas,
           ignicao_status,
+          gps_fixado,
           bloqueado,
           velocidade_atual,
           odometro_km,
@@ -10767,7 +10768,13 @@ async function handleApiWebPush(request: Request, _env: unknown): Promise<Respon
             textoGeral.includes("entrou na área")
           ) {
             tipoNotif = "entrada_area";
-          } else if (textoGeral.includes("guincho") || textoGeral.includes("arrasto")) {
+          } else if (
+            textoGeral.includes("guincho") ||
+            textoGeral.includes("arrasto") ||
+            textoGeral.includes("reboque") ||
+            textoGeral.includes("motor desligado") ||
+            textoGeral.includes("ignição desligada")
+          ) {
             tipoNotif = "guincho";
           } else if (textoGeral.includes("jammer")) {
             tipoNotif = "suspeita_jammer";

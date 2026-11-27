@@ -258,7 +258,7 @@ export function CentralAlertasModal({
                 const ehJammer = alerta.tipo === "suspeita_jammer";
                 const ehSigiloTecnico = ehAlertaRestritoEquipeTecnica(alerta.tipo);
                 const dadosWhats = {
-                  tipo: (ehJammer ? "suspeita_jammer" : "desvio_rota") as any,
+                  tipo: (ehJammer ? "suspeita_jammer" : alerta.tipo) as any,
                   titulo: alerta.tipo.replace(/_/g, " "),
                   descricao: alerta.detalhes,
                   placa: alerta.placa || "VEÍCULO",

@@ -38,6 +38,7 @@ export interface VeiculoGps {
   tipo_veiculo?: TipoVeiculo;
   ignicao: boolean;
   ignicao_status?: boolean;
+  gps_fixado?: boolean;
   bloqueado: boolean;
   bloqueador_instalado?: boolean;
   tipo_bloqueador?: "rele_combustivel" | "outro" | "sem_bloqueador" | null;
