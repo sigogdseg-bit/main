@@ -24,15 +24,17 @@ Antes de propor alterações, registrar o estado real observado no código-fonte
 
 ---
 
-## 1. Objetivo e Premissas (*Assumptions*)
+## 1. Objetivo e Premissas (_Assumptions_)
 
 **Objetivo:** [O que estamos construindo/alterando e por quê. Qual problema raiz resolve.]
 
 **Premissas assumidas (corrigir antes de avançar se alguma estiver errada):**
+
 1. [Premissa 1]
 2. [Premissa 2]
 
 **Fora de escopo:**
+
 - [O que NÃO será alterado nesta tarefa]
 
 ---
