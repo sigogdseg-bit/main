@@ -706,3 +706,12 @@ Sempre que solicitado, fornecer as contas vinculadas à infraestrutura do GD Ras
 - **Lara:** `dev@oficial.tec.br`
 - **GitHub:** `sigoguardiao@oficial.tec.br`
 - **MapTiler:** Google (`dev@oficial.tec.br`)
+
+### 28.12. Protocolo Nativo de Especificação Viva (Spec-Driven Development Interno)
+
+Para garantir controle, previsibilidade e documentação viva sem depender de skills externas genéricas, toda nova funcionalidade, refatoração estrutural ou alteração que envolva **3 ou mais arquivos**, **alteração de banco/RPC/RLS** ou **mudança de protocolo/gateway** deve seguir obrigatoriamente o fluxo em 4 etapas utilizando o template [docs/specs/_TEMPLATE.md](docs/specs/_TEMPLATE.md):
+
+1. **Mapeamento (Discovery):** Inspecionar os arquivos reais afetados (`src/`, `supabase/migrations/`, `deploy/hunter-gateway/`, testes `hunter-*.test.ts` e o módulo correspondente em `dev-modulos`) antes de propor qualquer código.
+2. **Especificação (`docs/specs/YYYY-MM-DD-nome-curto.md`):** Registrar premissas, o que está fora de escopo, critérios de aceite testáveis, tarefas atômicas (máximo ~5 arquivos por etapa) e fronteiras (`Sempre / Perguntar antes / Nunca`).
+3. **Validação Prévia:** Submeter a spec ao usuário para aprovação antes de iniciar alterações de código (não aplicável a correções pontuais de 1–2 arquivos com requisito inequívoco).
+4. **Execução e Atualização Viva:** Implementar etapa por etapa, atualizar a spec caso decisões mudem durante a execução, preencher a seção de validação com resultados reais (Gates 2 a 5) e versionar a spec junto com o código (mediante autorização no Gate 6).
