@@ -69,5 +69,18 @@ describe("Hunter — QR Code de Autenticidade em Todos os PDFs do Sistema", () =
         (content.includes("QRCode.toDataURL") && content.includes("gd.oficial.tec.br/verificar"));
       assert.ok(temCertidao, `${rel} deve incorporar QR Code de autenticidade`);
     }
+
+    const whatsappSrc = fs.readFileSync(
+      path.resolve(__dirname, "../../features/chat/services/whatsappAutoMonitoramentoService.ts"),
+      "utf-8",
+    );
+    assert.ok(
+      whatsappSrc.includes("selo: cert.seloSgd") &&
+        whatsappSrc.includes("codigo: cert.codigoVerificacao") &&
+        whatsappSrc.includes("hash_conteudo: cert.hashSha256") &&
+        !whatsappSrc.includes("emissorNome: remetenteLimpo") &&
+        !whatsappSrc.includes("emissor_nome: remetenteLimpo"),
+      "whatsappAutoMonitoramentoService deve gravar selo, codigo, hash_conteudo e nome do usuário cadastrado",
+    );
   });
 });

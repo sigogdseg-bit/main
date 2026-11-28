@@ -610,7 +610,7 @@ export async function emitirPropostaComercialPdf(
   // Download do arquivo PDF gerado e Registro Forense com QR Code
   const nomeArquivo = `Proposta_${proposta.numero_proposta}_${proposta.cliente_nome.replace(/\s+/g, "_")}.pdf`;
 
-  await aplicarCertidaoAutenticidadePdf({
+  const cert = await aplicarCertidaoAutenticidadePdf({
     doc,
     tipoDocumento: "PROPOSTA_COMERCIAL",
     nomeArquivo,
@@ -624,6 +624,7 @@ export async function emitirPropostaComercialPdf(
       mensalidade: proposta.com_fidelidade_mensalidade,
     },
   });
+  (doc as any).__certidaoForense = cert;
 
   if (typeof window !== "undefined" && typeof (doc as any).save === "function") {
     try {
@@ -642,7 +643,18 @@ export async function emitirPropostaComercialPdf(
 export async function gerarPropostaComercialPdfBase64(
   proposta: PropostaComercial,
   usuarioEmissor = "Operador Autorizado",
-): Promise<{ nomeArquivo: string; base64: string; arrayBuffer: ArrayBuffer }> {
+): Promise<{
+  nomeArquivo: string;
+  base64: string;
+  arrayBuffer: ArrayBuffer;
+  certidao?: {
+    seloSgd: string;
+    codigoVerificacao: string;
+    hashSha256: string;
+    hashArquivoFinal: string;
+    linkVerificacao: string;
+  };
+}> {
   const doc = await emitirPropostaComercialPdf(proposta, usuarioEmissor);
   const arrayBuffer = doc.output("arraybuffer");
   const base64 =
@@ -650,5 +662,10 @@ export async function gerarPropostaComercialPdfBase64(
       ? Buffer.from(arrayBuffer).toString("base64")
       : btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
   const nomeArquivo = `Proposta_${proposta.numero_proposta}_${(proposta.cliente_nome || "Cliente").replace(/\s+/g, "_")}.pdf`;
-  return { nomeArquivo, base64, arrayBuffer };
+  return {
+    nomeArquivo,
+    base64,
+    arrayBuffer,
+    certidao: (doc as any).__certidaoForense,
+  };
 }

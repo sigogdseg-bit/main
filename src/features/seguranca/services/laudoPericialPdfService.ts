@@ -65,8 +65,8 @@ export async function gerarLaudoPericialForensePdf(
   });
 
   const dataEmissao = new Date();
-  const dataFmt = dataEmissao.toLocaleDateString("pt-BR");
-  const horaFmt = dataEmissao.toLocaleTimeString("pt-BR");
+  const dataFmt = dataEmissao.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const horaFmt = dataEmissao.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
   // Selo SGD Canônico: SGD-SIM-XXXXXXXX (para simulacao) ou SGD-XXXXXXXX (para producao)
   const sufixoSelo = gerarHexAleatorio(8);

@@ -60,8 +60,8 @@ export async function aplicarCertidaoAutenticidadePdf(
 ): Promise<ResultadoCertidaoPdf> {
   const { doc } = params;
   const agora = new Date();
-  const dataFmt = agora.toLocaleDateString("pt-BR");
-  const horaFmt = agora.toLocaleTimeString("pt-BR");
+  const dataFmt = agora.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const horaFmt = agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
   const sufixo = gerarHexAleatorio(8);
   const seloSgd =

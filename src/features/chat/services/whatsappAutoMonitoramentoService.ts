@@ -4117,12 +4117,18 @@ export async function processarMensagemWhatsappRecebida(
         }
 
         const nomeArq = `GD_Rastreamento_Laudo_Telemetria_${veic.placa}.pdf`;
-        await aplicarCertidaoAutenticidadePdf({
+        const nomeEmissorPdf =
+          perfilNome ||
+          cliente?.nome ||
+          revendedorNome ||
+          vendedorNome ||
+          "Operador GD Rastreamento";
+        const cert = await aplicarCertidaoAutenticidadePdf({
           doc,
           tipoDocumento: "LAUDO_TELEMETRIA",
           nomeArquivo: nomeArq,
           descricao: `Laudo Oficial de Telemetria via WhatsApp - Veículo ${veic.placa} (${veic.marca_modelo || "Veículo"})`,
-          emissorNome: remetenteLimpo,
+          emissorNome: nomeEmissorPdf,
           forcarNovaPagina: true,
           registrarNoBanco: false,
           metadataExtra: { origem: "whatsapp", placa: veic.placa },
@@ -4143,9 +4149,14 @@ export async function processarMensagemWhatsappRecebida(
             tipo_documento: "LAUDO_TELEMETRIA",
             descricao: `Laudo Oficial de Telemetria via WhatsApp - Veículo ${veic.placa} (${veic.marca_modelo || "Veículo"})`,
             tamanho_bytes: pdfBuf.byteLength,
-            emissor_nome: remetenteLimpo,
+            emissor_nome: nomeEmissorPdf,
             emissor_email: "whatsapp@gdseguranca.com.br",
             metadata: {
+              selo: cert.seloSgd,
+              codigo: cert.codigoVerificacao,
+              numero_contrato: `LAUDO_TELEMETRIA-${cert.seloSgd}`,
+              hash_conteudo: cert.hashSha256,
+              link_verificacao: cert.linkVerificacao,
               origem: "whatsapp_auto_monitoramento",
               placa: veic.placa,
               veiculo_id: veic.id,
@@ -7085,11 +7096,19 @@ export async function processarMensagemWhatsappRecebida(
       // 3. Executa a geração imediata do PDF oficial (execução rápida ~400ms)
       let pdfBase64 = "";
       let pdfNome = `Proposta_${numProposta}.pdf`;
+      let pdfCertidao: {
+        seloSgd: string;
+        codigoVerificacao: string;
+        hashSha256: string;
+        hashArquivoFinal: string;
+        linkVerificacao: string;
+      } | null = null;
       try {
         const pdfResult = await gerarPropostaComercialPdfBase64(payloadProposta, nomeEmissorStr);
         if (pdfResult?.base64) {
           pdfBase64 = pdfResult.base64;
           pdfNome = pdfResult.nomeArquivo;
+          pdfCertidao = pdfResult.certidao || null;
         }
       } catch (pdfErr) {
         console.error("Aviso ao gerar PDF da proposta:", pdfErr);
@@ -7137,12 +7156,17 @@ export async function processarMensagemWhatsappRecebida(
         try {
           await supabase.from("documentos_emitidos").insert({
             nome_arquivo: pdfNome,
-            hash_sha256: hashSha256,
+            hash_sha256: pdfCertidao?.hashArquivoFinal || hashSha256,
             tipo_documento: "PROPOSTA_COMERCIAL",
             descricao: `Proposta Comercial Oficial #${numProposta} via WhatsApp - Cliente ${dados.cliente_nome}`,
-            emissor_nome: remetenteLimpo,
+            emissor_nome: nomeEmissorStr,
             emissor_email: "whatsapp@gdseguranca.com.br",
             metadata: {
+              selo: pdfCertidao?.seloSgd || undefined,
+              codigo: pdfCertidao?.codigoVerificacao || undefined,
+              numero_contrato: numProposta,
+              hash_conteudo: pdfCertidao?.hashSha256 || hashSha256,
+              link_verificacao: pdfCertidao?.linkVerificacao || undefined,
               origem: "whatsapp_proposta",
               numero_proposta: numProposta,
               cliente_nome: dados.cliente_nome,
