@@ -36,8 +36,13 @@ import {
   type AlertaCatalogoItem,
   type CanalAlertaItemPreferencia,
 } from "@/features/monitor-gps/constants/alertasCatalogo";
-import type { ContatoAlertaWhatsapp } from "@/features/monitor-gps/services/notificacoesService";
 import {
+  PREFERENCIAS_PADRAO,
+  type ContatoAlertaWhatsapp,
+  type PreferenciasNotificacao,
+} from "@/features/monitor-gps/services/notificacoesService";
+import {
+  aplicarConfigAlertasTodaFrota,
   carregarConfigAlertasCliente,
   salvarConfigAlertasCliente,
   carregarConfigAlertasEquipe,
@@ -89,6 +94,10 @@ export function ModalCentralAlertasConta({
     () => obterAlertasEquipePadrao(),
   );
   const [contatosAlertas, setContatosAlertas] = useState<ContatoAlertaWhatsapp[]>([]);
+  const [veiculosFrota, setVeiculosFrota] = useState<
+    Array<{ id: string; placa: string; marca_modelo?: string | null; cliente_id?: string | null }>
+  >([]);
+  const [veiculosSelecionadosIds, setVeiculosSelecionadosIds] = useState<string[]>([]);
 
   const [alertaDestinatariosAberto, setAlertaDestinatariosAberto] = useState<string | null>(null);
   const [novoNome, setNovoNome] = useState("");
@@ -125,6 +134,19 @@ export function ModalCentralAlertasConta({
           if (!ativo) return;
           setAlertasOperacionais(cfgCli.alertasOperacionais);
           setContatosAlertas(cfgCli.contatosAlertas);
+        }
+
+        let queryVeic = supabase
+          .from("veiculos")
+          .select("id, placa, marca_modelo, cliente_id")
+          .order("placa", { ascending: true });
+        if (!modoEquipe && clienteId) {
+          queryVeic = queryVeic.eq("cliente_id", clienteId);
+        }
+        const { data: listaVeic } = await queryVeic;
+        if (ativo && Array.isArray(listaVeic)) {
+          setVeiculosFrota(listaVeic);
+          setVeiculosSelecionadosIds(listaVeic.map((v) => v.id));
         }
       } catch (err) {
         console.warn("[ModalCentralAlertasConta] Erro ao carregar configurações:", err);
@@ -527,8 +549,40 @@ export function ModalCentralAlertasConta({
         });
       }
 
+      let totalVeiculosAtualizados = 0;
+      if (userId && veiculosSelecionadosIds.length > 0) {
+        const veiculosAlvo = veiculosFrota.filter((v) => veiculosSelecionadosIds.includes(v.id));
+        if (veiculosAlvo.length > 0) {
+          const preferenciasFrota: PreferenciasNotificacao = { ...PREFERENCIAS_PADRAO };
+          for (const item of ALERTAS_FROTA_EQUIPE) {
+            const regra = alertasEquipe[item.chave];
+            const ativoItem = regra
+              ? regra.ativo !== false && Boolean(regra.app || regra.whatsapp || regra.ligacao)
+              : item.padraoAtivo;
+            (preferenciasFrota as any)[item.chave] = ativoItem;
+          }
+          preferenciasFrota.canais_alertas = {
+            app: true,
+            whatsapp: true,
+            ligacao: true,
+            por_alerta: alertasEquipe as any,
+          };
+          const resFrota = await aplicarConfigAlertasTodaFrota({
+            veiculos: veiculosAlvo,
+            userId,
+            preferencias: preferenciasFrota,
+            destinatariosWhatsapp: contatosAlertas,
+          });
+          totalVeiculosAtualizados = resFrota.atualizados;
+        }
+      }
+
       if (ok) {
-        toast.success("Preferências da Central de Alertas salvas com sucesso!");
+        toast.success(
+          totalVeiculosAtualizados > 0
+            ? `Preferências salvas e aplicadas em ${totalVeiculosAtualizados} veículo(s) da frota!`
+            : "Preferências da Central de Alertas salvas com sucesso!",
+        );
         onSalvo?.(alertasOperacionais);
         onClose();
       } else {
@@ -938,22 +992,20 @@ export function ModalCentralAlertasConta({
                 <span>{modoEquipe ? "Operação e Gestão" : "Alertas da Conta"}</span>
               </button>
 
-              {modoEquipe && (
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={abaAtiva === "frota"}
-                  onClick={() => setAbaAtiva("frota")}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px] ${
-                    abaAtiva === "frota"
-                      ? "bg-slate-900 text-white dark:bg-orange-500 dark:text-slate-950 shadow-md"
-                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
-                  }`}
-                >
-                  <Car className="h-4 w-4 shrink-0" />
-                  <span>Frota (Equipe)</span>
-                </button>
-              )}
+              <button
+                type="button"
+                role="tab"
+                aria-selected={abaAtiva === "frota"}
+                onClick={() => setAbaAtiva("frota")}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px] ${
+                  abaAtiva === "frota"
+                    ? "bg-slate-900 text-white dark:bg-orange-500 dark:text-slate-950 shadow-md"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200"
+                }`}
+              >
+                <Car className="h-4 w-4 shrink-0" />
+                <span>{modoEquipe ? "Frota (Equipe)" : "Alertas da Frota"}</span>
+              </button>
 
               <button
                 type="button"
@@ -983,14 +1035,81 @@ export function ModalCentralAlertasConta({
               <>
                 {abaAtiva === "operacao" && renderListaItens("operacao", itensOperacionaisVisiveis)}
 
-                {abaAtiva === "frota" && modoEquipe && (
-                  <div className="space-y-3">
+                {abaAtiva === "frota" && (
+                  <div className="space-y-4">
                     <div className="p-3 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-800 dark:text-indigo-200">
-                      Configure quais alertas de telemetria da frota você deseja acompanhar
-                      pessoalmente como integrante da equipe técnica, com seleção independente de
-                      App, WhatsApp e Ligação.
+                      Configure os alertas de telemetria de modo geral para a frota e escolha abaixo
+                      em quais veículos deseja aplicar (todos vêm marcados por padrão).
                     </div>
+
                     {renderListaItens("frota", ALERTAS_FROTA_EQUIPE)}
+
+                    <div className="p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700/70 bg-slate-50/70 dark:bg-slate-800/40 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                          Veículos da Frota ({veiculosSelecionadosIds.length} de{" "}
+                          {veiculosFrota.length} marcados)
+                        </span>
+                        {veiculosFrota.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVeiculosSelecionadosIds(
+                                veiculosSelecionadosIds.length === veiculosFrota.length
+                                  ? []
+                                  : veiculosFrota.map((v) => v.id),
+                              )
+                            }
+                            className="text-[11px] font-bold text-orange-600 dark:text-orange-400 hover:underline cursor-pointer"
+                          >
+                            {veiculosSelecionadosIds.length === veiculosFrota.length
+                              ? "Desmarcar todos"
+                              : "Marcar todos"}
+                          </button>
+                        )}
+                      </div>
+
+                      {veiculosFrota.length === 0 ? (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                          Nenhum veículo encontrado para aplicar em lote.
+                        </p>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                          {veiculosFrota.map((v) => {
+                            const marcado = veiculosSelecionadosIds.includes(v.id);
+                            return (
+                              <label
+                                key={v.id}
+                                className={`flex items-center gap-2 p-2 rounded-xl border text-xs cursor-pointer transition ${
+                                  marcado
+                                    ? "bg-orange-500/10 border-orange-500/30 text-slate-900 dark:text-white"
+                                    : "bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700/60 text-slate-500 dark:text-slate-400"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={marcado}
+                                  onChange={() =>
+                                    setVeiculosSelecionadosIds((prev) =>
+                                      prev.includes(v.id)
+                                        ? prev.filter((id) => id !== v.id)
+                                        : [...prev, v.id],
+                                    )
+                                  }
+                                  className="rounded border-slate-300 text-orange-600 focus:ring-orange-500"
+                                />
+                                <span className="font-mono font-bold">
+                                  {v.placa || "SEM PLACA"}
+                                </span>
+                                {v.marca_modelo && (
+                                  <span className="truncate opacity-80">{v.marca_modelo}</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
