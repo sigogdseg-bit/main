@@ -1426,8 +1426,9 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     const rumo = courseStatus & 0x03ff; // Bits 0-9
 
     // No protocolo GT06 4G estendido (0x22), o byte de status ACC vem em offset + 26
-    // (após DateTime[6] + Sat[1] + Lat[4] + Lon[4] + Vel[1] + Course[2] + MCC[2] + MNC[1] + LAC[2] + CellID[3] = 26 bytes).
+    // e o byte de re-upload / memória em offset + 28 (0x01 = histórico da zona cega)
     const payloadLen = buf.length - 6 - offset;
+    let flagUploadHistorico22 = false;
     if (protocolo === 0x22 && payloadLen >= 27) {
       const accByte22 = buf.readUInt8(offset + 26);
       if (accByte22 === 0x00) {
@@ -1435,7 +1436,13 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
       } else if ((accByte22 & 0x03) !== 0) {
         conn.ignicaoStatus = true;
       }
+      if (payloadLen >= 29 && buf.readUInt8(offset + 28) === 0x01) {
+        flagUploadHistorico22 = true;
+      }
     }
+
+    const atrasoMsGps = Date.now() - dataGps.getTime();
+    const pacoteHistoricoBuffer = flagUploadHistorico22 || atrasoMsGps > 180000;
 
     let latitude = rawLat / 1800000.0;
     let longitude = rawLon / 1800000.0;
@@ -1448,7 +1455,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     const ignicao = conn.ignicaoStatus !== undefined ? conn.ignicaoStatus : velocidade > 3;
 
     const ehCobanDispositivo = conn.protocoloDispositivo === "coban" || PORTA_TCP === 7003;
-    if (ehCobanDispositivo && conn.imei) {
+    if (!pacoteHistoricoBuffer && ehCobanDispositivo && conn.imei) {
       processarAutoThrottleCoban(conn.imei, ignicao, velocidade, socket);
     }
 
@@ -1487,8 +1494,10 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
       }
 
       if (!saltoImpossivel) {
-        conn.ultimoLat = latitude;
-        conn.ultimoLng = longitude;
+        if (!pacoteHistoricoBuffer) {
+          conn.ultimoLat = latitude;
+          conn.ultimoLng = longitude;
+        }
         await salvarPosicaoNoHunter({
           veiculoId: conn.veiculoId,
           rastreadorId: conn.rastreadorId,
@@ -2132,7 +2141,8 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
         case 0x09: // Moving Alarm
           // Blindagem anti-falso-positivo na raiz:
           // - Se ignição está ligada, NÃO é guincho/reboque com motor desligado.
-          // - Exige GNSS fixado, ausência de teleporte, velocidade >= 20 km/h e deslocamento >= 50m (quando há referência anterior).
+          // - Exige GNSS fixado, ausência de teleporte, pacote em tempo real (não histórico de buffer),
+          //   velocidade >= 20 km/h e referência anterior comprovada com deslocamento >= 50m.
           if (ignicao) {
             tipoAlerta = "movimento";
             tituloEvento = "Movimento com Ignição Ligada";
@@ -2142,8 +2152,10 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
           } else if (
             !gpsFixado ||
             saltoImpossivel ||
+            Date.now() - dataGps.getTime() > 180000 ||
             velocidade < 20 ||
-            (distM !== null && distM < 50)
+            distM === null ||
+            distM < 50
           ) {
             tipoAlerta = "deriva_gps_estacionado";
             tituloEvento = "Oscilação GNSS Estacionado";
@@ -2368,7 +2380,7 @@ async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string
     const { data: veiculoPorImei } = await supabase
       .from("veiculos")
       .select(
-        "id, cliente_id, placa, marca_modelo, rastreador_id, ultima_latitude, ultima_longitude, bloqueador_instalado, tipo_bloqueador, bloqueador_detalhes, rele_status, sinal_gsm, bloqueado",
+        "id, cliente_id, placa, marca_modelo, rastreador_id, ultima_latitude, ultima_longitude, ignicao_status, bloqueador_instalado, tipo_bloqueador, bloqueador_detalhes, rele_status, sinal_gsm, bloqueado",
       )
       .eq("rastreador_imei", imei)
       .maybeSingle();
@@ -2380,6 +2392,9 @@ async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string
       conn.modeloVeiculo = veiculoPorImei.marca_modelo;
       if (!conn.rastreadorId && veiculoPorImei.rastreador_id) {
         conn.rastreadorId = veiculoPorImei.rastreador_id;
+      }
+      if (conn.ignicaoStatus === undefined && typeof veiculoPorImei.ignicao_status === "boolean") {
+        conn.ignicaoStatus = veiculoPorImei.ignicao_status;
       }
       conn.bloqueadorInstalado = veiculoPorImei.bloqueador_instalado ?? true;
       conn.tipoBloqueador = veiculoPorImei.tipo_bloqueador || "rele_combustivel";
@@ -2407,7 +2422,7 @@ async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string
       const { data: veiculoPorFk } = await supabase
         .from("veiculos")
         .select(
-          "id, cliente_id, placa, marca_modelo, ultima_latitude, ultima_longitude, bloqueador_instalado, tipo_bloqueador, bloqueador_detalhes, rele_status, sinal_gsm, bloqueado",
+          "id, cliente_id, placa, marca_modelo, ultima_latitude, ultima_longitude, ignicao_status, bloqueador_instalado, tipo_bloqueador, bloqueador_detalhes, rele_status, sinal_gsm, bloqueado",
         )
         .eq("rastreador_id", rastreadorRow.id)
         .maybeSingle();
@@ -2417,6 +2432,9 @@ async function vincularRastreadorAoVeiculo(conn: ConexaoRastreador, imei: string
         conn.clienteId = veiculoPorFk.cliente_id || undefined;
         conn.placa = veiculoPorFk.placa;
         conn.modeloVeiculo = veiculoPorFk.marca_modelo;
+        if (conn.ignicaoStatus === undefined && typeof veiculoPorFk.ignicao_status === "boolean") {
+          conn.ignicaoStatus = veiculoPorFk.ignicao_status;
+        }
         conn.bloqueadorInstalado = veiculoPorFk.bloqueador_instalado ?? true;
         conn.tipoBloqueador = veiculoPorFk.tipo_bloqueador || "rele_combustivel";
         conn.bloqueadorDetalhes = veiculoPorFk.bloqueador_detalhes || undefined;

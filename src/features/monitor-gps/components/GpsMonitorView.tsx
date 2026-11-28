@@ -1046,15 +1046,19 @@ export function GpsMonitorView({
         }
 
         // ── ALERTA 4: Guincho (Movimento com Ignição Desligada) ─────────
-        // Anti-Jitter: exige GPS fixado, ignição factualmente desligada, >= 20 km/h por 5 leituras
-        // consecutivas E deslocamento físico real >= 50 metros a partir da âncora inicial.
+        // Anti-Jitter: exige GPS fixado, pacote em tempo real (<= 180s), ignição factualmente desligada,
+        // >= 20 km/h por 5 leituras consecutivas E deslocamento físico real >= 50m a partir da âncora inicial.
         const coordsValidasGuincho =
           typeof v.latitude === "number" &&
           typeof v.longitude === "number" &&
           (Math.abs(v.latitude) > 0.0001 || Math.abs(v.longitude) > 0.0001);
+        const tsUltimaAtGuincho = v.ultima_atualizacao ? Date.parse(v.ultima_atualizacao) : NaN;
+        const pacoteRecenteGuincho =
+          !isNaN(tsUltimaAtGuincho) && Date.now() - tsUltimaAtGuincho <= 180000;
         const emMovimentoSemIgnicao =
           v.ignicao === false &&
           v.gps_fixado !== false &&
+          pacoteRecenteGuincho &&
           coordsValidasGuincho &&
           typeof v.velocidade === "number" &&
           v.velocidade >= 20;
