@@ -4,101 +4,141 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  obterStatusDefesaCibernetica,
-  obterMetricasSegurancaExecutivas,
-  obterSnapshotAuditoriaBanco,
-  obterHoneytokens,
   obterConfiguracaoDlp,
-  salvarConfiguracaoDlp,
   obterIntegridadeFim,
 } from "../../features/seguranca/services/segurancaModulosService";
+import { avaliarVetoresDinamicos } from "../../features/seguranca/lib/avaliar-vetores";
+import { ehEmailDescartavel } from "../../features/seguranca/lib/antiAbusoCadastros";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-describe("Hunter — Dev-Módulos SEG Suite (1, 2, 3, 4, 6, 7, 9, 12, 13, 16, 19)", () => {
-  test("Módulo 19: Semáforo de Defesa Cibernética deve reportar estado geral e 7 camadas ativas", async () => {
-    const sem = await obterStatusDefesaCibernetica();
-    assert.equal(sem.statusGeral, "verde");
-    assert.ok(sem.pilares.length >= 7, "Deve conter pelo menos 7 camadas de defesa no semáforo");
+describe("Hunter — Dev-Módulos SEG Pertinente (Padrão Real Sem Simulação)", () => {
+  test("1. Serviço de segurança não contém trava estática nem dados simulados/hardcoded", () => {
+    const servicePath = path.resolve(
+      __dirname,
+      "../../features/seguranca/services/segurancaModulosService.ts",
+    );
+    const conteudo = fs.readFileSync(servicePath, "utf-8");
 
-    const camadas = sem.pilares.map((p) => p.camada);
     assert.ok(
-      camadas.some((c) => c.includes("TLS")),
-      "Deve incluir Borda e TLS",
+      !conteudo.includes("tabelasSegurancaEstendidasDisponiveis = false"),
+      "Não deve conter flag bloqueando consultas reais ao Supabase",
     );
     assert.ok(
-      camadas.some((c) => c.includes("RLS")),
-      "Deve incluir RLS 100%",
+      !conteudo.includes("tabelasCanonicas"),
+      "Não deve retornar lista estática de tabelas",
     );
-    assert.ok(
-      camadas.some((c) => c.includes("SuperADM")),
-      "Deve incluir SuperADM",
-    );
-    assert.ok(
-      camadas.some((c) => c.includes("DLP")),
-      "Deve incluir DLP",
-    );
-    assert.ok(
-      camadas.some((c) => c.includes("Honeytokens")),
-      "Deve incluir Honeytokens",
-    );
+    assert.ok(!conteudo.includes("honeytokensPadrao"), "Não deve retornar honeytokens estáticos");
+    assert.ok(!conteudo.includes("sha256:8f41"), "Não deve retornar checksums falsos no FIM");
   });
 
-  test("Módulo 16: Métricas de Segurança Executivas devem reportar 100% de conformidade RLS", async () => {
-    const met = await obterMetricasSegurancaExecutivas();
-    assert.equal(met.conformidadeRlsPercentual, 100);
-    assert.ok(typeof met.totalLogins === "number");
-    assert.ok(typeof met.taxaSucessoLogins === "string");
-  });
-
-  test("Módulo 03: Snapshot de Auditoria do Banco deve mapear tabelas públicas com RLS obrigatório", async () => {
-    const aud = await obterSnapshotAuditoriaBanco();
-    assert.equal(aud.percentualConformidade, 100);
-    assert.ok(aud.tabelas.length >= 15);
-    aud.tabelas.forEach((t) => {
-      assert.equal(t.rlsAtivo, true, `Tabela ${t.nome} deve ter RLS ativo`);
-      assert.equal(t.status, "Conforme");
+  test("2. Avaliador dinâmico rebaixa vetores quando controles reais não estão confirmados", () => {
+    const vetoresSemBanco = avaliarVetoresDinamicos({
+      totalTabelas: 0,
+      tabelasProtegidasRls: 0,
+      bloqueiosAtivos: 0,
+      totalFalhasRecentes: 0,
+      totalAdmins: 1,
+      cadeiaLogsIntegra: false,
+      cadeiaLogsTotal: 0,
+      honeytokensAtivos: 0,
+      dlpBlurAtivo: false,
+      fimIntegro: false,
+      auditoriaDisponivel: false,
     });
+
+    const todos = vetoresSemBanco.flatMap((c) => c.itens);
+    const sqli = todos.find((i) => i.nome === "SQL Injection");
+    const cadeia = todos.find((i) => i.nome === "Adulteração de logs");
+    const ht = todos.find((i) => i.nome === "Armadilhas e Honeytokens (Deception)");
+    const dlp = todos.find((i) => i.nome === "Proteção de Tela e Anti-Exfiltração (DLP)");
+    const fim = todos.find((i) => i.nome === "Monitoramento de Integridade de Schema (FIM)");
+
+    assert.equal(sqli?.nivel, "detectar");
+    assert.equal(cadeia?.nivel, "detectar");
+    assert.equal(ht?.nivel, "exposto");
+    assert.equal(dlp?.nivel, "detectar");
+    assert.equal(fim?.nivel, "detectar");
   });
 
-  test("Módulo 06: Defesa Proativa Honeytokens deve manter armadilhas cibernéticas ativas", async () => {
-    const ht = await obterHoneytokens();
-    assert.ok(ht.length >= 3, "Deve possuir pelo menos 3 honeytokens ativos");
-    assert.ok(ht.some((h) => h.tipoIsca === "conta_login"));
-    assert.ok(ht.some((h) => h.tipoIsca === "tabela_fantasma"));
+  test("3. Central de Segurança implementa Hub A-Z com 18 módulos pertinentes, sem Módulo 20 e sem marca d'água", () => {
+    const viewPath = path.resolve(
+      __dirname,
+      "../../features/seguranca/components/CentralSegurancaView.tsx",
+    );
+    const extrasPath = path.resolve(
+      __dirname,
+      "../../features/seguranca/components/CentralSegurancaModulosExtras.tsx",
+    );
+    const dlpPath = path.resolve(__dirname, "../../features/layout/components/DlpWatermark.tsx");
+
+    const viewCode = fs.readFileSync(viewPath, "utf-8");
+    const extrasCode = fs.readFileSync(extrasPath, "utf-8");
+    const dlpCode = fs.readFileSync(dlpPath, "utf-8");
+
+    assert.ok(viewCode.includes("CARDS_CENTRAL_SEGURANCA"), "Deve definir grid A-Z de cards");
+    assert.ok(viewCode.includes('localeCompare(b.title, "pt-BR"'), "Cards ordenados A-Z");
+    assert.ok(viewCode.includes("PainelCadeiaCustodiaLogs"), "Deve integrar Módulo 05");
+    assert.ok(viewCode.includes("PainelAtualizacaoMassa"), "Deve integrar Módulo 08");
+    assert.ok(viewCode.includes("PainelGovernancaSeguranca"), "Deve integrar Módulo 10");
+    assert.ok(viewCode.includes("PainelAuditAdmin"), "Deve integrar Módulo 14");
+    assert.ok(viewCode.includes("PainelMonitoramentoCadastros"), "Deve integrar Módulo 17");
+    assert.ok(viewCode.includes("PainelVerificacaoLote"), "Deve integrar Módulo 21");
+
+    // Exclusões expressas do usuário
+    assert.ok(!viewCode.includes("Verificação em 2 etapas"), "Não deve incluir Módulo 20 (MFA)");
+    assert.ok(!dlpCode.includes("textoMarcaDagua"), "DLP não deve renderizar marca d'água");
+
+    // Zero SIGOVTR
+    assert.ok(!viewCode.includes("vistorias") && !extrasCode.includes("vistorias"));
+
+    // Regra Pétrea: zero '&' em UI
+    assert.ok(
+      !viewCode.replace(/&&/g, "").includes("&"),
+      "Sem caractere & em CentralSegurancaView",
+    );
+    assert.ok(
+      !extrasCode.replace(/&&/g, "").includes("&"),
+      "Sem caractere & em CentralSegurancaModulosExtras",
+    );
   });
 
-  test("Módulo 09: Governança DLP deve suportar marca d'água forense e ofuscamento por perda de foco", async () => {
+  test("4. Módulo 09 (DLP) retorna apenas blurPerdaFocoAtivo e bloqueioPrintAtivo (sem marca d'água)", async () => {
     const dlp = await obterConfiguracaoDlp();
-    assert.equal(typeof dlp.watermarkAtivo, "boolean");
     assert.equal(typeof dlp.blurPerdaFocoAtivo, "boolean");
     assert.equal(typeof dlp.bloqueioPrintAtivo, "boolean");
-    assert.ok(dlp.textoMarcaDagua.includes("GD RASTREAMENTO"));
+    assert.equal("textoMarcaDagua" in (dlp as any), false);
+  });
 
-    const ok = await salvarConfiguracaoDlp({
-      watermarkAtivo: false,
-      blurPerdaFocoAtivo: true,
-      bloqueioPrintAtivo: true,
-      textoMarcaDagua: "GD RASTREAMENTO • DOCUMENTO CONFIDENCIAL",
-      opacidadeWatermark: 0.08,
+  test("5. Módulo 12 (FIM) sem snapshot disponível retorna vazio em vez de dados falsos", async () => {
+    const fim = await obterIntegridadeFim({
+      disponivel: false,
+      geradoEm: "",
+      tabelasProtegidas: 0,
+      totalTabelas: 0,
+      percentualConformidade: 0,
+      tabelas: [],
+      politicas: [],
+      funcoesSecurityDefiner: [],
+      bucketsStorage: [],
+      contagens: {},
     });
-    assert.equal(ok, true, "salvarConfiguracaoDlp deve retornar true com persistencia resiliente");
+    assert.deepEqual(fim, []);
   });
 
-  test("Módulo 12: Integridade FIM deve auditar triggers de blindagem SuperADM e rotas essenciais", async () => {
-    const fim = await obterIntegridadeFim();
-    assert.ok(fim.length >= 5);
-    assert.ok(fim.some((f) => f.componente.includes("SuperADM")));
-    assert.ok(fim.some((f) => f.componente.includes("Proxy")));
+  test("6. Módulo 17 (Anti-Abuso) detecta e-mails descartáveis e libera domínios legítimos", () => {
+    assert.equal(ehEmailDescartavel("atacante@mailinator.com"), true);
+    assert.equal(ehEmailDescartavel("bot@yopmail.com"), true);
+    assert.equal(ehEmailDescartavel("cliente@gmail.com"), false);
   });
 
-  test("Migração e Script Mestre: DDL das novas tabelas de segurança devem estar sincronizados", () => {
+  test("7. Migração e Script Mestre contêm tabelas e RPCs da suíte SEG completa", () => {
     const migracaoPath = path.resolve(
       __dirname,
-      "../../../supabase/migrations/20261018140000_hunter_dev_modulos_seg_suite.sql",
+      "../../../supabase/migrations/20261127220000_hunter_seg_suite_completa.sql",
     );
-    assert.ok(fs.existsSync(migracaoPath), "Arquivo de migração deve existir");
+    assert.ok(fs.existsSync(migracaoPath), "Migration completa deve existir");
 
     const sqlScriptPath = path.resolve(
       __dirname,
@@ -106,33 +146,17 @@ describe("Hunter — Dev-Módulos SEG Suite (1, 2, 3, 4, 6, 7, 9, 12, 13, 16, 19
     );
     const sqlMestre = fs.readFileSync(sqlScriptPath, "utf-8");
 
-    assert.ok(sqlMestre.includes("login_lockouts"), "Script mestre deve conter login_lockouts");
-    assert.ok(
-      sqlMestre.includes("honeytokens_deception"),
-      "Script mestre deve conter honeytokens_deception",
-    );
-    assert.ok(
-      sqlMestre.includes("lgpd_solicitacoes"),
-      "Script mestre deve conter lgpd_solicitacoes",
-    );
-    assert.ok(
-      sqlMestre.includes("seguranca_dlp_config"),
-      "Script mestre deve conter seguranca_dlp_config",
-    );
-  });
-
-  test("Regra Pétrea Hunter-Guardian: Ausência do caractere comercial proibido em CentralSegurancaView", () => {
-    const viewPath = path.resolve(
-      __dirname,
-      "../../features/seguranca/components/CentralSegurancaView.tsx",
-    );
-    const conteudo = fs.readFileSync(viewPath, "utf-8");
-
-    // Remove referências a operadores lógicos do JS (&&)
-    const semLogicos = conteudo.replace(/&&/g, "");
-    assert.ok(
-      !semLogicos.includes("&"),
-      "CentralSegurancaView.tsx não deve conter o caractere comercial proibido em strings de UI",
-    );
+    for (const token of [
+      "verificar_cadeia_logs",
+      "login_falhas",
+      "registrar_falha_login",
+      "system_version_signals",
+      "admin_audit_logs",
+      "cadastro_monitoramento_eventos",
+      "registrar_evento_cadastro_suspeito",
+      "NOTIFY pgrst",
+    ]) {
+      assert.ok(sqlMestre.includes(token), `Script mestre deve conter ${token}`);
+    }
   });
 });

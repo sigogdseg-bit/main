@@ -10,11 +10,11 @@ export const Route = createFileRoute("/_authenticated/configuracao/central-segur
 function CentralSegurancaRoute() {
   const { session } = useAuth();
 
-  if (!session?.isAdmin) {
+  if (!session?.isAdmin && !session?.isAuditor) {
     return (
       <AcessoModuloRestrito
         moduloNome="Central de Segurança"
-        mensagem="O painel de governança cibernética e auditoria de políticas RLS é de acesso exclusivo de Administradores."
+        mensagem="O painel de governança cibernética e auditoria de políticas RLS é de acesso exclusivo de Administradores e Auditores."
       />
     );
   }

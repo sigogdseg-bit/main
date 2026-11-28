@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { verificarAbusoCadastroPublico } from "@/features/seguranca/lib/antiAbusoCadastros";
 import type { TipoVeiculo } from "@/features/monitor-gps/utils/vehicle3dIcons";
 
 export interface VeiculoCadastroConvite {
@@ -198,6 +199,17 @@ export async function cadastrarClientePorConvite(
     }
     if (!dados.email || !dados.email.trim()) {
       return { success: false, message: "E-mail é obrigatório." };
+    }
+    const checagemAbuso = await verificarAbusoCadastroPublico({
+      rota: "/cadastro-cliente",
+      email: dados.email,
+      documento: dados.documento,
+    });
+    if (!checagemAbuso.permitido) {
+      return {
+        success: false,
+        message: checagemAbuso.motivo || "Cadastro bloqueado por segurança.",
+      };
     }
     if (!dados.senha || dados.senha.length < 6) {
       return { success: false, message: "A senha deve ter no mínimo 6 caracteres." };

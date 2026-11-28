@@ -18,7 +18,7 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "SQL Injection",
         nivel: "bloquear",
-        como: "PostgREST + prepared statements + RLS estrito em 100% das tabelas do schema public.",
+        como: "PostgREST + prepared statements + RLS estrito em todas as tabelas do schema public.",
       },
       {
         nome: "NoSQL Injection",
@@ -28,12 +28,12 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Command Injection (RCE)",
         nivel: "bloquear",
-        como: "Worker Cloudflare e Node serverless — sem shell, sem child_process, sem filesystem arbitrário.",
+        como: "Cloudflare Workers e runtime serverless — sem shell, sem child_process, sem filesystem arbitrário.",
       },
       {
         nome: "LDAP / XPath / SSRF interno",
         nivel: "bloquear",
-        como: "Não há conectores LDAP/XML; fetch server-side restrito a hosts permitidos e validados.",
+        como: "Sem conectores LDAP/XML; fetch server-side restrito a hosts permitidos e validados.",
       },
       {
         nome: "XSS refletido / armazenado",
@@ -58,7 +58,7 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Brute force de senha",
         nivel: "bloquear",
-        como: "Lockout escalonado progressivo por identificador (5 falhas/15m, 10/1h, 20/24h) e por IP.",
+        como: "Lockout escalonado progressivo no servidor (5 falhas/15m, 10/1h, 20/24h) via login_lockouts.",
       },
       {
         nome: "Credential stuffing",
@@ -68,12 +68,12 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Password spraying",
         nivel: "bloquear",
-        como: "Lockout por IP captura ataques distribuídos que tentam burlar o limite por identificador.",
+        como: "Monitoramento por IP e identificador bloqueia ataques distribuídos de baixa frequência.",
       },
       {
         nome: "Roubo de sessão / hijack de token",
         nivel: "detectar",
-        como: "JWT no navegador, TLS 1.3 e TOFU de dispositivo mitigam; XSS residual ainda pode capturar token.",
+        como: "JWT no navegador com TLS 1.3 e TOFU de dispositivo mitigam; XSS residual ainda pode capturar token.",
       },
       {
         nome: "Session fixation",
@@ -81,14 +81,14 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
         como: "Supabase Auth rotaciona o refresh token a cada autenticação e renovação.",
       },
       {
-        nome: "MFA bypass (client-only)",
+        nome: "Bypass de validação client-side",
         nivel: "bloquear",
-        como: "Validação autoritativa no servidor; conferências client-side não são autoritativas.",
+        como: "Validação autoritativa no servidor e em RPCs SECURITY DEFINER; checagens client não são autoritativas.",
       },
       {
         nome: "JWT tampering / alg=none",
         nivel: "bloquear",
-        como: "Tokens assinados criptograficamente; verificação rejeita alg=none e assinaturas inválidas.",
+        como: "Tokens assinados criptograficamente; verificação server-side rejeita alg=none e assinaturas inválidas.",
       },
       {
         nome: "Clickjacking (iframe overlay)",
@@ -108,7 +108,7 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Enumeração de usuários",
         nivel: "bloquear",
-        como: "Mensagem de erro genérica no login ('e-mail ou senha incorretos').",
+        como: "Mensagem de erro genérica no login e fallback neutro no bot WhatsApp para comandos não autorizados.",
       },
       {
         nome: "Recuperação de senha abusada",
@@ -123,12 +123,12 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Broken Access Control (IDOR)",
         nivel: "bloquear",
-        como: "RLS em 100% das tabelas públicas; cliente só acessa estritamente veículos e rastreadores do seu tenant.",
+        como: "RLS em todas as tabelas públicas; cliente só acessa estritamente veículos e rastreadores do seu tenant.",
       },
       {
         nome: "Escalada de privilégio (user -> admin)",
         nivel: "bloquear",
-        como: "Roles em tabela profiles e triggers PostgreSQL blindam contas oficiais contra rebaixamento.",
+        como: "Triggers PostgreSQL blindam contas SuperADM contra rebaixamento e bloqueiam promoções indevidas.",
       },
       {
         nome: "Mass assignment",
@@ -138,7 +138,7 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Exposição de dados sensíveis",
         nivel: "bloquear",
-        como: "TLS 1.3 em trânsito + AES-256 em repouso + RLS estrito + marca d'água persistente na tela.",
+        como: "TLS 1.3 em trânsito + AES-256 em repouso + RLS estrito + blur DLP ao perder foco da janela.",
       },
       {
         nome: "Vazamento por logs / mensagens de erro",
@@ -191,9 +191,9 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
         como: "Regras gerenciadas da Cloudflare e limites de conexão do runtime.",
       },
       {
-        nome: "Ataques via bots / scraping",
-        nivel: "detectar",
-        como: "Bot management bloqueia bots conhecidos; scraping anômalo aparece nos logs de acesso.",
+        nome: "Ataques via bots / scraping / cadastro abusivo",
+        nivel: "bloquear",
+        como: "Monitoramento anti-abuso nas rotas públicas detecta tempmail e rajadas em cadastro_monitoramento_eventos.",
       },
       {
         nome: "Abuso de API por usuário logado",
@@ -203,7 +203,7 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Amplificação (DNS/NTP)",
         nivel: "bloquear",
-        como: "Não há serviços UDP expostos; DNS operado com proteção contra amplificação.",
+        como: "Não há serviços UDP expostos no Edge; DNS operado com proteção contra amplificação.",
       },
     ],
   },
@@ -228,7 +228,7 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Dependência vulnerável (supply chain)",
         nivel: "detectar",
-        como: "Scanner de segurança de dependências e auditoria em builds; lockfile estrito em produção.",
+        como: "Auditoria de dependências em builds e lockfile estrito em produção.",
       },
       {
         nome: "Typosquatting de pacote",
@@ -243,22 +243,22 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Adulteração de logs",
         nivel: "bloquear",
-        como: "system_activity_logs protegido por políticas RLS imutáveis; laudo forense com SHA-256.",
+        como: "system_activity_logs encadeado em SHA-256 (chain_seq, prev_hash, chain_hash) com verificação via RPC.",
       },
       {
         nome: "Adulteração de PDF emitido",
         nivel: "bloquear",
-        como: "Hash pericial registrado no documento; conferência de integridade em tempo de leitura.",
+        como: "Hash SHA-256 registrado em documentos_emitidos com conferência pública de autenticidade.",
       },
       {
         nome: "Repudiação de ação privilegiada",
         nivel: "bloquear",
-        como: "Toda ação de admin fica registrada com quem, quando, IP e detalhe operacional.",
+        como: "Toda ação administrativa fica registrada em admin_audit_logs com quem, quando e diff jsonb.",
       },
       {
-        nome: "Backup adulterado",
+        nome: "Backup e salvaguarda imutável",
         nivel: "bloquear",
-        como: "Backup local com controle de versão e integridade pericial de dados.",
+        como: "Duplo Marco de Segurança (BKP-A e BKP-B) isolado e verificável fora do fluxo de release.",
       },
     ],
   },
@@ -268,12 +268,12 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Armadilhas e Honeytokens (Deception)",
         nivel: "bloquear",
-        como: "Contas-armadilha e tabelas isca monitoradas; acesso indevido isola o IP e bloqueia no ato.",
+        como: "Contas-armadilha monitoradas em honeytokens_deception; tentativa de acesso bloqueia por 48h no ato.",
       },
       {
-        nome: "Governança e Estamparia Forense (DLP)",
+        nome: "Proteção de Tela e Anti-Exfiltração (DLP)",
         nivel: "bloquear",
-        como: "Marca d'água com Documento, Nome, IP e Data/Hora gravada em tela e ofuscamento por blur ao perder foco.",
+        como: "Ofuscamento automático por blur ao perder foco da janela e bloqueio preventivo de impressão.",
       },
       {
         nome: "Análise Comportamental (UEBA)",
@@ -283,7 +283,7 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Monitoramento de Integridade de Schema (FIM)",
         nivel: "bloquear",
-        como: "Checksums contínuos de integridade das rotas, RLS e gatilhos de proteção do banco.",
+        como: "Checksums SHA-256 reais das funções SECURITY DEFINER e políticas RLS apurados ao vivo no Postgres.",
       },
     ],
   },
@@ -293,12 +293,12 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Insider threat (admin malicioso)",
         nivel: "detectar",
-        como: "Todo ato de admin fica auditado na trilha forense; mitigação real é procedural (menor privilégio).",
+        como: "Todo ato de admin fica auditado em admin_audit_logs; mitigação real é procedural (menor privilégio).",
       },
       {
         nome: "Aparelho perdido / roubado",
         nivel: "detectar",
-        como: "Sessão expira, dispositivo revogável pelo admin via política TOFU; dados em cache dependem do bloqueio de tela.",
+        como: "Sessão expira, dispositivo revogável via política TOFU e reload remoto via Realtime.",
       },
       {
         nome: "Ransomware / malware no endpoint",
@@ -308,7 +308,7 @@ export const PROTECOES_ATAQUES_BASE: CategoriaProtecao[] = [
       {
         nome: "Ataque físico ao servidor",
         nivel: "bloquear",
-        como: "Infraestrutura em datacenter Tier-III com controle de acesso físico rigoroso e auditado.",
+        como: "Infraestrutura gerenciada em datacenter Tier-III com controle físico auditado.",
       },
     ],
   },
@@ -321,7 +321,7 @@ export const NIVEL_LABEL: Record<NivelProtecao, string> = {
 };
 
 export const NIVEL_COR: Record<NivelProtecao, string> = {
-  bloquear: "text-orange-600 dark:text-orange-400",
+  bloquear: "text-emerald-600 dark:text-emerald-400",
   detectar: "text-sky-600 dark:text-sky-400",
   exposto: "text-amber-600 dark:text-amber-400",
 };
@@ -329,9 +329,15 @@ export const NIVEL_COR: Record<NivelProtecao, string> = {
 export function contarPorNivel(
   dados: CategoriaProtecao[] = PROTECOES_ATAQUES_BASE,
 ): Record<NivelProtecao, number> {
-  const acc: Record<NivelProtecao, number> = { bloquear: 0, detectar: 0, exposto: 0 };
+  const acc: Record<NivelProtecao, number> = {
+    bloquear: 0,
+    detectar: 0,
+    exposto: 0,
+  };
   for (const cat of dados) {
-    for (const it of cat.itens) acc[it.nivel] += 1;
+    for (const item of cat.itens) {
+      acc[item.nivel] = (acc[item.nivel] || 0) + 1;
+    }
   }
   return acc;
 }

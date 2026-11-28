@@ -26,17 +26,37 @@ export function LoginView() {
     const emailSanitizado = email.trim().toLowerCase();
 
     try {
+      // Módulo 04: Verifica lockout escalonado antes de tentar autenticação
+      try {
+        const { data: lockInfo } = await (supabase.rpc as any)("login_esta_bloqueado", {
+          _identificador: emailSanitizado,
+        });
+        if (lockInfo?.bloqueado) {
+          toast.error(
+            `Acesso temporariamente bloqueado (${lockInfo.motivo || "excesso de tentativas"}). Aguarde antes de tentar novamente.`,
+          );
+          return;
+        }
+      } catch {
+        // segue fluxo normal se RPC indisponível
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: emailSanitizado,
         password: senha,
       });
 
       if (error) {
-        await registrarLogLogin(
-          sessionId,
-          { email: emailSanitizado, role: "desconhecido" },
-          "falha",
-        );
+        await Promise.allSettled([
+          registrarLogLogin(sessionId, { email: emailSanitizado, role: "desconhecido" }, "falha"),
+          (supabase.rpc as any)("registrar_falha_login", {
+            _identificador: emailSanitizado,
+            _motivo: error.message || "Credenciais inválidas",
+            _device_id:
+              typeof localStorage !== "undefined" ? localStorage.getItem("app_device_id") : null,
+            _user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+          }),
+        ]);
         if (
           error.message.includes("Invalid login credentials") ||
           error.message.includes("invalid_grant")

@@ -1,16 +1,47 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useRouterState } from "@tanstack/react-router";
 import { AppHeader } from "./AppHeader";
 import { DlpWatermark } from "./DlpWatermark";
 import { AlertasAcidenteBanner } from "@/features/monitor-gps/components/AlertasAcidenteBanner";
 import { BannerComandosAguardoGlobal } from "@/features/seguranca/components/BannerComandosAguardoGlobal";
 import { MobileBottomNav } from "./MobileBottomNav";
+import { supabase } from "@/integrations/supabase/client";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isMonitorGps = pathname.includes("/monitor-gps");
   const isChat = pathname.includes("/chat");
   const isFullViewport = isMonitorGps || isChat;
+
+  // Módulo 08: Listener Realtime para atualização forçada em massa de dispositivos
+  useEffect(() => {
+    const channel = supabase
+      .channel("hunter_system_version_signals")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "system_version_signals" },
+        async () => {
+          try {
+            if ("caches" in window) {
+              const keys = await caches.keys();
+              await Promise.all(keys.map((k) => caches.delete(k)));
+            }
+            if ("serviceWorker" in navigator) {
+              const regs = await navigator.serviceWorker.getRegistrations();
+              await Promise.all(regs.map((r) => r.unregister()));
+            }
+          } catch {
+            // segue para recarregamento forçado
+          }
+          window.location.reload();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   return (
     <div
