@@ -130,4 +130,23 @@ describe("Hunter — QR Code de Autenticidade em Todos os PDFs do Sistema", () =
       "certidaoPdfHelper e documentosService devem resolver o usuário logado via obterSessaoCacheada sem '&'",
     );
   });
+
+  test("4. Portal /verificar oculta download para documentos não-contratuais e backend não gera contrato falso", () => {
+    const verificarSrc = fs.readFileSync(
+      path.resolve(__dirname, "../../routes/verificar.tsx"),
+      "utf-8",
+    );
+    assert.ok(
+      verificarSrc.includes('resultado.origem_tipo !== "documento"') &&
+        verificarSrc.includes('resultado.origem_tipo === "documento"'),
+      "verificar.tsx deve eliminar a opção de download quando origem_tipo for documento",
+    );
+
+    const serverSrc = fs.readFileSync(path.resolve(__dirname, "../../server.ts"), "utf-8");
+    assert.ok(
+      serverSrc.includes('docFound.tipo_documento !== "COPIA_AUTENTICA_CONTRATO"') &&
+        serverSrc.includes('origem_tipo: "contrato"'),
+      "server.ts deve impedir geração de contrato falso para outros documentos em /api/contratos/download",
+    );
+  });
 });

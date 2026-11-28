@@ -103,6 +103,8 @@ export interface ResultadoVerificacaoContrato {
   hash_pdf_assinado?: string;
   contrato_substituto_id?: string;
   motivo_invalidacao?: string;
+  origem_tipo?: "contrato" | "documento";
+  tipo_documento?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -480,6 +482,8 @@ export async function verificarAutenticidadeContrato(
             assinatura_metodo: data?.assinatura_metodo,
             hash_pdf_original: data?.hash_pdf_original,
             hash_pdf_assinado: data?.hash_pdf_assinado,
+            origem_tipo: data?.origem_tipo,
+            tipo_documento: data?.tipo_documento,
           };
         }
       } catch {
@@ -514,6 +518,8 @@ export async function verificarAutenticidadeContrato(
             assinado_por_nome: resultado?.assinado_por_nome,
             hash_pdf_original: resultado?.hash_pdf_original,
             hash_pdf_assinado: resultado?.hash_pdf_assinado,
+            origem_tipo: resultado?.origem_tipo,
+            tipo_documento: resultado?.tipo_documento,
           };
         }
       }
@@ -547,6 +553,7 @@ export async function verificarAutenticidadeContrato(
           assinado_por_nome: c.assinado_por_nome,
           hash_pdf_original: c.hash_pdf_original,
           hash_pdf_assinado: c.hash_pdf_assinado,
+          origem_tipo: "contrato",
         };
       }
     } catch {
@@ -580,6 +587,8 @@ export async function verificarAutenticidadeContrato(
           cliente_nome: meta.cliente_nome || d.descricao || "Cliente",
           hash_pdf_original: d.hash_sha256,
           hash_pdf_assinado: d.hash_sha256,
+          origem_tipo: d.tipo_documento === "COPIA_AUTENTICA_CONTRATO" ? "contrato" : "documento",
+          tipo_documento: d.tipo_documento,
         };
       }
     } catch {

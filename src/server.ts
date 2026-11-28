@@ -8684,6 +8684,7 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
               cliente_documento: clienteDocumento,
               hash_pdf_original: contratoEncontrado.hash_pdf_original,
               hash_pdf_assinado: contratoEncontrado.hash_pdf_assinado,
+              origem_tipo: "contrato",
             }),
             { status: 200, headers: corsHeaders },
           );
@@ -8771,6 +8772,9 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
               cliente_documento: meta.cliente_documento || "",
               hash_pdf_original: meta.hash_conteudo || doc.hash_sha256,
               hash_pdf_assinado: doc.hash_sha256,
+              origem_tipo:
+                doc.tipo_documento === "COPIA_AUTENTICA_CONTRATO" ? "contrato" : "documento",
+              tipo_documento: doc.tipo_documento,
             }),
             { status: 200, headers: corsHeaders },
           );
@@ -8828,7 +8832,8 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
       const { data: contratos } = await query.order("created_at", { ascending: false }).limit(1);
       let contrato = contratos && contratos.length > 0 ? contratos[0] : null;
 
-      // Fallback em documentos_emitidos se não encontrar em contratos_clientes
+      // Fallback em documentos_emitidos estritamente para COPIA_AUTENTICA_CONTRATO
+      // Nunca fabrica contrato para laudos, relatórios ou outros tipos de documento
       if (!contrato) {
         try {
           const { data: docs } = await adminClient
@@ -8848,16 +8853,19 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
             });
 
             if (docFound) {
+              if (docFound.tipo_documento !== "COPIA_AUTENTICA_CONTRATO") {
+                return new Response(
+                  "Download disponível apenas para contratos de prestação de serviços.",
+                  { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } },
+                );
+              }
               const m = (docFound.metadata || {}) as any;
               contrato = {
                 id: docFound.id,
                 numero_contrato: m.numero_contrato || "CTR-0001/2026",
                 pdf_assinado: null,
                 pdf_original: null,
-                status:
-                  docFound.tipo_documento === "COPIA_AUTENTICA_CONTRATO"
-                    ? "assinado"
-                    : "pendente_assinatura",
+                status: "assinado",
                 codigo_verificacao: m.codigo || codUpper,
                 selo_autenticidade: m.selo || "SGD-OFICIAL",
               };

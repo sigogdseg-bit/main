@@ -279,14 +279,22 @@ function PaginaVerificacaoPublica() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Número do Contrato:</span>
+                    <span className="text-slate-400 block text-[11px]">
+                      {resultado.origem_tipo === "documento"
+                        ? "Identificador do Documento:"
+                        : "Número do Contrato:"}
+                    </span>
                     <span className="font-bold text-white text-sm">
                       {resultado.numero_contrato || "N/I"}
                     </span>
                   </div>
 
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Cliente / Contratante:</span>
+                    <span className="text-slate-400 block text-[11px]">
+                      {resultado.origem_tipo === "documento"
+                        ? "Descrição / Origem:"
+                        : "Cliente / Contratante:"}
+                    </span>
                     <span className="font-bold text-white text-sm">
                       {resultado.cliente_nome || "Cliente"}
                     </span>
@@ -418,8 +426,8 @@ function PaginaVerificacaoPublica() {
                   )}
                 </div>
 
-                {/* Botão de Download */}
-                {resultado.contrato_id && (
+                {/* Botão de Download exclusivo para contratos */}
+                {resultado.contrato_id && resultado.origem_tipo !== "documento" && (
                   <div className="pt-2 flex justify-end">
                     <a
                       href={`/api/contratos/download/${resultado.contrato_id}`}
