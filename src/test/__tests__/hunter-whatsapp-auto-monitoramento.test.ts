@@ -873,8 +873,9 @@ describe("HUNTER-GUARDIAN — Auto-Monitoramento Interativo WhatsApp", () => {
 
     assert.equal(res.sucesso, true);
     assert.equal(res.acaoExecutada, "instaladores_restrito_cliente");
-    assert.ok(res.resposta.includes("Acesso Restrito"));
-    assert.ok(res.resposta.includes("INSTALACAO"));
+    assert.ok(res.resposta.includes("Não identifiquei esse comando"));
+    assert.ok(res.resposta.includes("AJUDA"));
+    assert.ok(!res.resposta.includes("Acesso Restrito"));
     assert.ok(!res.resposta.includes("Oficina"));
     assert.ok(!res.resposta.includes("&"), "Proibido caractere &");
   });

@@ -200,7 +200,8 @@ describe("GD Rastreamento — Emissão de Propostas Interativas via WhatsApp e R
 
     assert.equal(res.sucesso, true);
     assert.equal(res.acaoExecutada, "proposta_nao_autorizada");
-    assert.ok(res.resposta.includes("Acesso Restrito — Emissão de Propostas"));
+    assert.ok(res.resposta.includes("Não identifiquei"));
+    assert.ok(!res.resposta.includes("Acesso Restrito"));
     assert.ok(!res.resposta.includes("&"), "Não deve conter caractere comercial &");
   });
 
@@ -777,7 +778,8 @@ describe("GD Rastreamento — Emissão de Propostas Interativas via WhatsApp e R
 
     assert.equal(res.sucesso, true);
     assert.equal(res.acaoExecutada, "comando_adm_bloqueado_para_nao_adm");
-    assert.ok(res.resposta.includes("Acesso Restrito — Comando Administrativo"));
+    assert.ok(res.resposta.includes("Não identifiquei esse comando"));
+    assert.ok(!res.resposta.includes("Acesso Restrito"));
   });
 
   it("SEGURANÇA: Cliente NÃO pode receber informações de veículo de terceiro (placa diferente)", async () => {
@@ -1064,7 +1066,8 @@ describe("GD Rastreamento — Emissão de Propostas Interativas via WhatsApp e R
 
     assert.equal(res2.sucesso, true);
     assert.equal(res2.acaoExecutada, "proposta_nao_autorizada");
-    assert.ok(res2.resposta.includes("Acesso Restrito"));
+    assert.ok(res2.resposta.includes("Não identifiquei"));
+    assert.ok(!res2.resposta.includes("Acesso Restrito"));
   });
 
   it("CONVERSÃO COMERCIAL: Cliente responde 'ACEITO' e sistema atualiza proposta, notifica emissor e confirma", async () => {
@@ -1168,12 +1171,8 @@ describe("GD Rastreamento — Emissão de Propostas Interativas via WhatsApp e R
 
     assert.equal(res.sucesso, true);
     assert.equal(res.acaoExecutada, "comando_veicular_restrito_parceiro");
-    assert.ok(res.resposta.includes("Acesso Restrito — Telemetria e Comandos Veiculares"));
-    assert.ok(
-      res.resposta.includes("restritos exclusivamente aos Operadores, Administradores (SuperADM)"),
-    );
-    assert.ok(res.resposta.includes("PAGAMENTOS"));
-    assert.ok(res.resposta.includes("CONTRATOS"));
+    assert.ok(res.resposta.includes("Não identifiquei esse comando"));
+    assert.ok(!res.resposta.includes("Acesso Restrito"));
   });
 
   it("Revendedor tem acesso completo a PAGAMENTOS, CONTRATOS e DRE da sua carteira", async () => {

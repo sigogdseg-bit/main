@@ -5345,9 +5345,7 @@ export async function processarMensagemWhatsappRecebida(
           destinatario: remetenteLimpo,
           acaoExecutada: "proposta_nao_autorizada",
           resposta:
-            "⚠️ *Acesso Restrito — Emissão de Propostas*\n\n" +
-            "A criação interativa de propostas comerciais via WhatsApp está disponível apenas para Administradores, Operadores, Revendedores e Vendedores cadastrados na rede GD Rastreamento.\n\n" +
-            "Caso você faça parte da nossa equipe e seu número não esteja vinculado, solicite a atualização do seu cadastro ao SuperADM.",
+            "Não identifiquei sua solicitação. Envie *MENU* para ver as opções de atendimento.",
         };
       }
 
@@ -7499,29 +7497,25 @@ export async function processarMensagemWhatsappRecebida(
     textoUpper === "CRIAR PROPOSTA" ||
     textoUpper === "EMITIR PROPOSTA"
   ) {
-    // 1. Cliente não pode emitir proposta
+    // 1. Cliente não pode emitir proposta (fallback neutro sem confirmar comando)
     if (cliente && !isAdmOuOperador && !revendedorId && !vendedorId) {
       return {
         sucesso: true,
         destinatario: remetenteLimpo,
         acaoExecutada: "proposta_nao_autorizada",
         resposta:
-          "⚠️ *Acesso Restrito — Emissão de Propostas*\n\n" +
-          "A criação interativa de propostas comerciais via WhatsApp está disponível para Administradores, Operadores, Revendedores e Vendedores cadastrados na rede GD Rastreamento.\n\n" +
-          "Para visualizar os comandos veiculares autorizados para o seu perfil, envie *AJUDA*.",
+          "Não identifiquei esse comando. Envie *AJUDA* para ver as opções disponíveis para você.",
       };
     }
 
-    // 2. Pessoa não cadastrada
+    // 2. Pessoa não cadastrada (fallback neutro sem confirmar comando)
     if (!isAdmOuOperador && !revendedorId && !vendedorId) {
       return {
         sucesso: true,
         destinatario: remetenteLimpo,
         acaoExecutada: "proposta_nao_autorizada",
         resposta:
-          "⚠️ *Acesso Restrito — Emissão de Propostas*\n\n" +
-          "A criação interativa de propostas comerciais via WhatsApp está disponível apenas para Administradores, Operadores, Revendedores e Vendedores cadastrados na rede GD Rastreamento.\n\n" +
-          "Caso você faça parte da nossa equipe e seu número não esteja vinculado, solicite a atualização do seu cadastro ao SuperADM.",
+          "Não identifiquei sua solicitação. Envie *MENU* para ver as opções de atendimento.",
       };
     }
 
@@ -7621,9 +7615,7 @@ export async function processarMensagemWhatsappRecebida(
         destinatario: remetenteLimpo,
         acaoExecutada: "instaladores_restrito_cliente",
         resposta:
-          "⚠️ *Acesso Restrito — Instaladores Credenciados*\n\n" +
-          "A listagem direta de instaladores credenciados é de acesso exclusivo para a equipe técnica, franqueados e equipe comercial.\n\n" +
-          "Para consultar o andamento e agendamento da instalação do seu rastreador, envie *INSTALACAO*.",
+          "Não identifiquei esse comando. Envie *AJUDA* para ver as opções disponíveis para você.",
       };
     }
 
@@ -9022,20 +9014,7 @@ export async function processarMensagemWhatsappRecebida(
         destinatario: remetenteLimpo,
         acaoExecutada: "comando_veicular_restrito_parceiro",
         resposta:
-          "⚠️ *Acesso Restrito — Telemetria e Comandos Veiculares*\n\n" +
-          `Olá, ${revendedorNome}! O rastreamento veicular e localização em tempo real são restritos exclusivamente aos Operadores, Administradores (SuperADM) e aos próprios clientes titulares dos veículos.\n\n` +
-          "Sua Central de Revenda é voltada exclusivamente para a gestão de vendas, recebimentos, contratos e cobranças da sua carteira.\n\n" +
-          "Comandos autorizados para você:\n" +
-          "• *PROPOSTA* — Montar e emitir nova proposta comercial guiada\n" +
-          "• *PROPOSTAS* — Histórico e status das suas propostas emitidas\n" +
-          "• *PLANOS* — Tabela completa dos planos comerciais\n" +
-          "• *TESTE* — Cadastrar usuário de degustação no Plano Master (24h após 1º acesso)\n" +
-          "• *REVALIDA* (ou *REVALIDA <EMAIL>*) — Renovar conta de degustação por mais 24h\n" +
-          "• *DRE* — Resumo financeiro e custo base com a matriz\n" +
-          "• *PAGAMENTOS* — Mensalidades recebidas e pendências dos seus clientes\n" +
-          "• *CONTRATOS* (ou *CLIENTES*) — Clientes e contratos da sua carteira\n" +
-          "• *INSTALADORES* — Lista de instaladores credenciados\n\n" +
-          "Envie *AJUDA* para visualizar os detalhes a qualquer momento!",
+          "Não identifiquei esse comando. Envie *AJUDA* para ver as opções disponíveis para você.",
       };
     }
 
@@ -9211,20 +9190,7 @@ export async function processarMensagemWhatsappRecebida(
         destinatario: remetenteLimpo,
         acaoExecutada: "comando_veicular_restrito_parceiro",
         resposta:
-          "⚠️ *Acesso Restrito — Telemetria e Comandos Veiculares*\n\n" +
-          `Olá, ${vendedorNome}! O rastreamento veicular e localização em tempo real são restritos exclusivamente aos Operadores, Administradores (SuperADM) e aos próprios clientes titulares dos veículos.\n\n` +
-          "O perfil de Vendas é focado no fechamento de propostas, comissões, contratos e pagamentos da sua carteira.\n\n" +
-          "Comandos autorizados para você:\n" +
-          "• *PROPOSTA* — Montar e emitir nova proposta comercial guiada\n" +
-          "• *PROPOSTAS* — Histórico e status das suas propostas comerciais\n" +
-          "• *PLANOS* — Tabela completa dos planos comerciais\n" +
-          "• *TESTE* — Cadastrar usuário de degustação no Plano Master (24h após 1º acesso)\n" +
-          "• *REVALIDA* (ou *REVALIDA <EMAIL>*) — Renovar conta de degustação por mais 24h\n" +
-          "• *COMISSAO* — Saldo e resumo de comissões por contratos fechados\n" +
-          "• *PAGAMENTOS* — Mensalidades recebidas e cobranças dos seus clientes\n" +
-          "• *CONTRATOS* — Clientes e contratos vinculados à sua carteira\n" +
-          "• *INSTALADORES* — Lista de instaladores credenciados\n\n" +
-          "Envie *AJUDA* para visualizar os detalhes a qualquer momento!",
+          "Não identifiquei esse comando. Envie *AJUDA* para ver as opções disponíveis para você.",
       };
     }
 
@@ -9301,9 +9267,7 @@ export async function processarMensagemWhatsappRecebida(
       destinatario: remetenteLimpo,
       acaoExecutada: "comando_adm_bloqueado_para_nao_adm",
       resposta:
-        "⚠️ *Acesso Restrito — Comando Administrativo*\n\n" +
-        "Este comando e suas informações são de uso restrito da Administração e Operação do GD Rastreamento.\n\n" +
-        "Para visualizar os comandos autorizados para o seu perfil, envie *AJUDA*.",
+        "Não identifiquei esse comando. Envie *AJUDA* para ver as opções disponíveis para você.",
     };
   }
 
