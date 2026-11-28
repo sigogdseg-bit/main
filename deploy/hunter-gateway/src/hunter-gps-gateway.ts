@@ -124,6 +124,8 @@ interface ConexaoRastreador {
   ultimoLat?: number;
   ultimoLng?: number;
   ultimoMileageConsultaTs?: number;
+  ultimoStatusAccSolicitadoTs?: number;
+  ultimoPacoteAccEmTs?: number;
 }
 
 export const conexoesAtivas = new Map<net.Socket, ConexaoRastreador>();
@@ -1454,7 +1456,33 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     // Se o status físico for desconhecido (undefined), infere pelo deslocamento (> 3 km/h).
     const ignicao = conn.ignicaoStatus !== undefined ? conn.ignicaoStatus : velocidade > 3;
 
+    // Consulta ativa de ACC (STATUS#) quando houver deslocamento > 10 km/h com ACC=OFF em cache:
+    // diferencia atraso de pacote 0x13/0x16 de um reboque real antes da janela de 90s.
     const ehCobanDispositivo = conn.protocoloDispositivo === "coban" || PORTA_TCP === 7003;
+    if (
+      !pacoteHistoricoBuffer &&
+      !ehCobanDispositivo &&
+      velocidade > 10 &&
+      conn.ignicaoStatus === false &&
+      socket.writable
+    ) {
+      const agoraMs = Date.now();
+      if (
+        !conn.ultimoStatusAccSolicitadoTs ||
+        agoraMs - conn.ultimoStatusAccSolicitadoTs >= 30000
+      ) {
+        conn.ultimoStatusAccSolicitadoTs = agoraMs;
+        try {
+          socket.write(montarPacoteComandoGT06("STATUS#"));
+          console.log(
+            `🔍 [AUTO-CHECK ACC] Movimento (${velocidade} km/h) com ACC=OFF em ${conn.placa || imei}. Consultando STATUS# no rastreador...`,
+          );
+        } catch {
+          // ignora falha transitória de socket
+        }
+      }
+    }
+
     if (!pacoteHistoricoBuffer && ehCobanDispositivo && conn.imei) {
       processarAutoThrottleCoban(conn.imei, ignicao, velocidade, socket);
     }
@@ -1582,6 +1610,22 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     );
     console.log(`   [HEX]: ${buf.toString("hex")}`);
     console.log(`   [RESPOSTA ASCII]:\n${respostaAscii}`);
+
+    // Atualiza imediatamente o estado real de ACC quando o rastreador responder STATUS# (0x15 / 0x21)
+    if (respostaAscii) {
+      const accMatch = respostaAscii.match(/\bACC\s*:\s*(ON|OFF|1|0)\b/i);
+      if (accMatch) {
+        const accLigado = accMatch[1].toUpperCase() === "ON" || accMatch[1] === "1";
+        conn.ignicaoStatus = accLigado;
+        conn.ultimoPacoteAccEmTs = Date.now();
+        if (conn.veiculoId) {
+          void supabase
+            .from("veiculos")
+            .update({ ignicao_status: accLigado, ultima_atualizacao: new Date().toISOString() })
+            .eq("id", conn.veiculoId);
+        }
+      }
+    }
 
     // Notifica imediatamente listeners síncronos aguardando pela rota HTTP
     if (imei && respostaAscii) {
@@ -1792,6 +1836,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     const ignicaoAnterior = conn.ignicaoStatus;
     const alimentacaoAnterior = conn.alimentacaoExternaStatus;
     conn.ignicaoStatus = accFioLaranja;
+    conn.ultimoPacoteAccEmTs = Date.now();
     conn.releStatus = releStatus;
 
     const ehCobanDispositivo = conn.protocoloDispositivo === "coban" || PORTA_TCP === 7003;
@@ -2066,6 +2111,7 @@ export async function processarPacote(socket: net.Socket, buf: Buffer) {
     const alimentacaoExterna = (terminalInfo & 0x04) !== 0 && alarmCode !== 0x02;
 
     conn.ignicaoStatus = ignicao;
+    conn.ultimoPacoteAccEmTs = Date.now();
     conn.releStatus = releStatus;
     conn.sinalGsm = gsmSignal;
 
