@@ -3,6 +3,7 @@
 
 import type { jsPDF } from "jspdf";
 import QRCode from "qrcode";
+import { obterSessaoCacheada } from "@/features/auth/services/authService";
 import { APP_NOME, APP_VERSION_NUMERO } from "@/shared/lib/version";
 import { calcularSha256Buffer, registrarDocumentoEmitido } from "./documentosService";
 
@@ -136,7 +137,20 @@ export async function aplicarCertidaoAutenticidadePdf(
   doc.text(`Selo de Autenticidade: ${seloSgd}`, margemX + u(4), yBox + u(12));
   doc.text(`Codigo de Verificacao: ${codigoVerificacao}`, margemX + u(78), yBox + u(12));
 
-  const emissorLabel = params.emissorNome || "Operador GD Rastreamento";
+  const sessaoCache = obterSessaoCacheada();
+  let emissorNomeResolvido = (params.emissorNome || "").trim();
+  if (!emissorNomeResolvido || emissorNomeResolvido === "Operador") {
+    if (sessaoCache?.nome) {
+      emissorNomeResolvido = sessaoCache.nome;
+    }
+  }
+  let emissorRoleResolvido = (params.emissorRole || "").trim();
+  if (!emissorRoleResolvido) {
+    if (sessaoCache?.role) {
+      emissorRoleResolvido = String(sessaoCache.role);
+    }
+  }
+  const emissorLabel = emissorNomeResolvido || "Operador GD Rastreamento";
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7);
   doc.setTextColor(71, 85, 105);
@@ -196,8 +210,8 @@ export async function aplicarCertidaoAutenticidadePdf(
         hash_sha256: hashArquivoFinal,
         tipo_documento: params.tipoDocumento,
         descricao: params.descricao,
-        emissor_nome: params.emissorNome,
-        emissor_role: params.emissorRole,
+        emissor_nome: emissorNomeResolvido || undefined,
+        emissor_role: emissorRoleResolvido || undefined,
         tamanho_bytes: tamanhoBytes,
         metadata: {
           selo: seloSgd,

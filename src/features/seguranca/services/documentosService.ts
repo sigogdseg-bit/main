@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { obterSessaoCacheada } from "@/features/auth/services/authService";
 import type {
   DocumentoEmitido,
   RegistrarDocumentoInput,
@@ -47,26 +48,47 @@ export async function registrarDocumentoEmitido(
   input: RegistrarDocumentoInput,
 ): Promise<DocumentoEmitido | null> {
   try {
-    let emissorNome = input.emissor_nome || "Operador";
-    let emissorEmail = input.emissor_email || "sistema@oficial.tec.br";
+    let emissorNome = (input.emissor_nome || "").trim() || "Operador";
+    let emissorEmail = (input.emissor_email || "").trim();
     let emissorUserId = input.emissor_user_id || null;
-    const emissorRole = input.emissor_role || "operador";
+    let emissorRole = (input.emissor_role || "").trim() || "operador";
 
-    // Tenta capturar dados da sessão ativa se não foram informados
+    const ehEmissorGenerico = (nome: string) =>
+      !nome || nome === "Operador" || nome === "Operador GD Rastreamento";
+
+    // 1. Tenta capturar dados da sessão ativa em cache (síncrono no navegador)
+    const sessaoCache = obterSessaoCacheada();
+    if (sessaoCache) {
+      emissorUserId = emissorUserId || sessaoCache.userId || null;
+      emissorEmail = emissorEmail || sessaoCache.email || "";
+      if (ehEmissorGenerico(emissorNome)) {
+        emissorNome = sessaoCache.nome || sessaoCache.email || emissorNome;
+      }
+      if (!input.emissor_role && sessaoCache.role) {
+        emissorRole = String(sessaoCache.role);
+      }
+    }
+
+    // 2. Complementa com sessão Supabase Auth se ainda houver dados ausentes
     try {
       const sess = (await supabase.auth.getSession()).data?.session;
       const user = sess?.user;
       if (user) {
         emissorUserId = emissorUserId || user.id;
-        emissorEmail = emissorEmail || user.email || emissorEmail;
-        emissorNome =
-          emissorNome !== "Operador"
-            ? emissorNome
-            : (user.user_metadata?.nome as string) || user.email || emissorNome;
+        emissorEmail = emissorEmail || user.email || "";
+        if (ehEmissorGenerico(emissorNome)) {
+          emissorNome =
+            (user.user_metadata?.nome as string) ||
+            (user.user_metadata?.full_name as string) ||
+            user.email ||
+            emissorNome;
+        }
       }
     } catch {
       // ignora
     }
+
+    emissorEmail = emissorEmail || "sistema@oficial.tec.br";
 
     const payload = {
       nome_arquivo: input.nome_arquivo.trim(),

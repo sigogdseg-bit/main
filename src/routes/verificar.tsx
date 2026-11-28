@@ -343,8 +343,17 @@ function PaginaVerificacaoPublica() {
                     <span className="text-slate-400 block text-[11px]">Data de Emissão:</span>
                     <span className="text-slate-200">
                       {resultado.data_emissao
-                        ? new Date(resultado.data_emissao).toLocaleString("pt-BR")
+                        ? new Date(resultado.data_emissao).toLocaleString("pt-BR", {
+                            timeZone: "America/Sao_Paulo",
+                          })
                         : "N/I"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-slate-400 block text-[11px]">Emitido por:</span>
+                    <span className="text-slate-200 font-medium">
+                      {resultado.emitido_por_nome || resultado.assinado_por_nome || "N/I"}
                     </span>
                   </div>
 
@@ -352,7 +361,9 @@ function PaginaVerificacaoPublica() {
                     <div className="sm:col-span-2">
                       <span className="text-slate-400 block text-[11px]">Data da Assinatura:</span>
                       <span className="text-orange-300 font-semibold">
-                        {new Date(resultado.data_assinatura).toLocaleString("pt-BR")}
+                        {new Date(resultado.data_assinatura).toLocaleString("pt-BR", {
+                          timeZone: "America/Sao_Paulo",
+                        })}
                       </span>
                     </div>
                   )}

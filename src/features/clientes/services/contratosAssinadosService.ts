@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { obterSessaoCacheada } from "@/features/auth/services/authService";
 import { calcularSha256Buffer } from "@/features/seguranca/services/documentosService";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -95,6 +96,7 @@ export interface ResultadoVerificacaoContrato {
   data_assinatura?: string;
   cliente_nome?: string;
   cliente_documento?: string;
+  emitido_por_nome?: string;
   assinado_por_nome?: string;
   assinatura_metodo?: string;
   hash_pdf_original?: string;
@@ -127,6 +129,9 @@ export async function registrarContratoEmitido(
       }
     }
 
+    const emitidoPorNomeResolvido =
+      input.emitido_por_nome || obterSessaoCacheada()?.nome || "Administrador do Sistema";
+
     // Tenta via API backend com service_role (apenas no navegador)
     if (typeof window !== "undefined") {
       try {
@@ -140,7 +145,7 @@ export async function registrarContratoEmitido(
             hash_pdf_original: hashOriginal,
             selo_autenticidade: selo,
             codigo_verificacao: codigo,
-            emitido_por_nome: input.emitido_por_nome || "Administrador do Sistema",
+            emitido_por_nome: emitidoPorNomeResolvido,
             vigencia_inicio: input.vigencia_inicio,
             vigencia_fim: input.vigencia_fim,
             valor_mensalidade: input.valor_mensalidade || 0,
@@ -187,7 +192,7 @@ export async function registrarContratoEmitido(
         codigo_verificacao: codigo,
         status: "pendente_assinatura",
         emitido_por_user_id: emitidoPorUserId,
-        emitido_por_nome: input.emitido_por_nome || "Administrador do Sistema",
+        emitido_por_nome: emitidoPorNomeResolvido,
         vigencia_inicio: input.vigencia_inicio,
         vigencia_fim: input.vigencia_fim,
         valor_mensalidade: input.valor_mensalidade || 0,
@@ -469,6 +474,10 @@ export async function verificarAutenticidadeContrato(
             data_emissao: data?.data_emissao,
             data_assinatura: data?.data_assinatura,
             cliente_nome: data?.cliente_nome,
+            cliente_documento: data?.cliente_documento,
+            emitido_por_nome: data?.emitido_por_nome || data?.assinado_por_nome,
+            assinado_por_nome: data?.assinado_por_nome,
+            assinatura_metodo: data?.assinatura_metodo,
             hash_pdf_original: data?.hash_pdf_original,
             hash_pdf_assinado: data?.hash_pdf_assinado,
           };
@@ -501,6 +510,8 @@ export async function verificarAutenticidadeContrato(
             data_emissao: resultado?.data_emissao,
             data_assinatura: resultado?.data_assinatura,
             cliente_nome: resultado?.cliente_nome,
+            emitido_por_nome: resultado?.emitido_por_nome || resultado?.assinado_por_nome,
+            assinado_por_nome: resultado?.assinado_por_nome,
             hash_pdf_original: resultado?.hash_pdf_original,
             hash_pdf_assinado: resultado?.hash_pdf_assinado,
           };
@@ -532,6 +543,7 @@ export async function verificarAutenticidadeContrato(
           status: c.status,
           data_emissao: c.data_emissao,
           data_assinatura: c.data_assinatura,
+          emitido_por_nome: c.emitido_por_nome,
           assinado_por_nome: c.assinado_por_nome,
           hash_pdf_original: c.hash_pdf_original,
           hash_pdf_assinado: c.hash_pdf_assinado,
@@ -563,6 +575,7 @@ export async function verificarAutenticidadeContrato(
           status: "assinado",
           data_emissao: d.created_at,
           data_assinatura: d.created_at,
+          emitido_por_nome: d.emissor_nome || "GD Rastreamento",
           assinado_por_nome: d.emissor_nome || "GD Rastreamento",
           cliente_nome: meta.cliente_nome || d.descricao || "Cliente",
           hash_pdf_original: d.hash_sha256,

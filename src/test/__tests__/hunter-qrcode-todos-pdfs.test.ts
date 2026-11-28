@@ -83,4 +83,51 @@ describe("Hunter — QR Code de Autenticidade em Todos os PDFs do Sistema", () =
       "whatsappAutoMonitoramentoService deve gravar selo, codigo, hash_conteudo e nome do usuário cadastrado",
     );
   });
+
+  test("3. Portal /verificar, API e serviços propagam e exibem quem emitiu (emitido_por_nome)", () => {
+    const verificarSrc = fs.readFileSync(
+      path.resolve(__dirname, "../../routes/verificar.tsx"),
+      "utf-8",
+    );
+    assert.ok(
+      verificarSrc.includes("Emitido por:") &&
+        verificarSrc.includes("resultado.emitido_por_nome") &&
+        verificarSrc.includes("America/Sao_Paulo"),
+      "verificar.tsx deve exibir Emitido por com emitido_por_nome e fuso America/Sao_Paulo",
+    );
+
+    const serverSrc = fs.readFileSync(path.resolve(__dirname, "../../server.ts"), "utf-8");
+    assert.ok(
+      serverSrc.includes("emitido_por_nome: contratoEncontrado.emitido_por_nome") &&
+        serverSrc.includes("emitido_por_nome: doc.emissor_nome"),
+      "server.ts deve retornar emitido_por_nome em ambos os ramos de /api/contratos/verificar",
+    );
+
+    const contratosSvcSrc = fs.readFileSync(
+      path.resolve(__dirname, "../../features/clientes/services/contratosAssinadosService.ts"),
+      "utf-8",
+    );
+    assert.ok(
+      contratosSvcSrc.includes("emitido_por_nome?: string") &&
+        contratosSvcSrc.includes("emitido_por_nome: data?.emitido_por_nome") &&
+        contratosSvcSrc.includes("emitido_por_nome: resultado?.emitido_por_nome") &&
+        contratosSvcSrc.includes("emitido_por_nome: d.emissor_nome"),
+      "contratosAssinadosService.ts deve mapear emitido_por_nome em todas as fontes de verificação",
+    );
+
+    const certidaoHelperSrc = fs.readFileSync(
+      path.resolve(__dirname, "../../features/seguranca/services/certidaoPdfHelper.ts"),
+      "utf-8",
+    );
+    const docsSvcSrc = fs.readFileSync(
+      path.resolve(__dirname, "../../features/seguranca/services/documentosService.ts"),
+      "utf-8",
+    );
+    assert.ok(
+      !certidaoHelperSrc.includes("&") &&
+        certidaoHelperSrc.includes("obterSessaoCacheada") &&
+        docsSvcSrc.includes("obterSessaoCacheada"),
+      "certidaoPdfHelper e documentosService devem resolver o usuário logado via obterSessaoCacheada sem '&'",
+    );
+  });
 });
