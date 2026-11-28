@@ -47,13 +47,18 @@ export function calcularStatusOperacionalFrontend(
     inicioParadaPorVeiculo.delete(veiculoId);
     return "bloqueado";
   }
+  if (!ignicao) {
+    inicioParadaPorVeiculo.delete(veiculoId);
+    // Com ignição desligada, apenas deslocamento real (> 10 km/h, ex: reboque/guincho)
+    // caracteriza trânsito; oscilações leves de GNSS parado (<= 10 km/h) permanecem estacionado.
+    if (velocidade > 10) {
+      return "em_rota";
+    }
+    return "estacionado";
+  }
   if (velocidade > 3) {
     inicioParadaPorVeiculo.delete(veiculoId);
     return "em_rota";
-  }
-  if (!ignicao) {
-    inicioParadaPorVeiculo.delete(veiculoId);
-    return "estacionado";
   }
 
   // ignicao === true && velocidade <= 3 (parado com motor ligado)

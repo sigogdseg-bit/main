@@ -335,8 +335,8 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
     (v) => avaliarStatusComunicacao(v.ultima_atualizacao).ativo,
   ).length;
   const offlineVeiculos = totalVeiculos - onlineVeiculos;
-  const estacionadosVeiculos = veiculos.filter((v) => !v.ignicao && v.velocidade <= 3).length;
-  const emRotaVeiculos = veiculos.filter((v) => v.ignicao || v.velocidade > 3).length;
+  const estacionadosVeiculos = veiculos.filter((v) => !v.ignicao && v.velocidade <= 10).length;
+  const emRotaVeiculos = veiculos.filter((v) => v.ignicao || v.velocidade > 10).length;
   const totalAlertas = veiculos.filter((v) => v.alerta_acidente || v.bloqueado).length;
 
   // Abertura rápida do PIX
@@ -835,7 +835,11 @@ export const ClienteHomeView: React.FC<ClienteHomeViewProps> = ({ onAlternarPara
                                 statusCom.ativo ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
                               }`}
                             />
-                            {v.velocidade > 3 ? "Em Rota" : v.ignicao ? "Ligado" : "Estacionado"}
+                            {(v.ignicao ? v.velocidade > 3 : v.velocidade > 10)
+                              ? "Em Rota"
+                              : v.ignicao
+                                ? "Ligado"
+                                : "Estacionado"}
                           </span>
                           <span className="text-slate-300 dark:text-slate-700">·</span>
                           <span

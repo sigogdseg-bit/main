@@ -447,8 +447,15 @@ export function obterCorStatusVeiculo(
   const ignicao = Boolean(veiculo.ignicao);
   const statusOp = veiculo.status_operacional;
 
-  // 2. Em rota / em trânsito (velocidade > 3 km/h ou status em_rota / em_movimento): Verde canônico
-  if (statusOp === "em_rota" || statusOp === "em_movimento" || velocidade > 3) {
+  // 2. Em rota / em trânsito:
+  // - Com ignição ligada: velocidade > 3 km/h ou status em_rota / em_movimento -> Verde canônico
+  // - Com ignição desligada: apenas deslocamento real (> 10 km/h, ex: reboque/guincho) -> Verde;
+  //   oscilações leves de GNSS com motor desligado (<= 10 km/h) permanecem Azul (estacionado).
+  const emMovimentoReal = ignicao
+    ? statusOp === "em_rota" || statusOp === "em_movimento" || velocidade > 3
+    : velocidade > 10;
+
+  if (emMovimentoReal) {
     return "#10B981";
   }
 

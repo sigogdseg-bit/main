@@ -19,7 +19,10 @@ import {
   verificarAutenticidadeContrato,
   type ResultadoVerificacaoContrato,
 } from "@/features/clientes/services/contratosAssinadosService";
-import { calcularSha256Buffer } from "@/features/seguranca/services/documentosService";
+import {
+  calcularSha256Buffer,
+  extrairHashesCandidatosPdf,
+} from "@/features/seguranca/services/documentosService";
 import { APP_NOME, APP_EMPRESA } from "@/shared/lib/version";
 
 export const Route = createFileRoute("/verificar")({
@@ -84,7 +87,30 @@ function PaginaVerificacaoPublica() {
       const buffer = await file.arrayBuffer();
       const hash = await calcularSha256Buffer(buffer);
       setIdentificador(hash);
-      await executarVerificacao(hash);
+      const res = await verificarAutenticidadeContrato(hash);
+      if (res.autentico) {
+        setResultado(res);
+        setVerificado(true);
+        toast.success("Documento autêntico localizado com sucesso!");
+        return;
+      }
+
+      // Fallback para PDFs cujo hash impresso no conteúdo está em metadata->>hash_conteudo
+      const candidatos = extrairHashesCandidatosPdf(buffer).filter((h) => h !== hash);
+      for (const candidato of candidatos) {
+        const resCandidato = await verificarAutenticidadeContrato(candidato);
+        if (resCandidato.autentico) {
+          setIdentificador(candidato);
+          setResultado(resCandidato);
+          setVerificado(true);
+          toast.success("Documento autêntico localizado com sucesso!");
+          return;
+        }
+      }
+
+      setResultado(res);
+      setVerificado(true);
+      toast.error("Nenhum documento autêntico localizado com este arquivo PDF.");
     } catch (err: any) {
       toast.error(err?.message || "Falha ao processar arquivo PDF.");
       setCarregando(false);

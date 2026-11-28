@@ -7,6 +7,7 @@ import autoTable from "jspdf-autotable";
 import QRCode from "qrcode";
 import { APP_NOME, APP_VERSION_NUMERO } from "@/shared/lib/version";
 import { aplicarChancelaSimulacaoPdf } from "@/features/demonstracao/services/degustacaoMasterService";
+import { calcularSha256Buffer, registrarDocumentoEmitido } from "./documentosService";
 
 export interface ParametrosLaudoPericialPdf {
   emissor: string;
@@ -99,7 +100,7 @@ export async function gerarLaudoPericialForensePdf(
     status_cibernetico: params.statusCibernetico || "verde",
     eficiencia_global: params.eficienciaGlobal || "4.35",
     matriz_risco: params.matrizRiscoMedia || 4.35,
-    modulos_ativos: params.totalModulosAtivos || 12,
+    modulos_ativos: params.totalModulosAtivos || 18,
     vetores_mitigados: params.totalVetoresMitigados || 51,
     embasamento_juridico: "CPP Art. 158-A (Cadeia de Custodia) e LGPD Art. 46",
   };
@@ -153,7 +154,7 @@ export async function gerarLaudoPericialForensePdf(
     },
     {
       label: "Modulos Ativos",
-      valor: `${params.totalModulosAtivos || 12} Modulos`,
+      valor: `${params.totalModulosAtivos || 18} Modulos`,
       sub: "Defesa Integrada",
     },
     {
@@ -199,81 +200,117 @@ export async function gerarLaudoPericialForensePdf(
   const linhasTabelaModulos = [
     [
       "01. UEBA",
-      "Analise Comportamental de Usuarios",
+      "Analise Comportamental (UEBA)",
       "OPERANTE",
-      "Desvios monitorados sem alertas",
+      "Monitora rajadas atipicas (>25 acoes/janela) e horarios incomuns",
     ],
     [
       "02. Anomalias",
       "Deteccao de Anomalias de Login",
       "OPERANTE",
-      "Forca bruta e geo-velocidade blindadas",
+      "4 vetores: credential stuffing, forca bruta, rajada e enumeracao",
     ],
     [
       "03. Auditoria BD",
-      "Auditoria de Schema e Triggers",
+      "Auditoria de Seguranca (RLS ao Vivo)",
       "OPERANTE",
-      "Trilha imutavel em system_activity_logs",
+      "Snapshot PostgreSQL: RLS, policies, SECURITY DEFINER e buckets",
     ],
     [
       "04. Lockout",
-      "Bloqueios Preventivos de Acesso",
+      "Bloqueios Preventivos de Login",
       "OPERANTE",
-      "Taxa de tentativas dentro do limite seguro",
+      "Bloqueio progressivo (5/15m, 10/1h, 20/24h) com auditoria",
+    ],
+    [
+      "05. Cadeia Logs",
+      "Cadeia de Custodia dos Logs",
+      "OPERANTE",
+      "Encadeamento SHA-256 continuo em system_activity_logs",
     ],
     [
       "06. Honeytokens",
-      "Defesa Proativa com Iscas",
+      "Defesa Proativa e Iscas (Deception)",
       "OPERANTE",
-      "4 armadilhas ativas para deteccao de invasor",
+      "Contas e tabelas isca com bloqueio automatico de 48h",
     ],
     [
       "07. Dispositivos",
-      "Dispositivos Moveis Autorizados",
+      "Dispositivos Moveis (Politica TOFU)",
       "OPERANTE",
-      "Politica TOFU e fingerprint de hardware",
+      "Fingerprint de hardware com aprovacao e revogacao admin",
+    ],
+    [
+      "08. Sync PWA",
+      "Atualizacao em Massa de Dispositivos",
+      "OPERANTE",
+      "Sinal Realtime para limpeza de cache e reload de PWAs",
     ],
     [
       "09. DLP",
-      "Prevencao de Perda de Dados",
+      "Protecao de Tela e Anti-Exfiltracao",
       "OPERANTE",
-      "Mascara de chaves, CPF e tokens confidenciais",
+      "Ofuscamento por perda de foco (blur) e anti-print (sem marca d'agua)",
     ],
     [
-      "12. FIM",
-      "Integridade de Schema e Codigo",
+      "10. Governanca",
+      "Governanca de Seguranca",
       "OPERANTE",
-      "Hashes de tabelas e funcoes conferidos",
+      "Diretrizes LGPD, CPP Art. 158-A, Marco Civil e laudo PDF",
     ],
     [
-      "13. LGPD",
-      "Privacidade e Direitos do Titular",
+      "11. FIM",
+      "Integridade de Schema e Gatilhos",
       "OPERANTE",
-      "Controle de exportacao e retencao legal",
+      "Checksums SHA-256 reais de funcoes e politicas PostgreSQL",
     ],
     [
-      "16. Metricas",
-      "Dashboard de Eficiencia Global",
+      "12. LGPD",
+      "Privacidade e Solicitacoes LGPD",
       "OPERANTE",
-      "Score ponderado superior a 4.0",
+      "Atendimento aos direitos do titular (Art. 18) com trilha",
     ],
     [
-      "19. Semaforo",
-      "Semaforo Cibernetico e WAF",
+      "13. Audit Admin",
+      "Log de Acoes Administrativas",
       "OPERANTE",
-      "Status verde sem incidentes criticos",
+      "Trilha imutavel de atos privilegiados com diff JSONB",
     ],
     [
-      "21. RLS Master",
-      "Row Level Security Supabase",
+      "14. Log Sistema",
+      "Log Operacional do Sistema",
       "OPERANTE",
-      "Isolamento absoluto entre inquilinos",
+      "Registro detalhado de autenticacoes, IPs e dispositivos",
+    ],
+    [
+      "15. Metricas",
+      "Metricas Executivas de Seguranca",
+      "OPERANTE",
+      "Painel consolidado de logins, bloqueios, cadeia e RLS",
+    ],
+    [
+      "16. Anti-Abuso",
+      "Monitoramento de Cadastros",
+      "OPERANTE",
+      "Bloqueio de emails descartaveis e anomalias em rotas publicas",
+    ],
+    [
+      "17. Semaforo",
+      "Status de Defesa Cibernetica",
+      "OPERANTE",
+      "Semaforo ao vivo (30s), Matriz de Risco e Vetores Mitigados",
+    ],
+    [
+      "18. Verif. Lote",
+      "Verificacao em Lote Forense",
+      "OPERANTE",
+      "Revalidacao conjunta de logs SHA-256 e documentos emitidos",
     ],
   ];
 
   autoTable(doc, {
     startY: yAtual + 3,
-    margin: { left: 14, right: 14 },
+    margin: { left: 14, right: 14, bottom: 16 },
     tableWidth: 182,
     head: [["Modulo", "Finalidade de Seguranca", "Status", "Parecer Tecnico"]],
     body: linhasTabelaModulos,
@@ -285,8 +322,8 @@ export async function gerarLaudoPericialForensePdf(
       fontStyle: "bold",
     },
     styles: {
-      fontSize: 7,
-      cellPadding: 1.8,
+      fontSize: 6.8,
+      cellPadding: 1.5,
     },
     columnStyles: {
       0: { cellWidth: 26, fontStyle: "bold" },
@@ -296,7 +333,11 @@ export async function gerarLaudoPericialForensePdf(
     },
   });
 
-  const finalTabelaY = (doc as any).lastAutoTable.finalY + 6;
+  let finalTabelaY = (doc as any).lastAutoTable.finalY + 6;
+  if (finalTabelaY + 42 > doc.internal.pageSize.height - 12) {
+    doc.addPage();
+    finalTabelaY = 18;
+  }
 
   // 4. Box Oficial de Certificacao Digital SGD e QR Code
   doc.setFillColor(248, 250, 252);
@@ -392,6 +433,48 @@ export async function gerarLaudoPericialForensePdf(
   }
 
   const nomeArquivo = `GD_Rastreamento_Laudo_Pericial_${seloSgd}.pdf`;
+
+  // 7. Registra o documento na cadeia de custodia forense (documentos_emitidos)
+  // Calcula o hash binario real do arquivo PDF final para conferir via upload e preserva hashSha256 + selo + codigo na metadata
+  let hashArquivoFinal = hashSha256;
+  let tamanhoBytes = 0;
+  try {
+    const bufferPdf = doc.output("arraybuffer");
+    tamanhoBytes = bufferPdf?.byteLength || 0;
+    if (bufferPdf) {
+      if (typeof crypto !== "undefined") {
+        if (crypto.subtle) {
+          hashArquivoFinal = await calcularSha256Buffer(bufferPdf);
+        }
+      }
+    }
+  } catch {
+    // fallback silencioso usando hashSha256 do payload forense
+  }
+
+  await registrarDocumentoEmitido({
+    nome_arquivo: nomeArquivo,
+    hash_sha256: hashArquivoFinal,
+    tipo_documento: "LAUDO_PERICIAL",
+    descricao: `Laudo Pericial Forense de Seguranca · Selo ${seloSgd} (${params.isSimulacao ? "Simulacao" : "Producao"})`,
+    emissor_nome: params.emissor,
+    emissor_role: params.perfilEmissor,
+    tamanho_bytes: tamanhoBytes,
+    metadata: {
+      selo: seloSgd,
+      codigo: codigoVerificacao,
+      numero_contrato: `LAUDO-${seloSgd}`,
+      cliente_nome: params.emissor,
+      hash_conteudo: hashSha256,
+      link_verificacao: linkVerificacao,
+      is_simulacao: params.isSimulacao,
+      status_cibernetico: params.statusCibernetico || "verde",
+      eficiencia_global: params.eficienciaGlobal || "4.35",
+      modulos_ativos: params.totalModulosAtivos || 18,
+      vetores_mitigados: params.totalVetoresMitigados || 51,
+      versao: APP_VERSION_NUMERO,
+    },
+  });
 
   return {
     doc,

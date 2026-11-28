@@ -324,11 +324,11 @@ export async function carregarVeiculosGps(): Promise<VeiculoGps[]> {
       let status_operacional: VeiculoGps["status_operacional"] = "estacionado";
       if (bloqueado) {
         status_operacional = "bloqueado";
-      } else if (statusBanco) {
+      } else if (!ignicao) {
+        status_operacional = velocidade > 10 ? "em_rota" : "estacionado";
+      } else if (statusBanco && statusBanco !== "estacionado") {
         status_operacional = statusBanco;
-      } else if (velocidade > 3) {
-        status_operacional = "em_rota";
-      } else if (ignicao) {
+      } else if (velocidade > 3 || ignicao) {
         status_operacional = "em_rota";
       }
 

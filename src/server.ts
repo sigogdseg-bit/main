@@ -8632,8 +8632,8 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
         );
       }
 
-      const idUpper = identificador.toUpperCase();
-      const idLower = identificador.toLowerCase();
+      const idUpper = identificador.toUpperCase().replace(/[,()]/g, "").trim();
+      const idLower = identificador.toLowerCase().replace(/[,()]/g, "").trim();
 
       let contratoEncontrado: any = null;
       let clienteNome = "Cliente";
@@ -8692,16 +8692,60 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
       }
 
       // 2. Busca em documentos_emitidos (cadeia de custódia forense global de PDFs)
+      // Aceita Selo SGD, Código de Verificação (6 chars), Número do Documento, Hash SHA-256 do arquivo ou hash_conteudo da metadata
       try {
-        const { data: docs, error: docError } = await adminClient
-          .from("documentos_emitidos")
-          .select("*")
-          .eq("hash_sha256", idLower)
-          .order("created_at", { ascending: false })
-          .limit(1);
+        let doc: any = null;
+        const ehHashSha256 = /^[a-f0-9]{64}$/.test(idLower);
 
-        if (!docError && docs && docs.length > 0) {
-          const doc = docs[0];
+        if (ehHashSha256) {
+          const { data: docsPorHash } = await adminClient
+            .from("documentos_emitidos")
+            .select("*")
+            .eq("hash_sha256", idLower)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          doc = docsPorHash?.[0] || null;
+
+          if (!doc) {
+            const { data: docsPorConteudo } = await adminClient
+              .from("documentos_emitidos")
+              .select("*")
+              .filter("metadata->>hash_conteudo", "eq", idLower)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            doc = docsPorConteudo?.[0] || null;
+          }
+        } else {
+          const { data: docsPorSelo } = await adminClient
+            .from("documentos_emitidos")
+            .select("*")
+            .filter("metadata->>selo", "ilike", idUpper)
+            .order("created_at", { ascending: false })
+            .limit(1);
+          doc = docsPorSelo?.[0] || null;
+
+          if (!doc) {
+            const { data: docsPorCodigo } = await adminClient
+              .from("documentos_emitidos")
+              .select("*")
+              .filter("metadata->>codigo", "ilike", idUpper)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            doc = docsPorCodigo?.[0] || null;
+          }
+
+          if (!doc) {
+            const { data: docsPorNumero } = await adminClient
+              .from("documentos_emitidos")
+              .select("*")
+              .filter("metadata->>numero_contrato", "ilike", idUpper)
+              .order("created_at", { ascending: false })
+              .limit(1);
+            doc = docsPorNumero?.[0] || null;
+          }
+        }
+
+        if (doc) {
           const meta = (doc.metadata || {}) as any;
           const seloDoc = meta.selo || `SGD-${doc.id.slice(0, 8).toUpperCase()}`;
           const codigoDoc = meta.codigo || doc.id.slice(0, 6).toUpperCase();
@@ -8723,7 +8767,7 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
               assinatura_metodo: "digital",
               cliente_nome: meta.cliente_nome || doc.descricao || "Cliente",
               cliente_documento: meta.cliente_documento || "",
-              hash_pdf_original: doc.hash_sha256,
+              hash_pdf_original: meta.hash_conteudo || doc.hash_sha256,
               hash_pdf_assinado: doc.hash_sha256,
             }),
             { status: 200, headers: corsHeaders },
