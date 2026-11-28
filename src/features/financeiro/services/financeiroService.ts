@@ -9,6 +9,7 @@ import {
   calcularSha256Buffer,
   registrarDocumentoEmitido,
 } from "@/features/seguranca/services/documentosService";
+import { aplicarCertidaoAutenticidadePdf } from "@/features/seguranca/services/certidaoPdfHelper";
 import { carregarLogoEmblemaBase64 } from "@/shared/lib/pdfLogoHelper";
 import { gerarPayloadPix } from "@/features/instalacoes/utils/pixPayload";
 import {
@@ -1960,25 +1961,19 @@ export async function exportarRelatorioPDF(
 
   const nomeArquivo = `gd-rastreamento-relatorio-financeiro-${new Date().toISOString().split("T")[0]}.pdf`;
 
-  try {
-    const arrayBuffer = doc.output("arraybuffer");
-    const hashSha256 = await calcularSha256Buffer(arrayBuffer);
-    await registrarDocumentoEmitido({
-      nome_arquivo: nomeArquivo,
-      hash_sha256: hashSha256,
-      tipo_documento: "RELATORIO_FINANCEIRO",
-      descricao: `Relatório Financeiro Operacional - ${transacoes.length} transações`,
-      emissor_nome: usuarioNome || undefined,
-      tamanho_bytes: arrayBuffer.byteLength,
-      metadata: {
-        hash_conteudo: hashSHA256,
-        total_transacoes: transacoes.length,
-        saldo_atual: resumo.saldoAtual,
-      },
-    });
-  } catch (errReg) {
-    console.warn("Aviso ao registrar relatório financeiro emitido:", errReg);
-  }
+  await aplicarCertidaoAutenticidadePdf({
+    doc,
+    tipoDocumento: "RELATORIO_FINANCEIRO",
+    nomeArquivo,
+    descricao: `Relatório Financeiro Operacional - ${transacoes.length} transações`,
+    emissorNome: usuarioNome || undefined,
+    forcarNovaPagina: true,
+    metadataExtra: {
+      hash_conteudo: hashSHA256,
+      total_transacoes: transacoes.length,
+      saldo_atual: resumo.saldoAtual,
+    },
+  });
 
   doc.save(nomeArquivo);
 }
@@ -2759,30 +2754,23 @@ export async function exportarRelatorioRessarcimentoPDF(
   doc.line(115, yTermo + 30, 178, yTermo + 30);
   doc.text("Assinatura da Gestão / Financeiro", 122, yTermo + 34);
 
-  const pdfOutput = doc.output("arraybuffer");
-  const sha256 = await calcularSha256Buffer(pdfOutput);
   const nomeArquivo = `GD_Rastreamento_Relatorio_Ressarcimento_${dataHojeStr.replace(/\//g, "-")}.pdf`;
 
-  try {
-    await registrarDocumentoEmitido({
-      nome_arquivo: nomeArquivo,
-      hash_sha256: sha256,
-      tipo_documento: "RELATORIO_FINANCEIRO",
-      descricao: `Relatório de Ressarcimento de Despesas — ${dataHojeStr}`,
-      emissor_nome: undefined,
-      tamanho_bytes: pdfOutput.byteLength,
-      metadata: {
-        tipo: "relatorio_ressarcimento",
-        versao: APP_VERSION_NUMERO,
-        total_geral: resumo.totalGeral,
-        total_pendente: resumo.totalPendente,
-        total_ressarcido: resumo.totalRessarcido,
-        filtro_responsavel: filtroResponsavelNome || "Todos",
-      },
-    });
-  } catch (errReg) {
-    console.warn("Aviso ao registrar relatório de ressarcimento emitido:", errReg);
-  }
+  await aplicarCertidaoAutenticidadePdf({
+    doc,
+    tipoDocumento: "RELATORIO_FINANCEIRO",
+    nomeArquivo,
+    descricao: `Relatório de Ressarcimento de Despesas — ${dataHojeStr}`,
+    yInicial: yTermo + 40,
+    metadataExtra: {
+      tipo: "relatorio_ressarcimento",
+      versao: APP_VERSION_NUMERO,
+      total_geral: resumo.totalGeral,
+      total_pendente: resumo.totalPendente,
+      total_ressarcido: resumo.totalRessarcido,
+      filtro_responsavel: filtroResponsavelNome || "Todos",
+    },
+  });
 
   doc.save(nomeArquivo);
 }

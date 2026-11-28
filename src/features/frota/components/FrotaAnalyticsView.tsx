@@ -53,6 +53,7 @@ import {
   calcularSha256Buffer,
   registrarDocumentoEmitido,
 } from "@/features/seguranca/services/documentosService";
+import { aplicarCertidaoAutenticidadePdf } from "@/features/seguranca/services/certidaoPdfHelper";
 import { carregarLogoEmblemaBase64 } from "@/shared/lib/pdfLogoHelper";
 import { TiltCard } from "@/shared/components/TiltCard";
 import { isCicloViagemReal } from "@/features/monitor-gps/services/gpsService";
@@ -1890,16 +1891,16 @@ export function FrotaAnalyticsView() {
         );
       }
 
-      // Registro no banco de dados para conferência pública
-      await registrarDocumentoEmitido({
-        nome_arquivo: `Dossie_Frota_${placaFiltro}_${new Date().toISOString().substring(0, 10)}.pdf`,
-        hash_sha256: sha256,
-        tipo_documento: "relatorio_frota",
+      const nomeArquivoFrota = `Dossie_Executivo_Frota_${placaFiltro}_${new Date().toISOString().substring(0, 10)}.pdf`;
+
+      await aplicarCertidaoAutenticidadePdf({
+        doc,
+        tipoDocumento: "relatorio_frota",
+        nomeArquivo: nomeArquivoFrota,
         descricao: `Dossiê Executivo de Frota - ${nomeClienteAtual}`,
-        emissor_nome: session?.nome || "SuperADM",
-        emissor_email: session?.email || "novaes@oficial.tec.br",
-        tamanho_bytes: pdfBytes.byteLength,
-        metadata: {
+        emissorNome: session?.nome || "SuperADM",
+        forcarNovaPagina: true,
+        metadataExtra: {
           periodo_dias: periodo,
           total_km: totalKm,
           tco_total: custoTotalOperacional,
@@ -1911,9 +1912,7 @@ export function FrotaAnalyticsView() {
         },
       });
 
-      doc.save(
-        `Dossie_Executivo_Frota_${placaFiltro}_${new Date().toISOString().substring(0, 10)}.pdf`,
-      );
+      doc.save(nomeArquivoFrota);
       toast.success(
         "Dossiê Executivo Forense da Frota exportado com infográficos e dados das 4 abas!",
       );

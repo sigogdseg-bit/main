@@ -20,6 +20,7 @@ import {
   calcularSha256Buffer,
   registrarDocumentoEmitido,
 } from "@/features/seguranca/services/documentosService";
+import { aplicarCertidaoAutenticidadePdf } from "@/features/seguranca/services/certidaoPdfHelper";
 import { carregarLogoEmblemaBase64 } from "@/shared/lib/pdfLogoHelper";
 import { APP_NOME, APP_VERSION_NUMERO, APP_DOMINIO } from "@/shared/lib/version";
 import { formatarKm, formatarMinutos } from "@/features/monitor-gps/utils/formatadoresViagem";
@@ -348,19 +349,14 @@ export function ClienteVeiculosAnalyticsModal({
         .toLowerCase();
       const nomeArquivo = `dossie_frota_${nomeLimpo}_${Date.now()}.pdf`;
 
-      // 1. Gera ArrayBuffer e calcula Hash SHA-256 binário real
-      const arrayBuffer = doc.output("arraybuffer");
-      const hashSha256 = await calcularSha256Buffer(arrayBuffer);
-
-      // 2. Registra na base forense auditada de documentos emitidos
-      await registrarDocumentoEmitido({
-        nome_arquivo: nomeArquivo,
-        hash_sha256: hashSha256,
-        tipo_documento: "DOSSIE_FROTA_TELEMETRIA",
+      await aplicarCertidaoAutenticidadePdf({
+        doc,
+        tipoDocumento: "DOSSIE_FROTA_TELEMETRIA",
+        nomeArquivo,
         descricao: `Dossiê Forense de Veículos da Frota - ${cliente.nome_razao_social} (${placaFiltro === "todos" ? "Todos da Frota" : placaFiltro})`,
-        emissor_nome: "Operador",
-        tamanho_bytes: arrayBuffer.byteLength,
-        metadata: {
+        emissorNome: "Operador",
+        forcarNovaPagina: true,
+        metadataExtra: {
           cliente_id: cliente.id,
           cliente_nome: cliente.nome_razao_social,
           veiculo_filtro: placaFiltro,

@@ -8,6 +8,7 @@ import {
   calcularSha256Buffer,
   registrarDocumentoEmitido,
 } from "@/features/seguranca/services/documentosService";
+import { aplicarCertidaoAutenticidadePdf } from "@/features/seguranca/services/certidaoPdfHelper";
 import { carregarLogoEmblemaBase64 } from "@/shared/lib/pdfLogoHelper";
 import { toast } from "sonner";
 import {
@@ -169,25 +170,20 @@ export function ModalPlaybackTrajeto({ veiculo, onFechar }: ModalPlaybackTrajeto
 
       const nomeArquivo = `GD_Rastreamento_Laudo_Telemetria_${veiculo.placa}.pdf`;
 
-      try {
-        const arrayBuffer = doc.output("arraybuffer");
-        const hashCalculado = await calcularSha256Buffer(arrayBuffer);
-        await registrarDocumentoEmitido({
-          nome_arquivo: nomeArquivo,
-          hash_sha256: hashCalculado,
-          tipo_documento: "LAUDO_TELEMETRIA",
-          descricao: `Laudo Oficial de Telemetria - Veículo ${veiculo.placa} (${veiculo.marca_modelo})`,
-          tamanho_bytes: arrayBuffer.byteLength,
-          metadata: {
-            veiculo_id: veiculo.id,
-            placa: veiculo.placa,
-            hash_conteudo: hashSha256,
-            total_viagens: viagens.length,
-          },
-        });
-      } catch (errReg) {
-        console.warn("Aviso ao registrar laudo de telemetria emitido:", errReg);
-      }
+      await aplicarCertidaoAutenticidadePdf({
+        doc,
+        tipoDocumento: "LAUDO_TELEMETRIA",
+        nomeArquivo,
+        descricao: `Laudo Oficial de Telemetria - Veículo ${veiculo.placa} (${veiculo.marca_modelo})`,
+        isSimulacao,
+        forcarNovaPagina: true,
+        metadataExtra: {
+          veiculo_id: veiculo.id,
+          placa: veiculo.placa,
+          hash_conteudo: hashSha256,
+          total_viagens: viagens.length,
+        },
+      });
 
       doc.save(nomeArquivo);
       toast.success("Laudo oficial baixado com hash forense!");

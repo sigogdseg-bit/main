@@ -1,4 +1,5 @@
 import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
 import {
   obterDefinicaoPlano,
   obterDescritivoFuncionalidadesContrato,
@@ -76,7 +77,9 @@ function formatarTelefone(tel?: string | null): string {
   return tel;
 }
 
-export function gerarContratoPdfBufferServer(dados: DadosContratoPdfServer): Uint8Array {
+export async function gerarContratoPdfBufferServer(
+  dados: DadosContratoPdfServer,
+): Promise<Uint8Array> {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
@@ -377,6 +380,16 @@ export function gerarContratoPdfBufferServer(dados: DadosContratoPdfServer): Uin
       18,
       boxY + 35,
     );
+
+    try {
+      const qrDataUrl = await QRCode.toDataURL(`https://gd.oficial.tec.br/verificar?selo=${selo}`, {
+        width: 140,
+        margin: 1,
+      });
+      doc.addImage(qrDataUrl, "PNG", 163, boxY + 4, 28, 28);
+    } catch {
+      // fallback silencioso
+    }
 
     y += 44;
   }

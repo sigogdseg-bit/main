@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { aplicarCertidaoAutenticidadePdf } from "@/features/seguranca/services/certidaoPdfHelper";
 import { gerarPayloadPix } from "@/features/instalacoes/utils/pixPayload";
 import { sanitizarComandoHardware } from "@/shared/lib/hunterHardwareComandos";
 import { enviarRelatorioDiarioSuperAdm } from "@/features/relatorios/services/relatorioDiarioMetricasService";
@@ -4115,9 +4116,20 @@ export async function processarMensagemWhatsappRecebida(
           );
         }
 
+        const nomeArq = `GD_Rastreamento_Laudo_Telemetria_${veic.placa}.pdf`;
+        await aplicarCertidaoAutenticidadePdf({
+          doc,
+          tipoDocumento: "LAUDO_TELEMETRIA",
+          nomeArquivo: nomeArq,
+          descricao: `Laudo Oficial de Telemetria via WhatsApp - Veículo ${veic.placa} (${veic.marca_modelo || "Veículo"})`,
+          emissorNome: remetenteLimpo,
+          forcarNovaPagina: true,
+          registrarNoBanco: false,
+          metadataExtra: { origem: "whatsapp", placa: veic.placa },
+        });
+
         const dataUri = doc.output("datauristring");
         const base64Pdf = dataUri.includes(",") ? dataUri.split(",")[1] : dataUri;
-        const nomeArq = `GD_Rastreamento_Laudo_Telemetria_${veic.placa}.pdf`;
 
         try {
           const pdfBuf = doc.output("arraybuffer");

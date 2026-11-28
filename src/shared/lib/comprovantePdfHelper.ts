@@ -1,3 +1,5 @@
+import { aplicarCertidaoAutenticidadePdf } from "@/features/seguranca/services/certidaoPdfHelper";
+
 /**
  * Converte um arquivo de imagem (JPEG, PNG, WebP) em um documento PDF (A4)
  * padronizado com cabeçalho de comprovação fiscal do GD Rastreamento.
@@ -103,8 +105,20 @@ export async function converterImagemParaPdf(
             { align: "center" },
           );
 
-          const pdfBlob = doc.output("blob");
           const nomePdf = file.name.replace(/\.[^/.]+$/, "") + ".pdf";
+          await aplicarCertidaoAutenticidadePdf({
+            doc,
+            tipoDocumento: "COMPROVANTE_FISCAL",
+            nomeArquivo: nomePdf,
+            descricao: subtitulo,
+            forcarNovaPagina: true,
+            metadataExtra: {
+              placa: meta?.placa || null,
+              tipo_comprovante: meta?.tipo || null,
+            },
+          });
+
+          const pdfBlob = doc.output("blob");
           const novoFile = new File([pdfBlob], nomePdf, { type: "application/pdf" });
 
           resolve(novoFile);

@@ -2,10 +2,7 @@ import type { jsPDF } from "jspdf";
 import { APP_NOME, APP_SLOGAN, APP_VERSION_NUMERO, APP_PUBLIC_URL } from "@/shared/lib/version";
 import type { PropostaComercial } from "../types/proposta";
 import { calcularHashProposta } from "./propostaService";
-import {
-  calcularSha256Buffer,
-  registrarDocumentoEmitido,
-} from "@/features/seguranca/services/documentosService";
+import { aplicarCertidaoAutenticidadePdf } from "@/features/seguranca/services/certidaoPdfHelper";
 import { carregarLogoEmblemaBase64 } from "@/shared/lib/pdfLogoHelper";
 import { PLANOS_COMERCIAIS_CATALOGO } from "@/shared/lib/planosComerciais";
 
@@ -610,29 +607,23 @@ export async function emitirPropostaComercialPdf(
   // Rodapé da Página 2
   desenharRodape(2, 2);
 
-  // Download do arquivo PDF gerado e Registro Forense
+  // Download do arquivo PDF gerado e Registro Forense com QR Code
   const nomeArquivo = `Proposta_${proposta.numero_proposta}_${proposta.cliente_nome.replace(/\s+/g, "_")}.pdf`;
 
-  try {
-    const arrayBuffer = doc.output("arraybuffer");
-    const hashSha256 = await calcularSha256Buffer(arrayBuffer);
-    await registrarDocumentoEmitido({
-      nome_arquivo: nomeArquivo,
-      hash_sha256: hashSha256,
-      tipo_documento: "PROPOSTA_COMERCIAL",
-      descricao: `Proposta Comercial ${proposta.numero_proposta} - ${proposta.cliente_nome}`,
-      emissor_nome: usuarioEmissor || undefined,
-      tamanho_bytes: arrayBuffer.byteLength,
-      metadata: {
-        proposta_id: proposta.id,
-        numero_proposta: proposta.numero_proposta,
-        hash_conteudo: hashFinal,
-        mensalidade: proposta.com_fidelidade_mensalidade,
-      },
-    });
-  } catch (errReg) {
-    console.warn("Aviso ao registrar proposta emitida na auditoria forense:", errReg);
-  }
+  await aplicarCertidaoAutenticidadePdf({
+    doc,
+    tipoDocumento: "PROPOSTA_COMERCIAL",
+    nomeArquivo,
+    descricao: `Proposta Comercial ${proposta.numero_proposta} - ${proposta.cliente_nome}`,
+    emissorNome: usuarioEmissor || undefined,
+    yInicial: p2Y + 34,
+    metadataExtra: {
+      proposta_id: proposta.id,
+      numero_proposta: proposta.numero_proposta,
+      hash_conteudo: hashFinal,
+      mensalidade: proposta.com_fidelidade_mensalidade,
+    },
+  });
 
   if (typeof window !== "undefined" && typeof (doc as any).save === "function") {
     try {

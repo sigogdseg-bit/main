@@ -8126,7 +8126,7 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
           },
         };
 
-        const bufferAssinado = gerarContratoPdfBufferServer({
+        const bufferAssinado = await gerarContratoPdfBufferServer({
           contrato: contratoParaPdf,
           cliente: clienteDados,
           veiculos: veiculosDados,
@@ -8896,7 +8896,7 @@ async function handleApiContratos(request: Request, env: unknown): Promise<Respo
           if (vts) veiculosDados = vts;
         }
 
-        buffer = gerarContratoPdfBufferServer({
+        buffer = await gerarContratoPdfBufferServer({
           contrato,
           cliente: clienteDados,
           veiculos: veiculosDados,
